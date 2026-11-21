@@ -21,10 +21,22 @@ TABLAS = cargar_esquema("publicacion.v1.schema.json")["tablas_conocidas"]
 FALLO_SIMULADO: str | None = None
 
 
+CAMPOS_VOLATILES = {"generado_en"}
+
+
+def _sin_volatiles(x):
+    """Quita marcas de tiempo de generación: los mismos insumos deben dar la misma huella."""
+    if isinstance(x, dict):
+        return {k: _sin_volatiles(v) for k, v in x.items() if k not in CAMPOS_VOLATILES}
+    if isinstance(x, list):
+        return [_sin_volatiles(v) for v in x]
+    return x
+
+
 def _huella(manifiesto: dict, datos: dict) -> str:
     contenido = {"corte": manifiesto["corte"], "origen": manifiesto["origen"],
                  "versiones": manifiesto.get("versiones"),
-                 "tablas": {k: v for k, v in datos.items() if k != "manifiesto"}}
+                 "tablas": _sin_volatiles({k: v for k, v in datos.items() if k != "manifiesto"})}
     return hashlib.sha256(dumps(contenido).encode("utf-8")).hexdigest()
 
 

@@ -3,6 +3,14 @@ from datetime import date
 from pathlib import Path
 
 
+
+def _paquete(caso):
+    from pipeline.rutas import ruta_paquete
+    ruta = ruta_paquete()
+    if ruta is None:
+        caso.skipTest("Paquete de datos no disponible: define JACOMIND_DATOS o ubícalo junto al clon")
+    return ruta
+
 class ModeloCompraTests(unittest.TestCase):
     def test_fotografia_usa_solo_historial_y_etiqueta_futuro(self):
         from pipeline.modelo_compra import construir_fotografias
@@ -17,7 +25,7 @@ class ModeloCompraTests(unittest.TestCase):
     def test_reproduce_metricas_de_prueba_del_paquete(self):
         from pipeline.modelo_compra import entrenar_y_evaluar_desde_paquete
 
-        result = entrenar_y_evaluar_desde_paquete(Path(r"C:\Users\idelg\OneDrive\Documents\ChatGPT\Green_Services_Recursos_de_Prueba"))
+        result = entrenar_y_evaluar_desde_paquete(_paquete(self))
         self.assertEqual(result["prueba_modelo"]["TP"], 120)
         self.assertEqual(result["prueba_modelo"]["TN"], 51)
         self.assertEqual(result["prueba_modelo"]["FP"], 177)

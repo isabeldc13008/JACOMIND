@@ -3,13 +3,19 @@ from pathlib import Path
 import tempfile
 
 
+
+def _paquete(caso):
+    from pipeline.rutas import ruta_paquete
+    ruta = ruta_paquete()
+    if ruta is None:
+        caso.skipTest("Paquete de datos no disponible: define JACOMIND_DATOS o ubícalo junto al clon")
+    return ruta
+
 class AceptacionA01Tests(unittest.TestCase):
     def test_paquete_sintetico_conserva_conteos_principales(self):
         from pipeline.carga import cargar_lote
 
-        data_root = Path(r"C:\Users\idelg\OneDrive\Documents\ChatGPT\Green_Services_Recursos_de_Prueba")
-        if not data_root.exists():
-            self.skipTest("Paquete sintético no disponible en este equipo")
+        data_root = _paquete(self)
         with tempfile.TemporaryDirectory() as tmp:
             result = cargar_lote(data_root, Path(tmp) / "salida")
             self.assertEqual(result.inventory["clientes"]["accepted"], 120)

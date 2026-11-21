@@ -63,11 +63,12 @@ B los busca por nombre y, si no existen o no cumplen el contrato, sigue funciona
 
 ## Estado de la integración con la rama de A (`codex/datos-modelos-completos`)
 
-Fusionada en `integracion/a-b`. Solo hubo conflictos en `README.md` y `.gitignore`, que se resolvieron uniendo ambos lados. Con el paquete de datos, el cierre de octubre generado con las funciones de A concilia exactamente: 120 clientes, 1.371 ventas confirmadas, 5.647.449.456,36 COP, 41 fríos y umbral del modelo 0,4.
+Fusionada en `integracion/a-b`. Solo hubo conflictos en `README.md` y `.gitignore`, resueltos uniendo ambos lados. Con el paquete de datos, `python -m pipeline.generar` concilia exactamente con la referencia: 120 clientes, 1.371 ventas confirmadas, 5.647.449.456,36 COP, 41 fríos y umbral del modelo 0,4.
 
-Pendiente para A:
+Resuelto tras la fusión:
 
-- Sus pruebas `tests/datos/test_ficha.py`, `test_operaciones.py`, `test_aceptacion_a01.py` y `tests/modelos/test_modelo_compra.py` usan una ruta fija a su equipo (`C:\Users\idelg\...`). En otro equipo fallan aunque el código sea correcto; con la ruta local pasan las 36. Se sugiere leer la ruta de `JACOMIND_DATOS` o buscar la carpeta hermana `../Green_Services_Recursos_de_Prueba`.
-- `pipeline.pqrs.clasificar_pqrs` devuelve `categoria: "revision_manual"` sin el campo `revisar`. B lo normaliza a C4 (`categoria: null`, `revisar: true`).
-- Venta cruzada (A07) todavía no se publica: genera una sugerencia por cada familia no comprada, sin soporte mínimo evaluado.
-- El pronóstico (A08) se publica sin error histórico (`mae: null`) y la vista lo indica.
+- `pipeline/generar.py` produce C2 con la agenda C1 encadenando A01–A09; el cierre programado de B lo invoca como subproceso.
+- Las pruebas de A localizan el paquete con `pipeline/rutas.py` (`JACOMIND_DATOS` o carpeta hermana) en vez de una ruta fija.
+- `pipeline.pqrs.clasificar` cumple C4: `categoria: null` y `revisar: true` cuando el caso va a revisión humana.
+- Venta cruzada (A07) por co-ocurrencia con soporte mínimo 3 y solo transacciones hasta el corte. En la evaluación temporal (corte 2026-09-01, compras hasta 2026-10-31) **no supera** a la popularidad: 11 aciertos de 69 en ambos métodos. Se publica con prioridad baja y el resultado queda en `calidad.venta_cruzada`.
+- Pronóstico (A08) con error por horizonte, evaluado con origen creciente, frente al último valor observado (`mae`, `mae_ingenuo`, `sesgo`, `n_evaluaciones` y bandas ±MAE).

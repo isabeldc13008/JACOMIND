@@ -45,3 +45,15 @@ Estados: `publicable`, `reutilizado` para un reenvío idéntico, `pendiente_revi
 ## Códigos principales
 
 `CAMPO_REQUERIDO`, `ERROR_NORMALIZACION`, `REFERENCIA_DESCONOCIDA`, `DUPLICADO_IDENTICO`, `DUPLICADO_CONFLICTIVO`, `MONEDA_NO_ADMITIDA`, `ESTADO_NO_ADMITIDO`, `ARCHIVO_FALTANTE` y `ERROR_LECTURA`.
+
+
+## Generación del cierre para la aplicación (C1/C2)
+
+```powershell
+python -m pipeline.generar --datos ..\Green_Services_Recursos_de_Prueba --corte 2026-10-31 --salida salida\agenda.json
+python -m contratos.validar --publicacion salida
+```
+
+`pipeline/generar.py` valida el lote (A01, se detiene si es `fallido`), calcula importes con redondeo por operación (A02), construye la ficha (A03) y puntúa compra a 30 días con la transformación entrenada (A04, solo desde 2026-10-30; antes deja la probabilidad nula). Después segmenta (A05), genera oportunidades y venta cruzada con soporte (A07), publica series con pronóstico y error por horizonte (A08) y calcula escenarios de TRM de −8 %, 0 % y +8 % (A09). El manifiesto registra huellas de entrada, versiones y calidad.
+
+Resultados del cierre de octubre: 120 clientes, 1.371 ventas, 5.647.449.456,36 COP y 41 fríos. El umbral del modelo es 0,4. En la prueba (julio–septiembre), la regresión obtiene F1 0,5594 frente a 0,5368 de la regla de compra reciente. La venta cruzada por co-ocurrencia empata con la popularidad (11 de 69 aciertos), por lo que no aporta mejora demostrada.

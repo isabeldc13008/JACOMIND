@@ -68,6 +68,15 @@ class PruebasPublicacion(CasoBase):
         st, res = self.http("GET", "/api/cierres/activo/resumen", como="ops1")
         self.assertEqual(res["resumen"]["clientes"], 8)
 
+    def test_regenerar_con_mismos_insumos_no_crea_revision(self):
+        a = publicacion.publicar_ruta(self.db, MUESTRA, "ops1")
+
+        def solo_hora(t):
+            t["agenda"]["generado_en"] = "2026-11-02T08:00:00+00:00"
+            t["manifiesto"]["generado_en"] = "2026-11-02T08:00:00+00:00"
+        b = publicacion.publicar_ruta(self.db, self.publicacion_modificada("otra_hora", solo_hora), "ops1")
+        self.assertEqual((b["cierre_id"], b["ya_publicado"]), (a["cierre_id"], True))
+
     def test_metricas_en_base_coinciden_con_manifiesto(self):
         publicacion.publicar_ruta(self.db, MUESTRA, "ops1")
         with self.db.conexion() as con:

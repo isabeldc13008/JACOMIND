@@ -25,11 +25,10 @@ python -m contratos.validar salida/agenda.json    # válido / inválido / incomp
 python -m api publicar salida/agenda.json         # o un directorio C2 con manifiesto.json
 ```
 
-Mientras A no publique `pipeline.generar`, el cierre usa las funciones de `pipeline/` a través de un adaptador del lado de B:
+Cierre mensual completo (A01→A09 → C2 → validación → publicación):
 
 ```bash
-python -m api cierre --corte 2026-10-31 --datos ../Green_Services_Recursos_de_Prueba   # A01→A09 → C2 → publicación
-python -m api generar-desde-a --datos ../Green_Services_Recursos_de_Prueba --corte 2026-10-31 --salida salida/cierres/oct
+python -m api cierre --corte 2026-10-31 --datos ../Green_Services_Recursos_de_Prueba
 ```
 
 ## Asistente con modelo de lenguaje (opcional)
@@ -58,8 +57,9 @@ El carril A escribe en `pipeline/`, `modelos/`, `tests/datos/`, `tests/modelos/`
 ## Pruebas
 
 ```bash
-python -m unittest discover -s tests/app -t tests/app
-python -m unittest discover -s tests/integracion -t tests/integracion
+python -m unittest discover                                          # carril A (tests/datos, tests/modelos)
+python -m unittest discover -s tests/app -t tests/app                # carril B
+python -m unittest discover -s tests/integracion -t tests/integracion # servidor real y fusión A+B
 ```
 
 ## Convenciones

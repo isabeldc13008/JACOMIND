@@ -4,6 +4,14 @@ from decimal import Decimal
 from pathlib import Path
 
 
+
+def _paquete(caso):
+    from pipeline.rutas import ruta_paquete
+    ruta = ruta_paquete()
+    if ruta is None:
+        caso.skipTest("Paquete de datos no disponible: define JACOMIND_DATOS o ubícalo junto al clon")
+    return ruta
+
 class OperacionesTests(unittest.TestCase):
     def test_importe_cop_con_descuento(self):
         from pipeline.operaciones import calcular_importe
@@ -26,7 +34,7 @@ class OperacionesTests(unittest.TestCase):
     def test_cierre_sintetico_concilia_ventas_y_compras_por_separado(self):
         from pipeline.operaciones import calcular_cierre
 
-        root = Path(r"C:\Users\idelg\OneDrive\Documents\ChatGPT\Green_Services_Recursos_de_Prueba")
+        root = _paquete(self)
         result = calcular_cierre(root, date(2026, 10, 31))
         self.assertEqual(result.sales.confirmed_count, 1371)
         self.assertEqual(result.sales.total_cop, Decimal("5647449456.36"))
