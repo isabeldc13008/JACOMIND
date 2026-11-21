@@ -3,7 +3,7 @@
 Cadena de modelos (JACOMIND_LLM_PROVEEDORES, por defecto "gemini,anthropic"):
 
 * **Gemini** (principal): ``langchain_google_genai.ChatGoogleGenerativeAI`` con
-  GEMINI_API_KEY (o GOOGLE_API_KEY). Modelo: JACOMIND_GEMINI_MODELO.
+  GEMINI_API_KEY (o GOOGLE_API_KEY). Modelos: JACOMIND_GEMINI_MODELO (lista separada por comas).
 * **Anthropic** (respaldo): ``langchain_anthropic.ChatAnthropic`` con
   ANTHROPIC_API_KEY. Modelo: JACOMIND_ANTHROPIC_MODELO.
 
@@ -25,8 +25,18 @@ SISTEMA = ("Redactas respuestas en español para usuarios de Green Services a pa
 TIMEOUT_S = float(os.environ.get("JACOMIND_LLM_TIMEOUT", "20"))
 
 
+# Lista en orden de preferencia; si un modelo está saturado (503) o no responde, se usa el siguiente.
+# gemini-2.5-flash ya no está disponible para cuentas nuevas (404).
+MODELOS_GEMINI_DEFECTO = "gemini-3.5-flash-lite,gemini-3.1-flash-lite"
+
+
+def _modelos_gemini() -> list[str]:
+    valor = os.environ.get("JACOMIND_GEMINI_MODELO") or MODELOS_GEMINI_DEFECTO
+    return [m.strip() for m in valor.split(",") if m.strip()]
+
+
 def _modelo_gemini() -> str:
-    return os.environ.get("JACOMIND_GEMINI_MODELO", "gemini-2.5-flash")
+    return _modelos_gemini()[0]
 
 
 def _modelo_anthropic() -> str:
@@ -64,7 +74,7 @@ def disponible() -> bool:
 
 
 def _nombre(p: str) -> str:
-    return f"gemini:{_modelo_gemini()}" if p == "gemini" else f"anthropic:{_modelo_anthropic()}"
+    return " → ".join(f"gemini:{m}" for m in _modelos_gemini()) if p == "gemini" else f"anthropic:{_modelo_anthropic()}"
 
 
 def version() -> str:
@@ -78,15 +88,17 @@ def estado() -> dict:
             "langchain_instalado": _importable("langchain_core"), "langgraph_instalado": _importable("langgraph")}
 
 
-def _crear(p: str):
+def _crear(p: str) -> list:
+    """Modelos LangChain de un proveedor, en orden de preferencia."""
     if p == "gemini":
         from langchain_google_genai import ChatGoogleGenerativeAI
-        return ChatGoogleGenerativeAI(model=_modelo_gemini(), google_api_key=_clave_gemini(), temperature=0.2,
-                                      max_output_tokens=1024, timeout=TIMEOUT_S, max_retries=1)
+        return [ChatGoogleGenerativeAI(model=m, google_api_key=_clave_gemini(),
+                                       max_output_tokens=1024, timeout=TIMEOUT_S, max_retries=0)
+                for m in _modelos_gemini()]
     from langchain_anthropic import ChatAnthropic
     # Sin temperature: los modelos Claude actuales rechazan parámetros de muestreo.
-    return ChatAnthropic(model=_modelo_anthropic(), api_key=os.environ["ANTHROPIC_API_KEY"], max_tokens=1024,
-                         timeout=TIMEOUT_S, max_retries=1)
+    return [ChatAnthropic(model=_modelo_anthropic(), api_key=os.environ["ANTHROPIC_API_KEY"], max_tokens=1024,
+                          timeout=TIMEOUT_S, max_retries=1)]
 
 
 _cadena_cache: dict[tuple, object] = {}
@@ -97,9 +109,9 @@ def modelo_chat():
     lista = proveedores()
     if not lista:
         return None
-    clave = (tuple(lista), _modelo_gemini(), _modelo_anthropic())
+    clave = (tuple(lista), tuple(_modelos_gemini()), _modelo_anthropic())
     if clave not in _cadena_cache:
-        modelos = [_crear(p) for p in lista]
+        modelos = [m for p in lista for m in _crear(p)]
         _cadena_cache[clave] = modelos[0].with_fallbacks(modelos[1:]) if len(modelos) > 1 else modelos[0]
     return _cadena_cache[clave]
 
