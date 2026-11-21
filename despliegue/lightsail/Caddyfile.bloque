@@ -1,0 +1,12 @@
+	encode zstd gzip
+	reverse_proxy 127.0.0.1:8000
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		-Server
+	}
+	log {
+		output file /var/log/caddy/jacomind.log {
+			roll_size 10MiB
+			roll_keep 5
+		}
+	}

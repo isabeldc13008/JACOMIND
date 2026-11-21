@@ -1,0 +1,12 @@
+[Unit]
+Description=JACOMIND: respaldo diario de la base de datos
+
+[Service]
+Type=oneshot
+User=@USUARIO@
+WorkingDirectory=@APP@
+EnvironmentFile=@ENV@
+ExecStart=/bin/bash @APP@/despliegue/lightsail/respaldo.sh
+NoNewPrivileges=yes
+ProtectSystem=strict
+ReadWritePaths=@DATOS@

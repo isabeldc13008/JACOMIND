@@ -1,0 +1,12 @@
+[Unit]
+Description=JACOMIND: cierre mensual (generar, validar y publicar)
+
+[Service]
+Type=oneshot
+User=@USUARIO@
+WorkingDirectory=@APP@
+EnvironmentFile=@ENV@
+ExecStart=/bin/bash @APP@/despliegue/lightsail/cierre-mensual.sh
+NoNewPrivileges=yes
+ProtectSystem=strict
+ReadWritePaths=@DATOS@

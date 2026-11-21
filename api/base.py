@@ -13,6 +13,9 @@ from pathlib import Path
 DIR_API = Path(__file__).resolve().parent
 RAIZ = DIR_API.parent
 DIR_MIGRACIONES = DIR_API / "migraciones"
+# Directorios de escritura configurables (en Lightsail: /var/lib/jacomind/...).
+DIR_VAR = Path(os.environ.get("JACOMIND_VAR", RAIZ / "var"))
+DIR_SALIDA = Path(os.environ.get("JACOMIND_SALIDA", RAIZ / "salida"))
 
 
 class ErrorApi(Exception):

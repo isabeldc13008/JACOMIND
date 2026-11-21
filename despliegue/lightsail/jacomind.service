@@ -1,0 +1,25 @@
+[Unit]
+Description=JACOMIND (API y aplicación web)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=@USUARIO@
+Group=@USUARIO@
+WorkingDirectory=@APP@
+EnvironmentFile=@ENV@
+Environment=PYTHONUNBUFFERED=1
+ExecStart=@VENV@/bin/python -m api servir --host 127.0.0.1 --puerto 8000 @ARGS_LOGIN@
+Restart=on-failure
+RestartSec=3
+# Aislamiento: el código es de solo lectura; solo se escribe en @DATOS@.
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+ReadWritePaths=@DATOS@
+MemoryMax=700M
+
+[Install]
+WantedBy=multi-user.target

@@ -22,10 +22,10 @@ def main(argv=None) -> int:
     cargar_env()
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8")
-    from .base import BaseDatos, ErrorApi, RAIZ
+    from .base import DIR_VAR, BaseDatos, ErrorApi, RAIZ
 
     p = argparse.ArgumentParser(prog="python -m api", description="JACOMIND · aplicación y operación")
-    p.add_argument("--db", default=os.environ.get("JACOMIND_DB", str(RAIZ / "var" / "jacomind.sqlite3")))
+    p.add_argument("--db", default=os.environ.get("JACOMIND_DB", str(DIR_VAR / "jacomind.sqlite3")))
     sub = p.add_subparsers(dest="cmd", required=True)
     sub.add_parser("migrar")
     d = sub.add_parser("demo"); d.add_argument("--sin-cierre", action="store_true")

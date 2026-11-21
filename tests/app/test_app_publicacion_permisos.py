@@ -132,6 +132,15 @@ class PruebasMatrizAcceso(CasoBase):
         for _, (metodo, ruta) in self.RUTAS.items():
             self.assertEqual(self.http(metodo, ruta)[0], 401)
 
+    def test_cookie_secure_detras_de_https(self):
+        import os
+        from unittest import mock
+        with mock.patch.dict(os.environ, {"JACOMIND_COOKIE_SEGURA": "1"}):
+            r = self.app.despachar("POST", "/api/sesion", {"X-Jacomind": "1"}, b'{"identidad": "ops1"}')
+        self.assertTrue(r.cabeceras["Set-Cookie"].endswith("; Secure"))
+        r = self.app.despachar("POST", "/api/sesion", {"X-Jacomind": "1"}, b'{"identidad": "ops1"}')
+        self.assertNotIn("Secure", r.cabeceras["Set-Cookie"])
+
     def test_csrf_en_escrituras(self):
         r = self.app.despachar("POST", "/api/pqrs", {}, b"{}")
         self.assertEqual(r.status, 403)
