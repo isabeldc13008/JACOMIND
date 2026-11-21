@@ -25,7 +25,7 @@ echo "==> comprobaciones"
 docker exec "$NOMBRE" systemctl is-active jacomind caddy jacomind-respaldo.timer
 docker exec "$NOMBRE" bash -c 'ps -eo user,cmd | grep "[a]pi servir" | grep -q "^jacomind "'
 curl -fsS "http://127.0.0.1:$PUERTO/api/estado" >/dev/null
-curl -fsS -o /dev/null "http://127.0.0.1:$PUERTO/app/"
+curl -fsS "http://127.0.0.1:$PUERTO/app/" >/dev/null
 echo "==> actualizar.sh"
 docker exec "$NOMBRE" bash /opt/jacomind/app/despliegue/lightsail/actualizar.sh "$RAMA" >/dev/null
 docker exec "$NOMBRE" bash -c 'ls /var/lib/jacomind/var/respaldos/*.sqlite3 >/dev/null'
