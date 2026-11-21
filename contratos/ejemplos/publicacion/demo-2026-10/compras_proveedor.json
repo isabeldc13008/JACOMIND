@@ -1,0 +1,67 @@
+[
+  {
+    "compra_id": "CD01",
+    "fecha": "2026-08-12",
+    "proveedor_id": "PRV01",
+    "proveedor": "Proveedor ficticio 01",
+    "producto_id": "PRD02",
+    "familia": "Continuidad",
+    "cantidad": 10,
+    "moneda": "COP",
+    "costo_unitario": 210000.0,
+    "tasa": null,
+    "importe_cop": 2100000.0
+  },
+  {
+    "compra_id": "CD02",
+    "fecha": "2026-09-03",
+    "proveedor_id": "PRV02",
+    "proveedor": "Proveedor ficticio 02",
+    "producto_id": "PRD03",
+    "familia": "Infraestructura",
+    "cantidad": 6,
+    "moneda": "COP",
+    "costo_unitario": 250000.0,
+    "tasa": null,
+    "importe_cop": 1500000.0
+  },
+  {
+    "compra_id": "CD03",
+    "fecha": "2026-10-07",
+    "proveedor_id": "PRV03",
+    "proveedor": "Proveedor ficticio 03",
+    "producto_id": "PRD01",
+    "familia": "Software",
+    "cantidad": 3,
+    "moneda": "USD",
+    "costo_unitario": 100.0,
+    "tasa": 4000.0,
+    "importe_cop": 1200000.0
+  },
+  {
+    "compra_id": "CD04",
+    "fecha": "2026-10-15",
+    "proveedor_id": "PRV01",
+    "proveedor": "Proveedor ficticio 01",
+    "producto_id": "PRD02",
+    "familia": "Continuidad",
+    "cantidad": 4,
+    "moneda": "COP",
+    "costo_unitario": 215000.0,
+    "tasa": null,
+    "importe_cop": 860000.0
+  },
+  {
+    "compra_id": "CD05",
+    "fecha": "2026-09-21",
+    "proveedor_id": "PRV03",
+    "proveedor": "Proveedor ficticio 03",
+    "producto_id": "PRD01",
+    "familia": "Software",
+    "cantidad": 2,
+    "moneda": "USD",
+    "costo_unitario": 110.0,
+    "tasa": 3950.0,
+    "importe_cop": 869000.0
+  }
+]

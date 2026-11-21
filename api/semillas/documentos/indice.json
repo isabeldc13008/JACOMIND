@@ -1,0 +1,10 @@
+[
+  {"archivo": "manual_atencion.md", "id": "MAN-ATENCION", "titulo": "Manual de atención de PQRS (ficticio)", "tema": "atencion",
+   "propietario": "aten1", "vigencia_desde": "2026-01-01", "roles": ["atencion", "empresa", "ventas", "operaciones", "gerencia"]},
+  {"archivo": "politica_beneficios_v1.md", "id": "POL-BENEF", "titulo": "Política de beneficios por fidelidad (ficticia)", "tema": "beneficios",
+   "propietario": "aten1", "vigencia_desde": "2025-01-01", "vigencia_hasta": "2025-12-31", "roles": ["atencion", "empresa", "ventas"]},
+  {"archivo": "politica_beneficios_v2.md", "id": "POL-BENEF", "titulo": "Política de beneficios por fidelidad (ficticia)", "tema": "beneficios",
+   "propietario": "aten1", "vigencia_desde": "2026-01-01", "roles": ["atencion", "empresa", "ventas"]},
+  {"archivo": "garantia_empresa_b.md", "id": "POL-GARANTIA-B", "titulo": "Condiciones de garantía extendida Empresa B (ficticias)", "tema": "garantia",
+   "propietario": "aten1", "organizacion_id": "EMP-B", "vigencia_desde": "2026-01-01", "roles": ["atencion", "empresa"]}
+]

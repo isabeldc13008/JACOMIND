@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "tipo": "eventos_seguimiento",
+  "exportado_en": "2026-11-05T12:00:00+00:00",
+  "eventos": [
+    {
+      "evento_id": "EV-1",
+      "tipo": "asignada",
+      "oportunidad_id": "OP-DEMO01-reactivacion",
+      "episodio_id": "DEMO01:reactivacion",
+      "cliente_id": "DEMO01",
+      "cierre_id": "demo-2026-10",
+      "fecha": "2026-11-02T09:00:00+00:00",
+      "actor": "ventas1",
+      "estado": "asignada",
+      "resultado": null
+    },
+    {
+      "evento_id": "EV-2",
+      "tipo": "atendida",
+      "oportunidad_id": "OP-DEMO01-reactivacion",
+      "episodio_id": "DEMO01:reactivacion",
+      "cliente_id": "DEMO01",
+      "cierre_id": "demo-2026-10",
+      "fecha": "2026-11-04T15:30:00+00:00",
+      "actor": "ventas1",
+      "estado": "atendida",
+      "resultado": "contacto_registrado"
+    }
+  ]
+}

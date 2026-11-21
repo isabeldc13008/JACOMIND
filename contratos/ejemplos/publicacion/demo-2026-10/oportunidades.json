@@ -1,0 +1,125 @@
+[
+  {
+    "oportunidad_id": "OP-DEMO01-reactivacion",
+    "episodio_id": "DEMO01:reactivacion",
+    "cliente_id": "DEMO01",
+    "producto_id": null,
+    "tipo": "reactivacion",
+    "motivos": [
+      "Revisar reactivación",
+      "Revisar cobertura"
+    ],
+    "prioridad": 1,
+    "probabilidad": 0.31,
+    "evidencia": {
+      "dias_sin_compra": 90,
+      "renovaciones_proximas": 1,
+      "coberturas_vencidas": 0,
+      "prob_compra_30d": 0.31
+    },
+    "fecha_sugerida": "2026-11-07",
+    "version_regla": "reglas-demo-1"
+  },
+  {
+    "oportunidad_id": "OP-DEMO02-renovacion",
+    "episodio_id": "DEMO02:renovacion",
+    "cliente_id": "DEMO02",
+    "producto_id": null,
+    "tipo": "renovacion",
+    "motivos": [
+      "Revisar cobertura",
+      "Revisar oportunidad de recompra"
+    ],
+    "prioridad": 2,
+    "probabilidad": 0.55,
+    "evidencia": {
+      "dias_sin_compra": 21,
+      "renovaciones_proximas": 1,
+      "coberturas_vencidas": 0,
+      "prob_compra_30d": 0.55
+    },
+    "fecha_sugerida": "2026-11-07",
+    "version_regla": "reglas-demo-1"
+  },
+  {
+    "oportunidad_id": "OP-DEMO03-recompra",
+    "episodio_id": "DEMO03:recompra",
+    "cliente_id": "DEMO03",
+    "producto_id": null,
+    "tipo": "recompra",
+    "motivos": [
+      "Revisar oportunidad de recompra"
+    ],
+    "prioridad": 3,
+    "probabilidad": 0.72,
+    "evidencia": {
+      "dias_sin_compra": 6,
+      "renovaciones_proximas": 0,
+      "coberturas_vencidas": 0,
+      "prob_compra_30d": 0.72
+    },
+    "fecha_sugerida": "2026-11-07",
+    "version_regla": "reglas-demo-1"
+  },
+  {
+    "oportunidad_id": "OP-DEMO04-primera_compra",
+    "episodio_id": "DEMO04:primera_compra",
+    "cliente_id": "DEMO04",
+    "producto_id": null,
+    "tipo": "primera_compra",
+    "motivos": [
+      "Revisar primera compra"
+    ],
+    "prioridad": 4,
+    "probabilidad": null,
+    "evidencia": {
+      "dias_sin_compra": null,
+      "renovaciones_proximas": 0,
+      "coberturas_vencidas": 0,
+      "prob_compra_30d": null
+    },
+    "fecha_sugerida": "2026-11-07",
+    "version_regla": "reglas-demo-1"
+  },
+  {
+    "oportunidad_id": "OP-DEMO06-renovacion",
+    "episodio_id": "DEMO06:renovacion",
+    "cliente_id": "DEMO06",
+    "producto_id": null,
+    "tipo": "renovacion",
+    "motivos": [
+      "Revisar cobertura",
+      "Revisar oportunidad de recompra"
+    ],
+    "prioridad": 2,
+    "probabilidad": 0.48,
+    "evidencia": {
+      "dias_sin_compra": 26,
+      "renovaciones_proximas": 0,
+      "coberturas_vencidas": 1,
+      "prob_compra_30d": 0.48
+    },
+    "fecha_sugerida": "2026-11-07",
+    "version_regla": "reglas-demo-1"
+  },
+  {
+    "oportunidad_id": "OP-DEMO08-reactivacion",
+    "episodio_id": "DEMO08:reactivacion",
+    "cliente_id": "DEMO08",
+    "producto_id": null,
+    "tipo": "reactivacion",
+    "motivos": [
+      "Revisar reactivación"
+    ],
+    "prioridad": 1,
+    "probabilidad": null,
+    "evidencia": {
+      "dias_sin_compra": 123,
+      "renovaciones_proximas": 0,
+      "coberturas_vencidas": 0,
+      "prob_compra_30d": null
+    },
+    "fecha_sugerida": "2026-11-07",
+    "version_regla": "reglas-demo-1"
+  }
+]

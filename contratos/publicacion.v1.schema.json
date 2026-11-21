@@ -1,0 +1,78 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "jacomind/contratos/publicacion.v1",
+  "title": "C2 · Publicación analítica v1 (manifiesto)",
+  "description": "A produce un directorio por ejecución con manifiesto.json, agenda.json (C1) y tablas analíticas opcionales. B verifica versión, conteos, claves y sumas y lo publica en una transacción. Cada tabla es un JSON con una lista de filas. Las claves declaradas en 'tablas_conocidas' son obligatorias para esa tabla; duplicar una clave invalida el lote.",
+  "type": "object",
+  "required": ["version", "tipo", "cierre_id", "corte", "origen", "huellas_entrada", "versiones", "tablas"],
+  "properties": {
+    "version": {"const": 1},
+    "tipo": {"const": "publicacion_analitica"},
+    "cierre_id": {"type": "string", "minLength": 1, "pattern": "^[A-Za-z0-9._-]+$"},
+    "corte": {"type": "string", "format": "date"},
+    "origen": {"type": "string", "minLength": 1},
+    "generado_en": {"type": "string", "format": "date-time"},
+    "huellas_entrada": {"type": "object"},
+    "versiones": {
+      "type": "object",
+      "properties": {
+        "reglas": {"type": ["string", "null"]},
+        "modelo_compra": {"type": ["string", "null"]},
+        "segmentacion": {"type": ["string", "null"]},
+        "pronostico": {"type": ["string", "null"]}
+      }
+    },
+    "tablas": {
+      "type": "object",
+      "required": ["agenda"],
+      "additionalProperties": {
+        "type": "object",
+        "required": ["archivo", "filas"],
+        "properties": {
+          "archivo": {"type": "string", "minLength": 1},
+          "filas": {"type": "integer", "minimum": 0},
+          "sumas": {"type": "object"}
+        }
+      }
+    },
+    "calidad": {"type": "object"},
+    "modelos": {"type": "array", "items": {"type": "object"}}
+  },
+  "tablas_conocidas": {
+    "agenda": {"clave": ["cliente_id"], "descripcion": "Archivo C1 completo; 'filas' = número de clientes."},
+    "historial_ventas": {
+      "clave": ["venta_id"],
+      "requeridos": {"venta_id": "string", "cliente_id": "string", "producto_id": "string", "fecha": "date", "cantidad": "integer", "moneda": "string", "importe_cop": "number"},
+      "opcionales": {"producto": "string", "familia": "string", "importe_origen": "number", "tasa": "number|null", "estado": "string"}
+    },
+    "coberturas": {
+      "clave": ["instalacion_id"],
+      "requeridos": {"instalacion_id": "string", "cliente_id": "string", "producto_id": "string", "fecha_inicio": "date", "fecha_fin": "date", "estado": "vigente|proxima|vencida"},
+      "opcionales": {"producto": "string", "dias_para_fin": "integer", "unidades": "integer"}
+    },
+    "compras_proveedor": {
+      "clave": ["compra_id"],
+      "requeridos": {"compra_id": "string", "fecha": "date", "proveedor_id": "string", "producto_id": "string", "cantidad": "integer", "moneda": "string", "costo_unitario": "number", "importe_cop": "number"},
+      "opcionales": {"familia": "string", "tasa": "number|null", "proveedor": "string"}
+    },
+    "series_mensuales": {
+      "clave": ["periodo", "familia", "serie", "tipo"],
+      "requeridos": {"periodo": "YYYY-MM", "familia": "string ('Total' para el agregado)", "serie": "ventas|compras", "tipo": "historico|pronostico", "valor_cop": "number|null"},
+      "opcionales": {"unidades": "number|null", "operaciones": "integer|null", "completo": "boolean", "metodo": "string", "horizonte": "integer", "mae": "number|null", "sesgo": "number|null", "banda_inferior": "number|null", "banda_superior": "number|null", "calculado_en": "date"}
+    },
+    "escenarios_trm": {
+      "clave": ["escenario_id", "familia", "proveedor_id"],
+      "requeridos": {"escenario_id": "string", "periodo": "string", "moneda": "string", "variacion_pct": "number", "familia": "string", "proveedor_id": "string", "costo_base_cop": "number", "costo_escenario_cop": "number", "diferencia_cop": "number"}
+    },
+    "oportunidades": {
+      "clave": ["oportunidad_id"],
+      "requeridos": {"oportunidad_id": "string", "episodio_id": "string", "cliente_id": "string", "tipo": "renovacion|reactivacion|recompra|primera_compra|venta_cruzada|comprobacion", "motivos": "array<string>", "prioridad": "integer (1 = más alta)"},
+      "opcionales": {"producto_id": "string|null", "evidencia": "object", "fecha_sugerida": "date|null", "version_regla": "string", "probabilidad": "number|null"}
+    },
+    "segmentos": {
+      "clave": ["cliente_id"],
+      "requeridos": {"cliente_id": "string", "segmento": "string"},
+      "opcionales": {"descripcion": "string", "accion_sugerida": "string", "version": "string"}
+    }
+  }
+}

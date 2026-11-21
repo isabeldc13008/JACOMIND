@@ -1,0 +1,5 @@
+# Opcional: solo para el asistente con modelo de lenguaje. El resto del producto usa la biblioteca estándar.
+langgraph>=1.2
+langchain-core>=1.8
+langchain-google-genai>=4.5
+langchain-anthropic>=1.7

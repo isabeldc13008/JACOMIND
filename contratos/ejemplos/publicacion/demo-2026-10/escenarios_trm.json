@@ -1,0 +1,35 @@
+[
+  {
+    "escenario_id": "trm-8",
+    "periodo": "2026-10",
+    "moneda": "USD",
+    "variacion_pct": -8,
+    "familia": "Software",
+    "proveedor_id": "PRV03",
+    "costo_base_cop": 1200000.0,
+    "costo_escenario_cop": 1104000.0,
+    "diferencia_cop": -96000.0
+  },
+  {
+    "escenario_id": "trm+0",
+    "periodo": "2026-10",
+    "moneda": "USD",
+    "variacion_pct": 0,
+    "familia": "Software",
+    "proveedor_id": "PRV03",
+    "costo_base_cop": 1200000.0,
+    "costo_escenario_cop": 1200000.0,
+    "diferencia_cop": 0.0
+  },
+  {
+    "escenario_id": "trm+8",
+    "periodo": "2026-10",
+    "moneda": "USD",
+    "variacion_pct": 8,
+    "familia": "Software",
+    "proveedor_id": "PRV03",
+    "costo_base_cop": 1200000.0,
+    "costo_escenario_cop": 1296000.0,
+    "diferencia_cop": 96000.0
+  }
+]

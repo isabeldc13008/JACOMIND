@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "corte": "2026-10-31",
+  "origen": "sintetico",
+  "resumen": {
+    "clientes": 0,
+    "ventas_confirmadas": 0,
+    "ingreso_cop": 0,
+    "clientes_frios": 0
+  },
+  "clientes": []
+}

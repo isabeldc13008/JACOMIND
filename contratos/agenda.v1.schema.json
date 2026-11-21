@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "jacomind/contratos/agenda.v1",
+  "title": "C1 · Agenda v1",
+  "description": "Un JSON UTF-8 por cierre producido por A (pipeline) y consumido por B (app/api). Los campos nuevos opcionales preservan la compatibilidad; un cambio de tipo o de campo obligatorio exige version 2.",
+  "type": "object",
+  "required": ["version", "corte", "origen", "resumen", "clientes"],
+  "properties": {
+    "version": {"const": 1},
+    "corte": {"type": "string", "format": "date"},
+    "origen": {"type": "string", "minLength": 1},
+    "generado_en": {"type": "string", "format": "date-time"},
+    "modelo": {
+      "description": "Opcional. Versión y umbral del modelo de compra a 30 días usados en esta agenda.",
+      "type": ["object", "null"],
+      "properties": {
+        "version": {"type": "string"},
+        "umbral": {"type": "number", "minimum": 0, "maximum": 1}
+      }
+    },
+    "resumen": {
+      "type": "object",
+      "required": ["clientes", "ventas_confirmadas", "ingreso_cop", "clientes_frios"],
+      "properties": {
+        "clientes": {"type": "integer", "minimum": 0},
+        "ventas_confirmadas": {"type": "integer", "minimum": 0},
+        "ingreso_cop": {"type": "number", "minimum": 0},
+        "clientes_frios": {"type": "integer", "minimum": 0}
+      }
+    },
+    "clientes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["cliente_id", "ultima_compra", "dias_sin_compra", "ventas_confirmadas", "ingreso_cop", "productos", "frecuente", "frio", "renovaciones_proximas", "coberturas_vencidas", "prob_compra_30d", "accion"],
+        "properties": {
+          "cliente_id": {"type": "string", "minLength": 1},
+          "ultima_compra": {"type": ["string", "null"], "format": "date"},
+          "dias_sin_compra": {"type": ["integer", "null"], "minimum": 0},
+          "ventas_confirmadas": {"type": "integer", "minimum": 0},
+          "ingreso_cop": {"type": "number", "minimum": 0},
+          "productos": {"type": "array", "items": {"type": "string"}},
+          "frecuente": {"type": "boolean"},
+          "frio": {"type": "boolean"},
+          "renovaciones_proximas": {"type": "integer", "minimum": 0},
+          "coberturas_vencidas": {"type": "integer", "minimum": 0},
+          "prob_compra_30d": {"type": ["number", "null"], "minimum": 0, "maximum": 1},
+          "accion": {"enum": ["Revisar reactivación", "Revisar cobertura", "Revisar oportunidad de recompra", "Revisar primera compra", "Seguimiento habitual"]},
+          "segmento": {"type": ["string", "null"]},
+          "motivos": {"type": "array", "items": {"type": "string"}}
+        }
+      }
+    }
+  }
+}

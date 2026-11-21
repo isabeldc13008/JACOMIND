@@ -1,0 +1,57 @@
+[
+  {
+    "instalacion_id": "INSD01",
+    "cliente_id": "DEMO01",
+    "producto_id": "PRD02",
+    "producto": "Servicio de respaldo",
+    "fecha_inicio": "2025-12-15",
+    "fecha_fin": "2026-12-15",
+    "estado": "proxima",
+    "dias_para_fin": 45,
+    "unidades": 1
+  },
+  {
+    "instalacion_id": "INSD02",
+    "cliente_id": "DEMO02",
+    "producto_id": "PRD02",
+    "producto": "Servicio de respaldo",
+    "fecha_inicio": "2025-11-20",
+    "fecha_fin": "2026-11-20",
+    "estado": "proxima",
+    "dias_para_fin": 20,
+    "unidades": 1
+  },
+  {
+    "instalacion_id": "INSD03",
+    "cliente_id": "DEMO02",
+    "producto_id": "PRD04",
+    "producto": "Monitoreo de red",
+    "fecha_inicio": "2026-03-01",
+    "fecha_fin": "2027-03-01",
+    "estado": "vigente",
+    "dias_para_fin": 121,
+    "unidades": 1
+  },
+  {
+    "instalacion_id": "INSD04",
+    "cliente_id": "DEMO06",
+    "producto_id": "PRD03",
+    "producto": "Mantenimiento de equipos",
+    "fecha_inicio": "2025-09-01",
+    "fecha_fin": "2026-09-01",
+    "estado": "vencida",
+    "dias_para_fin": -60,
+    "unidades": 1
+  },
+  {
+    "instalacion_id": "INSD05",
+    "cliente_id": "DEMO03",
+    "producto_id": "PRD03",
+    "producto": "Mantenimiento de equipos",
+    "fecha_inicio": "2026-05-01",
+    "fecha_fin": "2027-05-01",
+    "estado": "vigente",
+    "dias_para_fin": 182,
+    "unidades": 1
+  }
+]

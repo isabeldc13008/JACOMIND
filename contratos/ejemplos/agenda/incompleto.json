@@ -1,0 +1,147 @@
+{
+  "version": 1,
+  "corte": "2026-10-31",
+  "origen": "sintetico",
+  "modelo": {
+    "version": "demo-logistica-0",
+    "umbral": 0.4
+  },
+  "resumen": {
+    "clientes": 8,
+    "ventas_confirmadas": 37,
+    "ingreso_cop": 51150000.0,
+    "clientes_frios": 2
+  },
+  "clientes": [
+    {
+      "cliente_id": "DEMO01",
+      "ultima_compra": "2026-08-02",
+      "dias_sin_compra": 90,
+      "ventas_confirmadas": 9,
+      "ingreso_cop": 10050000.0,
+      "productos": [
+        "Licencia de gestión documental",
+        "Mantenimiento de equipos",
+        "Servicio de respaldo"
+      ],
+      "frecuente": true,
+      "frio": true,
+      "renovaciones_proximas": 1,
+      "coberturas_vencidas": 0,
+      "prob_compra_30d": 0.31
+    },
+    {
+      "cliente_id": "DEMO02",
+      "ultima_compra": "2026-10-10",
+      "dias_sin_compra": 21,
+      "ventas_confirmadas": 4,
+      "ingreso_cop": 9200000.0,
+      "productos": [
+        "Monitoreo de red",
+        "Servicio de respaldo"
+      ],
+      "frecuente": false,
+      "frio": false,
+      "renovaciones_proximas": 1,
+      "coberturas_vencidas": 0,
+      "prob_compra_30d": 0.55,
+      "accion": "Revisar cobertura"
+    },
+    {
+      "cliente_id": "DEMO03",
+      "ultima_compra": "2026-10-25",
+      "dias_sin_compra": 6,
+      "ventas_confirmadas": 6,
+      "ingreso_cop": 5040000.0,
+      "productos": [
+        "Mantenimiento de equipos"
+      ],
+      "frecuente": false,
+      "frio": false,
+      "renovaciones_proximas": 0,
+      "coberturas_vencidas": 0,
+      "prob_compra_30d": 0.72,
+      "accion": "Revisar oportunidad de recompra"
+    },
+    {
+      "cliente_id": "DEMO04",
+      "ultima_compra": null,
+      "dias_sin_compra": null,
+      "ventas_confirmadas": 0,
+      "ingreso_cop": 0.0,
+      "productos": [],
+      "frecuente": false,
+      "frio": false,
+      "renovaciones_proximas": 0,
+      "coberturas_vencidas": 0,
+      "prob_compra_30d": null,
+      "accion": "Revisar primera compra"
+    },
+    {
+      "cliente_id": "DEMO05",
+      "ultima_compra": "2026-09-15",
+      "dias_sin_compra": 46,
+      "ventas_confirmadas": 2,
+      "ingreso_cop": 2160000.0,
+      "productos": [
+        "Licencia de gestión documental"
+      ],
+      "frecuente": false,
+      "frio": false,
+      "renovaciones_proximas": 0,
+      "coberturas_vencidas": 0,
+      "prob_compra_30d": 0.0,
+      "accion": "Seguimiento habitual"
+    },
+    {
+      "cliente_id": "DEMO06",
+      "ultima_compra": "2026-10-05",
+      "dias_sin_compra": 26,
+      "ventas_confirmadas": 5,
+      "ingreso_cop": 3360000.0,
+      "productos": [
+        "Mantenimiento de equipos",
+        "Servicio de respaldo"
+      ],
+      "frecuente": false,
+      "frio": false,
+      "renovaciones_proximas": 0,
+      "coberturas_vencidas": 1,
+      "prob_compra_30d": 0.48,
+      "accion": "Revisar cobertura"
+    },
+    {
+      "cliente_id": "DEMO07",
+      "ultima_compra": "2026-10-20",
+      "dias_sin_compra": 11,
+      "ventas_confirmadas": 3,
+      "ingreso_cop": 15600000.0,
+      "productos": [
+        "Monitoreo de red"
+      ],
+      "frecuente": false,
+      "frio": false,
+      "renovaciones_proximas": 0,
+      "coberturas_vencidas": 0,
+      "prob_compra_30d": 0.12,
+      "accion": "Seguimiento habitual"
+    },
+    {
+      "cliente_id": "DEMO08",
+      "ultima_compra": "2026-06-30",
+      "dias_sin_compra": 123,
+      "ventas_confirmadas": 8,
+      "ingreso_cop": 5740000.0,
+      "productos": [
+        "Mantenimiento de equipos",
+        "Servicio de respaldo"
+      ],
+      "frecuente": true,
+      "frio": true,
+      "renovaciones_proximas": 0,
+      "coberturas_vencidas": 0,
+      "prob_compra_30d": null,
+      "accion": "Revisar reactivación"
+    }
+  ]
+}
