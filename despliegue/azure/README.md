@@ -5,7 +5,7 @@ Esta configuración despliega JACOMIND sobre Azure App Service Linux y mantiene 
 ## Crear recursos
 
 ```bash
-az group create --name rg-jacomind-staging --location eastus
+az group create --name rg-jacomind-staging --location eastus2
 az deployment group create \
   --resource-group rg-jacomind-staging \
   --template-file despliegue/azure/main.bicep \
