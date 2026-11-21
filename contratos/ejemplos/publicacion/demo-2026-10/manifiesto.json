@@ -1,0 +1,80 @@
+{
+  "version": 1,
+  "tipo": "publicacion_analitica",
+  "cierre_id": "demo-2026-10",
+  "corte": "2026-10-31",
+  "origen": "sintetico",
+  "generado_en": "2026-11-01T06:00:00+00:00",
+  "huellas_entrada": {
+    "muestra_ficticia": "aa8a056c1893bd155bfe1fdcc3708490bd24fa2532104c35154cf4288653ccaf"
+  },
+  "versiones": {
+    "reglas": "reglas-demo-1",
+    "modelo_compra": "demo-logistica-0",
+    "segmentacion": "rfm-demo-1",
+    "pronostico": "ultimo_mes_observado"
+  },
+  "tablas": {
+    "agenda": {
+      "archivo": "agenda.json",
+      "filas": 8
+    },
+    "historial_ventas": {
+      "archivo": "historial_ventas.json",
+      "filas": 37,
+      "sumas": {
+        "importe_cop": 51150000.0
+      }
+    },
+    "coberturas": {
+      "archivo": "coberturas.json",
+      "filas": 5
+    },
+    "compras_proveedor": {
+      "archivo": "compras_proveedor.json",
+      "filas": 5
+    },
+    "series_mensuales": {
+      "archivo": "series_mensuales.json",
+      "filas": 72
+    },
+    "escenarios_trm": {
+      "archivo": "escenarios_trm.json",
+      "filas": 3
+    },
+    "oportunidades": {
+      "archivo": "oportunidades.json",
+      "filas": 6
+    },
+    "segmentos": {
+      "archivo": "segmentos.json",
+      "filas": 7
+    }
+  },
+  "calidad": {
+    "filas_leidas": 40,
+    "aceptadas": 37,
+    "duplicadas": 1,
+    "aisladas": 2,
+    "notas": [
+      "Muestra ficticia de contrato; no procede de una ejecución."
+    ]
+  },
+  "modelos": [
+    {
+      "nombre": "compra_30d",
+      "version": "demo-logistica-0",
+      "umbral": 0.4,
+      "metricas_prueba": {
+        "precision": 0.404,
+        "recall": 0.9091,
+        "F1": 0.5594
+      },
+      "referencia": {
+        "nombre": "compra en últimos 30 días",
+        "F1": 0.5368
+      },
+      "limitaciones": "Muestra ficticia. Mide propensión, no efecto causal del contacto."
+    }
+  ]
+}

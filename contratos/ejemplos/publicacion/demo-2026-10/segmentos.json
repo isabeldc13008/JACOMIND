@@ -1,0 +1,44 @@
+[
+  {
+    "cliente_id": "DEMO01",
+    "segmento": "Recurrente en pausa",
+    "descripcion": "Historial recurrente con recencia alta",
+    "version": "rfm-demo-1"
+  },
+  {
+    "cliente_id": "DEMO02",
+    "segmento": "Valor alto",
+    "descripcion": "Pocas operaciones de importe alto",
+    "version": "rfm-demo-1"
+  },
+  {
+    "cliente_id": "DEMO03",
+    "segmento": "Recurrente activo",
+    "descripcion": "Compra con regularidad",
+    "version": "rfm-demo-1"
+  },
+  {
+    "cliente_id": "DEMO05",
+    "segmento": "Ocasional",
+    "descripcion": "Compras esporádicas",
+    "version": "rfm-demo-1"
+  },
+  {
+    "cliente_id": "DEMO06",
+    "segmento": "Recurrente activo",
+    "descripcion": "Compra con regularidad",
+    "version": "rfm-demo-1"
+  },
+  {
+    "cliente_id": "DEMO07",
+    "segmento": "Valor alto",
+    "descripcion": "Pocas operaciones de importe alto",
+    "version": "rfm-demo-1"
+  },
+  {
+    "cliente_id": "DEMO08",
+    "segmento": "Recurrente en pausa",
+    "descripcion": "Historial recurrente con recencia alta",
+    "version": "rfm-demo-1"
+  }
+]

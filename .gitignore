@@ -1,0 +1,13 @@
+# Salidas de ejecución (A las genera; nunca se versionan)
+salida/
+# Base de datos, cargas, lotes y respaldos locales
+var/
+# Secretos y entornos
+.env
+.venv/
+venv/
+# Python
+__pycache__/
+*.py[cod]
+# Herramientas locales
+.superpowers/

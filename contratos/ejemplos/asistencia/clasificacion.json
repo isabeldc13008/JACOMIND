@@ -1,0 +1,18 @@
+[
+  {
+    "categoria": "reclamo",
+    "confianza": 0.86,
+    "version": "simulado-0",
+    "revisar": false,
+    "motivo": null,
+    "responsable": "atencion"
+  },
+  {
+    "categoria": "peticion",
+    "confianza": 0.41,
+    "version": "simulado-0",
+    "revisar": true,
+    "motivo": "confianza baja",
+    "responsable": null
+  }
+]

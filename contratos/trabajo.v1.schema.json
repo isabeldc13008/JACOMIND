@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "jacomind/contratos/trabajo.v1",
+  "title": "C3 · Trabajo operativo v1 (B → A)",
+  "description": "Exportación de eventos de seguimiento y de PQRS anonimizadas y autorizadas. Cada evento tiene un id estable: reintentar el mismo evento no crea otro.",
+  "type": "object",
+  "required": ["version", "tipo", "exportado_en", "eventos"],
+  "properties": {
+    "version": {"const": 1},
+    "tipo": {"enum": ["eventos_seguimiento", "pqrs_anonimizadas"]},
+    "exportado_en": {"type": "string", "format": "date-time"},
+    "eventos": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["evento_id", "tipo", "fecha", "actor"],
+        "properties": {
+          "evento_id": {"type": "string", "minLength": 1},
+          "tipo": {"enum": ["expuesta", "asignada", "pospuesta", "descartada", "contacto_registrado", "atendida", "compra_posterior_observada", "resultado_atribuido", "pqrs_revisada"]},
+          "oportunidad_id": {"type": ["string", "null"]},
+          "episodio_id": {"type": ["string", "null"]},
+          "cliente_id": {"type": ["string", "null"]},
+          "cierre_id": {"type": ["string", "null"]},
+          "fecha": {"type": "string", "format": "date-time"},
+          "actor": {"type": "string"},
+          "estado": {"type": ["string", "null"]},
+          "resultado": {"type": ["string", "null"]},
+          "empresa": {"type": ["string", "null"]},
+          "categoria_revisada": {"type": ["string", "null"]},
+          "fecha_revision": {"type": ["string", "null"]},
+          "texto": {"type": ["string", "null"]}
+        }
+      }
+    }
+  }
+}

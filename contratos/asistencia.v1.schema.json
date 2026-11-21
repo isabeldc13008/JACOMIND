@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "jacomind/contratos/asistencia.v1",
+  "title": "C4 · Asistencia v1 (B ↔ A)",
+  "description": "Dos piezas: (1) salida del clasificador de PQRS que A entrega a B; (2) respuesta de las herramientas de lectura que B expone al asistente. Identidad y empresa proceden siempre de la sesión del servidor.",
+  "$defs": {
+    "clasificacion_pqrs": {
+      "type": "object",
+      "required": ["categoria", "confianza", "version", "revisar"],
+      "properties": {
+        "categoria": {"enum": ["peticion", "queja", "reclamo", "sugerencia", null], "description": "null cuando el clasificador no decide y el caso va a revisión humana"},
+        "confianza": {"type": "number", "minimum": 0, "maximum": 1},
+        "version": {"type": "string", "minLength": 1},
+        "revisar": {"type": "boolean"},
+        "motivo": {"type": ["string", "null"]},
+        "responsable": {"type": ["string", "null"]}
+      }
+    },
+    "respuesta_herramienta": {
+      "type": "object",
+      "required": ["estado", "herramienta", "parametros", "evidencia"],
+      "properties": {
+        "estado": {"enum": ["ok", "sin_datos", "no_encontrado", "aclaracion", "no_autorizado", "fuera_de_alcance", "proveedor_no_disponible", "error"]},
+        "herramienta": {"type": ["string", "null"]},
+        "parametros": {"type": "object"},
+        "resultado": {},
+        "evidencia": {
+          "type": "object",
+          "properties": {
+            "cierre_id": {"type": ["string", "null"]},
+            "corte": {"type": ["string", "null"]},
+            "unidad": {"type": ["string", "null"]},
+            "filtros": {"type": "object"},
+            "detalle": {"type": ["string", "null"]},
+            "fuentes": {"type": "array"}
+          }
+        },
+        "texto": {"type": "string"}
+      }
+    }
+  }
+}
