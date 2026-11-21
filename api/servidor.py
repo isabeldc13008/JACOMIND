@@ -20,13 +20,13 @@ from urllib.parse import parse_qs, unquote, urlparse
 
 from . import (__version__, agente, atencion, auth, beneficios, consultas, documentos, finanzas, llm, operacion,
                pqrs, publicacion, tareas)
-from .base import RAIZ, BaseDatos, ErrorApi
+from .base import DIR_SALIDA, DIR_VAR, RAIZ, BaseDatos, ErrorApi
 from .permisos import IDENTIDADES
 
 COOKIE = "jacomind_sesion"
 DIR_APP = RAIZ / "app"
 DIR_CONTRATOS = RAIZ / "contratos"
-RUTAS_PUBLICABLES = [RAIZ / "salida", RAIZ / "contratos" / "ejemplos", RAIZ / "var"]
+RUTAS_PUBLICABLES = [DIR_SALIDA, RAIZ / "contratos" / "ejemplos", DIR_VAR]
 
 
 @dataclass
@@ -71,6 +71,11 @@ def ruta(metodo: str, patron: str, *permisos: str):
     return deco
 
 
+def _seguro() -> str:
+    """Con HTTPS delante (Caddy en Lightsail), la cookie de sesión solo viaja cifrada."""
+    return "; Secure" if os.environ.get("JACOMIND_COOKIE_SEGURA") == "1" else ""
+
+
 def _ruta_publicable(texto: str) -> Path:
     p = (RAIZ / texto).resolve() if not Path(texto).is_absolute() else Path(texto).resolve()
     if not any(p.is_relative_to(b.resolve()) for b in RUTAS_PUBLICABLES):
@@ -99,14 +104,14 @@ def r_login(c: Ctx):
     if not c.app.login_demo:
         raise ErrorApi(403, "login_externo", "Usa el proveedor de identidad aprobado")
     token, u = auth.crear_sesion(c.db, str(c.body.get("identidad", "")))
-    cookie = f"{COOKIE}={token}; HttpOnly; SameSite=Strict; Path=/; Max-Age={auth.DURACION_SESION_MIN * 60}"
+    cookie = f"{COOKIE}={token}; HttpOnly; SameSite=Strict; Path=/; Max-Age={auth.DURACION_SESION_MIN * 60}{_seguro()}"
     return _json({"usuario": u.como_dict()}, cabeceras={"Set-Cookie": cookie})
 
 
 @ruta("DELETE", "/api/sesion", "*")
 def r_logout(c: Ctx):
     auth.cerrar_sesion(c.db, c.headers.get("token") or "")
-    return _json({"ok": True}, cabeceras={"Set-Cookie": f"{COOKIE}=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0"})
+    return _json({"ok": True}, cabeceras={"Set-Cookie": f"{COOKIE}=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0{_seguro()}"})
 
 
 @ruta("GET", "/api/sesion", "*")
@@ -490,7 +495,7 @@ class Aplicacion:
             base, rel = DIR_CONTRATOS, camino[len("/contratos/"):]
         elif camino == "/salida/agenda.json" and self.practica:
             # Solo en modo práctica local: el portal multiusuario nunca expone la cartera como estático.
-            base, rel = RAIZ / "salida", "agenda.json"
+            base, rel = DIR_SALIDA, "agenda.json"
         else:
             return _json({"error": "no_encontrado"}, 404)
         p = (base / unquote(rel)).resolve()

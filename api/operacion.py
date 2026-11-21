@@ -26,10 +26,9 @@ from datetime import date, timedelta
 from pathlib import Path
 
 from . import __version__
-from .base import RAIZ, BaseDatos, ErrorApi, ahora, auditar, bandera, dumps, hoy, loads, nuevo_id
+from .base import DIR_SALIDA, DIR_VAR, RAIZ, BaseDatos, ErrorApi, ahora, auditar, bandera, dumps, hoy, loads, nuevo_id
 from .publicacion import cierre_activo, publicar_ruta
 
-DIR_VAR = Path(os.environ.get("JACOMIND_VAR", RAIZ / "var"))
 IMPORTADOR_A = os.environ.get("JACOMIND_IMPORTADOR", "pipeline.importar:importar_archivo")
 BANDERAS = {"asistente": "Asistente de consultas y del portal", "modelo_compra": "Probabilidad de compra a 30 días en agenda y fichas"}
 
@@ -254,7 +253,7 @@ def ejecutar_cierre(db: BaseDatos, actor: str, corte: str, datos: str | None = N
     etapas: list[dict] = []
     with db.transaccion() as con:
         con.execute("INSERT INTO ejecuciones (id, tipo, corte, inicio, estado) VALUES (?, 'cierre', ?, ?, 'en_curso')", (run_id, corte, ahora()))
-    salida = Path(desde) if desde else (salida_base or RAIZ / "salida" / "cierres") / run_id
+    salida = Path(desde) if desde else (salida_base or DIR_SALIDA / "cierres") / run_id
     resultado, estado, error = None, "fallido", None
 
     def etapa(nombre, fn):

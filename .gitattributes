@@ -1,0 +1,5 @@
+# Los archivos que se ejecutan en Linux (Lightsail) deben conservar finales de línea LF.
+*.sh            text eol=lf
+*.service       text eol=lf
+*.timer         text eol=lf
+Caddyfile*      text eol=lf

@@ -1,0 +1,9 @@
+[Unit]
+Description=JACOMIND: cierre mensual (día 2 de cada mes, 06:00)
+
+[Timer]
+OnCalendar=*-*-02 06:00:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target

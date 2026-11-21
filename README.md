@@ -31,6 +31,10 @@ Cierre mensual completo (A01→A09 → C2 → validación → publicación):
 python -m api cierre --corte 2026-10-31 --datos ../Green_Services_Recursos_de_Prueba
 ```
 
+## Despliegue
+
+Un servidor Amazon Lightsail (Ubuntu 24.04, plan de 7 USD/mes) con Caddy para HTTPS, systemd, respaldo diario y cierre mensual programado. Se instala con un solo comando; ver [docs/despliegue.md](docs/despliegue.md). Lo que falta para la puesta en producción (primer despliegue, CI y CD) está en [PENDIENTES.md](PENDIENTES.md).
+
 ## Asistente con modelo de lenguaje (opcional)
 
 Las cifras siempre las calculan herramientas deterministas de solo lectura. El modelo solo redacta, y si añade cifras que no están en el resultado, se descarta su texto. El agente es un grafo **LangGraph** con los nodos interpretar → aclarar, denegar o ejecutar → redactar → registrar. La redacción usa **LangChain**: Gemini como proveedor principal y Anthropic de respaldo (`with_fallbacks`).
