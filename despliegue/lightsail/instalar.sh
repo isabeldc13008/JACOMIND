@@ -41,9 +41,12 @@ apt-get update -q
 apt-get install -y -q python3 python3-venv git caddy sqlite3 curl
 
 log "Memoria de intercambio (instancias de 0,5–1 GB)"
-if [ ! -f /swapfile ]; then
-  fallocate -l 1G /swapfile && chmod 600 /swapfile && mkswap /swapfile >/dev/null && swapon /swapfile
-  echo '/swapfile none swap sw 0 0' >> /etc/fstab
+if ! swapon --show | grep -q /swapfile; then
+  if { [ -f /swapfile ] || { fallocate -l 1G /swapfile && chmod 600 /swapfile && mkswap /swapfile >/dev/null; }; } && swapon /swapfile 2>/dev/null; then
+    grep -q '^/swapfile ' /etc/fstab || echo '/swapfile none swap sw 0 0' >> /etc/fstab
+  else
+    echo "Aviso: no se pudo activar la memoria de intercambio (se continúa sin ella)"
+  fi
 fi
 
 log "Usuario y directorios"
