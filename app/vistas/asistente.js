@@ -1,147 +1,204 @@
-// Asistente del equipo interno y de la empresa (entradas 15 y 16 del plan).
-// La conversación se guarda por identidad, organización y cierre: al cambiar de sesión no se ve la anterior.
-import { $vista, MESES, S, api, cop, esc, errorHtml, fechaLarga, millones, num, puede } from "../nucleo.js";
-import { barras, detalleTecnico, verDatos } from "../ui.js";
+// Asistente conversacional (entradas 15 y 16 del plan): chat con memoria, citas, fuentes y pasos visibles.
+// La conversación se guarda por identidad, empresa y cierre: al cambiar de sesión no se ve la anterior.
+import { $vista, S, api, clave, esc, errorHtml, fechaLarga, puede } from "../nucleo.js";
 
-const conversaciones = new Map();
-const claveConversacion = () => `${S.usuario?.id}|${S.usuario?.organizacion_id}|${S.cierre}`;
-const conversacion = () => { const k = claveConversacion(); if (!conversaciones.has(k)) conversaciones.set(k, []); return conversaciones.get(k); };
-export function olvidarConversaciones() { conversaciones.clear(); contextoEjemplos = null; }
+const conversaciones = new Map();   // clave de sesión → { id, mensajes: [{rol, html}] }
+const claveSesion = () => `${S.usuario?.id}|${S.usuario?.organizacion_id}|${S.cierre}`;
+function conversacion() {
+  const k = claveSesion();
+  if (!conversaciones.has(k)) conversaciones.set(k, { id: clave().replace(/[^\w-]/g, "").slice(0, 40), mensajes: [] });
+  return conversaciones.get(k);
+}
+export function olvidarConversaciones() { conversaciones.clear(); capacidades = null; }
+let capacidades = null;
 
-// Enlaces de detalle que el perfil puede abrir (los permisos se aplican también a los enlaces).
-const PERMISO_ENLACE = [["#/clientes/", "cartera.ver"], ["#/agenda", "cartera.ver"], ["#/finanzas", "finanzas.ver"], ["#/tareas", "tareas.ver"], ["#/pqrs/", "pqrs.ver_propias"]];
+// Enlaces que el perfil puede abrir (los permisos se aplican también a los enlaces).
+const PERMISO_ENLACE = [["#/clientes/", "cartera.ver"], ["#/agenda", "cartera.ver"], ["#/finanzas", "finanzas.ver"], ["#/tareas", "tareas.ver"],
+  ["#/tableros/operaciones", "tablero.operaciones"], ["#/tableros/ventas", "tablero.ventas"], ["#/pqrs/", null], ["#/pqrs", null], ["#/beneficios", null]];
 function enlaceAutorizado(h) {
   if (!h || !h.startsWith("#/")) return null;
   const regla = PERMISO_ENLACE.find(([p]) => h.startsWith(p));
-  if (!regla) return h;
-  return puede(regla[1]) || (regla[0] === "#/pqrs/" && puede("pqrs.gestionar")) ? h : null;
+  if (!regla || !regla[1]) return h;
+  return puede(regla[1]) ? h : null;
 }
 
-let contextoEjemplos = null;
-async function ejemplos() {
-  if (S.usuario.externo) return ["¿Cuál es el estado de mi caso?", "¿Qué beneficios tengo disponibles?", "¿Cómo solicito el descuento por renovación anticipada?"];
-  if (!puede("agente.datos")) return ["¿Cuál es el descuento por renovación anticipada?", "¿Qué dice el manual sobre el plazo de respuesta de una PQRS?", "¿Qué beneficios hay para clientes recurrentes?"];
-  if (!contextoEjemplos || contextoEjemplos.clave !== claveConversacion()) {
-    const ctx = { clave: claveConversacion(), cliente: null, corte: null };
-    try {
-      if (puede("cartera.ver")) {
-        const a = await api("GET", `/api/cierres/${S.cierre}/agenda?tam=1`);
-        ctx.cliente = a.items[0]?.cliente_id || null; ctx.corte = a.corte;
-      } else if (puede("finanzas.ver")) ctx.corte = (await api("GET", `/api/cierres/${S.cierre}/resumen`)).cierre.corte;
-    } catch { /* sin cierre publicado: ejemplos genéricos */ }
-    contextoEjemplos = ctx;
+const HERRAMIENTAS = {
+  resumen_cartera: () => "Resumen de la cartera", buscar_clientes: a => `Agenda${a.accion ? ` · ${a.accion}` : ""}`, ficha_cliente: a => `Ficha de ${a.cliente_id || "cliente"}`,
+  ventas_o_compras_por_mes: a => `Serie de ${a.serie || "ventas"}${a.familia && a.familia !== "Total" ? ` · ${a.familia}` : ""}`, clientes_que_redujeron_compras: a => `Clientes ${a.mes_base || ""} → ${a.mes_comparado || ""}`,
+  simular_tipo_de_cambio: a => `Simulador · ${a.variacion_pct ?? ""} %`, coberturas_por_vencer: () => "Coberturas", oportunidades_prioritarias: () => "Oportunidades",
+  seguimientos_pendientes: () => "Seguimientos", indicadores_solicitudes: () => "Indicadores de solicitudes", definicion_de_indicador: a => `Glosario · ${a.nombre || ""}`,
+  buscar_en_documentacion: () => "Documentación del proyecto", buscar_politicas: () => "Políticas vigentes", mis_solicitudes: () => "Tus solicitudes", mis_beneficios: () => "Tus beneficios",
+};
+const TIPO_FUENTE = { datos: "Datos del cierre", politica: "Política", proyecto: "Documentación del proyecto", solicitud: "Solicitud", beneficio: "Beneficios", definicion: "Glosario" };
+
+// ---------------------------------------------------------------- Markdown seguro (subconjunto)
+function enLinea(t, id) {
+  return t.replace(/`([^`]+)`/g, "<code>$1</code>").replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>").replace(/(^|[^*])\*([^*\n]+)\*/g, "$1<em>$2</em>")
+    .replace(/\[(\d+)\]/g, (_, n) => `<button type="button" class="cita" data-msg="${id}" data-n="${n}" aria-label="Ver fuente ${n}">${n}</button>`);
+}
+export function markdown(texto, id = "m") {
+  const lineas = esc(texto).split(/\r?\n/);
+  const html = [];
+  let lista = null, tabla = null, parrafo = [];
+  const cerrarParrafo = () => { if (parrafo.length) { html.push(`<p>${enLinea(parrafo.join(" "), id)}</p>`); parrafo = []; } };
+  const cerrarLista = () => { if (lista) { html.push(`<${lista.tipo}>${lista.items.map(i => `<li>${enLinea(i, id)}</li>`).join("")}</${lista.tipo}>`); lista = null; } };
+  const cerrarTabla = () => {
+    if (!tabla) return;
+    const filas = tabla.filter(f => !/^\|?\s*:?-{2,}/.test(f)).map(f => f.replace(/^\||\|$/g, "").split("|").map(c => enLinea(c.trim(), id)));
+    html.push(`<div class="tabla"><table><thead><tr>${filas[0].map(c => `<th>${c}</th>`).join("")}</tr></thead><tbody>${filas.slice(1).map(f => `<tr>${f.map(c => `<td>${c}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`);
+    tabla = null;
+  };
+  for (const l of lineas) {
+    const t = l.trim();
+    if (/^\|.*\|$/.test(t)) { cerrarParrafo(); cerrarLista(); (tabla ||= []).push(t); continue; }
+    cerrarTabla();
+    let m;
+    if (!t) { cerrarParrafo(); cerrarLista(); }
+    else if (/^(-{3,}|\*{3,})$/.test(t)) { cerrarParrafo(); cerrarLista(); html.push("<hr>"); }
+    else if ((m = t.match(/^#{1,4}\s+(.*)$/))) { cerrarParrafo(); cerrarLista(); html.push(`<h3>${enLinea(m[1], id)}</h3>`); }
+    else if ((m = t.match(/^[-*•]\s+(.*)$/))) { cerrarParrafo(); if (!lista || lista.tipo !== "ul") { cerrarLista(); lista = { tipo: "ul", items: [] }; } lista.items.push(m[1]); }
+    else if ((m = t.match(/^\d+[.)]\s+(.*)$/))) { cerrarParrafo(); if (!lista || lista.tipo !== "ol") { cerrarLista(); lista = { tipo: "ol", items: [] }; } lista.items.push(m[1]); }
+    else { cerrarLista(); parrafo.push(t); }
   }
-  const { cliente, corte } = contextoEjemplos;
-  const ej = [];
-  if (cliente) ej.push(`¿Qué compró ${cliente}?`);
-  if (corte) {
-    const anio = Number(corte.slice(0, 4)), mes = Number(corte.slice(5, 7));
-    const ant = mes === 1 ? [12, anio - 1] : [mes - 1, anio];
-    const ant2 = ant[0] === 1 ? [12, ant[1] - 1] : [ant[0] - 1, ant[1]];
-    ej.push(`Ventas de ${MESES[mes - 1]} de ${anio}`);
-    if (puede("finanzas.ver")) ej.push(`¿A qué proveedores compramos en ${MESES[ant[0] - 1]} de ${ant[1]}?`);
-    if (puede("cartera.ver")) ej.push(`¿Qué clientes redujeron compras entre ${MESES[ant2[0] - 1]} de ${ant2[1]} y ${MESES[ant[0] - 1]} de ${ant[1]}?`);
-  }
-  ej.push("¿Qué significa frío?");
-  return ej;
+  cerrarParrafo(); cerrarLista(); cerrarTabla();
+  return html.join("");
 }
 
-// ---------------------------------------------------------------- presentación de respuestas
-const ETIQUETA_ESTADO = { aclaracion: "Necesito un dato más", no_autorizado: "Fuera de tu acceso", sin_datos: "Sin datos suficientes", no_encontrado: "No encontrado", incertidumbre: "Requiere revisión de Atención", fuera_de_alcance: "No disponible" };
-const COLUMNAS = { cliente_id: "Cliente", proveedor: "Proveedor", operaciones: "Operaciones", importe_cop: "Importe", base_cop: "Mes base", comparado_cop: "Mes comparado", cambio_cop: "Cambio", cambio_pct: "Cambio %", periodo: "Mes", valor_cop: "Valor", producto: "Producto", tipo: "Tipo", motivos: "Motivos", probabilidad: "Estimación", ultima: "Última", radicado: "Número", estado: "Estado", titulo: "Beneficio", vigencia_hasta: "Hasta" };
-const celda = (k, v) => v == null ? "—" : Array.isArray(v) ? esc(v.join(", ")) : /_cop$/.test(k) ? cop(v) : k === "probabilidad" ? `${num(v * 100)} %` : typeof v === "number" ? num(v) : esc(v);
-
-function tablaResultado(res) {
-  const filas = Array.isArray(res) ? res : Array.isArray(res?.meses) ? res.meses : null;
-  if (!filas?.length || typeof filas[0] !== "object") return null;
-  const claves = Object.keys(COLUMNAS).filter(k => filas.some(f => k in f));
-  if (!claves.length) return null;
-  return { cabeceras: claves.map(k => COLUMNAS[k]), numericas: new Set(claves.map((k, i) => /_cop$|operaciones|pct/.test(k) ? i : -1).filter(i => i >= 0)), filas: filas.slice(0, 20).map(f => claves.map(k => celda(k, f[k]))) };
+// ---------------------------------------------------------------- mensajes
+function fuentesHtml(r, id) {
+  const fs = [...(r.fuentes || [])].sort((a, b) => (b.citada - a.citada) || a.n - b.n);
+  if (!fs.length) return "";
+  const citadas = fs.filter(f => f.citada).length;
+  return `<details class="chat-fuentes"><summary>${fs.length === 1 ? "1 fuente" : `${fs.length} fuentes`}${citadas && citadas < fs.length ? ` · ${citadas} citadas` : ""}</summary><ol>
+    ${fs.map(f => {
+      const enlace = enlaceAutorizado(f.enlace);
+      return `<li id="fuente-${id}-${f.n}" class="${f.citada ? "" : "no-citada"}"><span class="cita-num">${f.n}</span><div><strong>${esc(f.titulo)}</strong>
+        <div class="muted">${esc(TIPO_FUENTE[f.tipo] || f.tipo)}${f.localizador ? ` · ${esc(f.localizador)}` : ""}</div>
+        ${f.extracto ? `<details><summary>Ver extracto</summary><blockquote>${esc(f.extracto)}</blockquote></details>` : ""}
+        ${enlace ? `<a href="${esc(enlace)}">Abrir en la aplicación</a>` : f.enlace?.startsWith("/api/documentos/") ? `<button type="button" class="enlace" data-frag="${esc(f.enlace)}">Ver la sección citada</button><div class="frag"></div>` : ""}</div></li>`;
+    }).join("")}</ol></details>`;
 }
 
-/** Comparación de dos valores verificables → dos barras. */
-function comparacion(r) {
-  const res = r.resultado;
-  if (r.herramienta === "clientes_reducen" && Array.isArray(res) && res.length === 1) {
-    const x = res[0], f = r.evidencia?.filtros || {};
-    return barras([{ etiqueta: f.base || "Mes base", valor: x.base_cop, texto: millones(x.base_cop) }, { etiqueta: f.comparado || "Mes comparado", valor: x.comparado_cop, texto: millones(x.comparado_cop) }], { etiquetaAria: `Compras de ${x.cliente_id} en los dos meses` });
-  }
-  if (r.herramienta === "ventas_periodo" && res?.meses?.length === 2) {
-    return barras(res.meses.map(m => ({ etiqueta: m.periodo, valor: m.valor_cop || 0, texto: m.valor_cop == null ? "sin dato" : millones(m.valor_cop) })), { etiquetaAria: "Ventas de los dos meses" });
-  }
-  return "";
+function respuestaAgente(r, id) {
+  const pasos = r.pasos || [];
+  return `<div class="chat-msg asistente" data-id="${id}"><div class="avatar" aria-hidden="true">J</div><div class="chat-cuerpo">
+    ${pasos.length ? `<div class="chat-pasos" aria-label="Datos consultados">Consultó: ${pasos.map(p => `<span class="chip">${esc((HERRAMIENTAS[p.herramienta] || (() => p.herramienta))(p.argumentos || {}))}</span>`).join("")}</div>` : ""}
+    <div class="chat-texto">${markdown(r.texto, id)}</div>
+    ${r.cifras_sin_respaldo?.length ? `<p class="aviso-cifras">Revisa estas cifras: no aparecen tal cual en los datos consultados (${esc(r.cifras_sin_respaldo.join(", "))}). Pueden ser cálculos del asistente.</p>` : ""}
+    ${fuentesHtml(r, id)}
+    <div class="chat-acciones"><span class="muted">${r.corte ? `Datos hasta el ${esc(fechaLarga(r.corte))}` : ""}</span>
+      ${r.registro_id ? `<button type="button" class="icono" data-calif="1" data-reg="${r.registro_id}" aria-label="Respuesta útil" title="Respuesta útil">👍</button><button type="button" class="icono" data-calif="0" data-reg="${r.registro_id}" aria-label="Respuesta incorrecta" title="Respuesta incorrecta">👎</button>` : ""}
+      <button type="button" class="icono" data-copiar aria-label="Copiar respuesta" title="Copiar">⧉</button></div>
+    ${!S.usuario.externo ? `<details class="tecnico"><summary>Detalle técnico</summary><p class="muted">${esc(r.version || "")} · ${esc(r.motor || "")} · ${r.latencia_ms ?? "—"} ms${pasos.length ? ` · ${esc(JSON.stringify(pasos))}` : ""}</p></details>` : ""}
+  </div></div>`;
 }
 
-function alcance(ev) {
-  const f = ev.filtros || {};
-  const p = [];
-  if (f.periodo) p.push(`periodo ${String(f.periodo).replace("..", " a ")}`);
-  if (f.base && f.comparado) p.push(`${f.base} frente a ${f.comparado}`);
-  if (f.familia && f.familia !== "Total") p.push(`familia ${f.familia}`);
-  if (ev.corte) p.push(`datos hasta el ${fechaLarga(ev.corte)}`);
-  if (ev.unidad) p.push(`unidad: ${ev.unidad}`);
-  return p.join(" · ");
-}
-
-function fuentesTexto(ev) {
-  return (ev.fuentes || []).map(f => f.titulo ? `${esc(f.titulo)}, versión ${f.version}, ${esc(f.localizador)}` : f.beneficio_id ? `${esc(f.beneficio_id)} · política ${esc(f.fuente)}` : "").filter(Boolean).join("; ");
-}
-
-function respuestaInterna(r) {
+// Respuesta del modo básico (sin modelo de lenguaje): mismo formato de burbuja.
+function respuestaBasica(r, id) {
   const ev = r.evidencia || {};
-  const tabla = tablaResultado(r.resultado);
-  const enlace = enlaceAutorizado(ev.detalle);
-  const fuentes = fuentesTexto(ev);
-  const sustento = tabla || enlace || fuentes ? verDatos({ titulo: "Ver los datos que sustentan esta respuesta", tabla,
-    fuente: fuentes || (ev.cierre_id ? `Cierre ${esc(ev.cierre_id)}` : ""), filtros: esc(alcance(ev)),
-    extra: enlace ? `<p><a href="${esc(enlace)}">Abrir el detalle en la aplicación</a></p>` : "" }) : "";
-  return `<div class="burbuja">${r.estado !== "ok" && ETIQUETA_ESTADO[r.estado] ? `<span class="chip">${esc(ETIQUETA_ESTADO[r.estado])}</span> ` : ""}<div>${esc(r.texto)}</div>
-    ${alcance(ev) ? `<div class="muted">${esc(alcance(ev))}</div>` : ""}${comparacion(r)}${sustento}
-    ${detalleTecnico(`<dl class="meta-datos"><dt>Herramienta</dt><dd>${esc(r.herramienta || "—")}</dd><dt>Motor</dt><dd>${esc(r.motor || "—")}</dd><dt>Versión</dt><dd>${esc(r.version || "—")}</dd>
-      <dt>Filtros originales</dt><dd><code>${esc(JSON.stringify(ev.filtros || {}))}</code></dd><dt>Parámetros</dt><dd><code>${esc(JSON.stringify(r.parametros || {}))}</code></dd></dl>`)}</div>`;
+  const fuentes = (ev.fuentes || []).map((f, i) => ({ n: i + 1, tipo: f.titulo ? "politica" : "beneficio", titulo: f.titulo || f.beneficio_id, localizador: f.localizador || f.fuente || "", enlace: f.enlace, citada: true }));
+  if (ev.detalle) fuentes.push({ n: fuentes.length + 1, tipo: "datos", titulo: "Detalle en la aplicación", localizador: ev.corte ? `datos hasta el ${fechaLarga(ev.corte)}` : "", enlace: ev.detalle, citada: true });
+  return respuestaAgente({ ...r, fuentes, pasos: r.herramienta ? [{ herramienta: r.herramienta, argumentos: r.parametros || {} }] : [], corte: ev.corte }, id);
 }
 
-function respuestaEmpresa(r) {
-  const ev = r.evidencia || {};
-  const enlace = enlaceAutorizado(ev.detalle);
-  const fuentes = fuentesTexto(ev);
-  let ayuda = "";
-  if (r.estado === "no_encontrado" && r.herramienta === "pqrs") ayuda = '<p class="muted">Revisa el número de seguimiento (tiene la forma PQRS-AAAAMMDD-NNNNN) o búscalo en <a href="#/pqrs">Solicitudes de mi empresa</a>.</p>';
-  else if (["sin_datos", "incertidumbre", "aclaracion"].includes(r.estado)) ayuda = '<p class="muted">Si necesitas una respuesta sobre tu caso, <a href="#/pqrs?crear=1">crea una solicitud</a> y Atención la revisará.</p>';
-  else if (r.herramienta === "pqrs" && !r.parametros?.radicado && r.estado === "ok") ayuda = '<p class="muted">Para ver el detalle, escribe el número de seguimiento del caso.</p>';
-  return `<div class="burbuja"><div>${esc(r.texto)}</div>${enlace ? `<p><a href="${esc(enlace)}">Abrir la solicitud</a></p>` : ""}${fuentes ? `<p class="muted">Fuente: ${fuentes}</p>` : ""}${ayuda}</div>`;
+const burbujaUsuario = t => `<div class="chat-msg usuario"><div class="chat-cuerpo"><div class="chat-texto">${esc(t).replace(/\n/g, "<br>")}</div></div></div>`;
+
+// ---------------------------------------------------------------- sugerencias por perfil
+function sugerencias() {
+  if (S.usuario.externo) return [["Tus solicitudes", ["¿En qué estado están mis solicitudes?", "¿Qué necesito para consultar un caso?"]],
+    ["Tus beneficios", ["¿Qué beneficios tengo disponibles?", "¿Cómo pido el descuento por renovación anticipada?"]]];
+  const g = [["Sobre el proyecto", ["¿Cómo calcula JACOMIND la probabilidad de compra y qué limitaciones tiene?", "¿Qué significa que un cliente esté «frío»?", "¿Cómo se publica un cierre mensual?"]]];
+  if (puede("agente.datos")) {
+    const datos = [];
+    if (puede("cartera.ver")) datos.push("¿Qué clientes requieren revisión de cobertura y por qué?", "¿Qué compró DEMO01?");
+    if (puede("finanzas.ver") || puede("tablero.gerencia")) datos.push("¿Por qué cayeron las ventas en el último mes?");
+    if (puede("finanzas.ver")) datos.push("¿Cuánto costarían las compras en dólares si el dólar sube 8 %?");
+    if (datos.length) g.push(["Analizar datos", datos]);
+    const rec = [];
+    if (puede("cartera.ver")) rec.push("¿Con qué clientes debería hablar primero esta semana?");
+    if (puede("tablero.operaciones")) rec.push("¿Qué coberturas debo atender antes y qué recomiendas?");
+    if (puede("finanzas.ver")) rec.push("Analiza las ventas por familia y recomienda acciones");
+    if (rec.length) g.push(["Recomendaciones", rec]);
+  } else if (puede("documentos.consultar")) g.push(["Políticas", ["¿Cuál es el descuento por renovación anticipada?", "¿Qué dice el manual sobre el plazo de respuesta?"]]);
+  return g;
 }
 
 // ---------------------------------------------------------------- vista
 export async function vistaAsistente() {
   const externo = S.usuario.externo;
-  const lista = await ejemplos();
+  if (!capacidades) capacidades = await api("GET", "/api/asistente/capacidades").catch(() => ({ modo: "basico" }));
   const conv = conversacion();
-  $vista.innerHTML = externo
-    ? `<h1>Consulta tus beneficios o el estado de una solicitud</h1><p class="muted">Responde con la información de tu empresa y las políticas vigentes. Si no encuentra el dato, te dirá qué necesita o te remitirá a Atención.</p>`
-    : `<h1>Asistente</h1><p class="muted">Respuestas breves con su periodo y alcance. Las cifras salen de consultas de solo lectura sobre el cierre; comprueba siempre los datos que las sustentan.</p>`;
-  $vista.innerHTML += `<div id="chat" aria-live="polite">${conv.map(m => m.html).join("")}</div>
-  <form id="f" class="fila"><label class="oculto-visual" for="p">Pregunta</label><input id="p" style="flex:1;min-width:220px" maxlength="1000" placeholder="${externo ? "p. ej. ¿Cuál es el estado de PQRS-20261101-00001?" : "Escribe tu pregunta"}" autocomplete="off"><button>Preguntar</button></form>
-  <p class="muted" style="margin-top:8px">Puedes preguntar, por ejemplo:</p><div class="fila">${lista.map(e => `<button class="sec" type="button" data-e="${esc(e)}">${esc(e)}</button>`).join("")}</div>
-  ${conv.length ? '<p><button type="button" class="enlace" id="limpiar">Borrar esta conversación</button></p>' : ""}`;
-  const k = claveConversacion();
+  const modoAgente = capacidades.modo === "agente";
+  $vista.innerHTML = `<section class="chat">
+    <header class="chat-cabecera"><div><h1>${externo ? "Consulta tus beneficios o el estado de una solicitud" : "Asistente"}</h1>
+      <p class="muted">${modoAgente ? (externo ? "Responde con la información de tu empresa y las políticas vigentes, y cita de dónde sale cada dato." : "Pregunta sobre el proyecto, analiza datos del cierre o pide recomendaciones. Cada dato lleva su fuente.")
+        : "Modo básico: responde preguntas concretas con reglas (cliente, periodo o definición). El análisis libre necesita el modelo de lenguaje."}</p></div>
+      <div class="fila"><span class="chip ${modoAgente ? "fuerte" : ""}" title="${esc(capacidades.llm || "")}">${modoAgente ? "Agente con IA" : "Modo básico"}</span>
+      ${conv.mensajes.length ? '<button type="button" class="sec" id="nueva">Nueva conversación</button>' : ""}</div></header>
+    <div class="chat-mensajes" id="chat" aria-live="polite">${conv.mensajes.length ? conv.mensajes.map(m => m.html).join("") : `<div class="chat-vacio">
+      <div class="avatar grande" aria-hidden="true">J</div><p class="frase">¿En qué te ayudo?</p>
+      <div class="chat-sugerencias">${sugerencias().map(([t, ps]) => `<div><h2>${esc(t)}</h2>${ps.map(p => `<button type="button" class="sugerencia" data-e="${esc(p)}">${esc(p)}</button>`).join("")}</div>`).join("")}</div></div>`}</div>
+    <form id="f" class="chat-entrada"><label class="oculto-visual" for="p">Escribe tu pregunta</label>
+      <textarea id="p" rows="1" maxlength="1000" placeholder="${externo ? "Pregunta por tus solicitudes o beneficios…" : "Pregunta, pide un análisis o una recomendación…"}"></textarea>
+      <button id="enviar" aria-label="Enviar pregunta">Enviar</button></form>
+    <p class="muted chat-nota">Enter envía · Mayús + Enter salta de línea · ${externo ? "Solo ve información de tu empresa." : "Las recomendaciones requieren decisión humana."}</p></section>`;
+  const chat = document.getElementById("chat"), ta = document.getElementById("p");
+  chat.scrollTop = chat.scrollHeight;
+  enlazarMensajes(chat);
+  const k = claveSesion();
   const enviar = async pregunta => {
-    conv.push({ html: `<div class="burbuja yo">${esc(pregunta)}</div>` });
-    vistaAsistenteParcial();
+    if (!pregunta.trim() || ta.disabled) return;
+    const c = conversacion();
+    if (!c.mensajes.length) chat.innerHTML = "";
+    c.mensajes.push({ rol: "usuario", html: burbujaUsuario(pregunta) });
+    chat.insertAdjacentHTML("beforeend", burbujaUsuario(pregunta) + `<div class="chat-msg asistente pensando" id="pensando"><div class="avatar" aria-hidden="true">J</div><div class="chat-cuerpo"><span class="puntos" aria-label="Consultando"><i></i><i></i><i></i></span> <span class="muted">Consultando datos y fuentes…</span></div></div>`);
+    chat.scrollTop = chat.scrollHeight; ta.value = ""; ta.style.height = ""; ta.disabled = true; document.getElementById("enviar").disabled = true;
+    const id = `m${c.mensajes.length}`;
     let html;
     try {
-      const r = await api("POST", "/api/asistente", { pregunta, cierre: S.cierre });
-      html = externo ? respuestaEmpresa(r) : respuestaInterna(r);
-    } catch (e) { html = errorHtml(e); }
-    (conversaciones.get(k) || []).push({ html });
-    if (location.hash.startsWith("#/asistente") && claveConversacion() === k) vistaAsistente();
+      const r = await api("POST", "/api/asistente", { pregunta, cierre: S.cierre, conversacion: c.id });
+      html = r.modo === "agente" ? respuestaAgente(r, id) : respuestaBasica(r, id);
+      if (r.aviso) html = `<p class="estado">${esc(r.aviso)}</p>` + html;
+    } catch (e) { html = `<div class="chat-msg asistente"><div class="avatar" aria-hidden="true">J</div><div class="chat-cuerpo">${errorHtml(e)}</div></div>`; }
+    (conversaciones.get(k) || c).mensajes.push({ rol: "asistente", html });
+    if (location.hash.startsWith("#/asistente") && claveSesion() === k) vistaAsistente().then(() => document.getElementById("p")?.focus());
   };
-  document.getElementById("f").addEventListener("submit", e => { e.preventDefault(); const p = document.getElementById("p").value.trim(); if (p) enviar(p); });
+  document.getElementById("f").addEventListener("submit", e => { e.preventDefault(); enviar(ta.value); });
+  ta.addEventListener("keydown", e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); enviar(ta.value); } });
+  ta.addEventListener("input", () => { ta.style.height = "auto"; ta.style.height = `${Math.min(ta.scrollHeight, 180)}px`; });
   $vista.querySelectorAll("[data-e]").forEach(b => b.addEventListener("click", () => enviar(b.dataset.e)));
-  document.getElementById("limpiar")?.addEventListener("click", () => { conversaciones.delete(k); vistaAsistente(); });
-  document.getElementById("p").focus();
+  document.getElementById("nueva")?.addEventListener("click", async () => {
+    const c = conversacion();
+    await api("DELETE", `/api/asistente/conversaciones/${encodeURIComponent(c.id)}?cierre=${encodeURIComponent(S.cierre)}`).catch(() => {});
+    conversaciones.delete(k); vistaAsistente();
+  });
+  ta.focus();
 }
-function vistaAsistenteParcial() {
-  const chat = document.getElementById("chat");
-  if (chat) chat.innerHTML = conversacion().map(m => m.html).join("") + '<div class="burbuja muted">Consultando…</div>';
+
+function enlazarMensajes(chat) {
+  chat.addEventListener("click", async e => {
+    const cita = e.target.closest(".cita");
+    if (cita) {
+      const li = document.getElementById(`fuente-${cita.dataset.msg}-${cita.dataset.n}`);
+      if (li) { li.closest("details").open = true; li.scrollIntoView({ block: "nearest", behavior: "smooth" }); li.classList.add("resaltada"); setTimeout(() => li.classList.remove("resaltada"), 1600); }
+      return;
+    }
+    const frag = e.target.closest("[data-frag]");
+    if (frag) {
+      const dest = frag.nextElementSibling;
+      try { const f = await api("GET", frag.dataset.frag); dest.innerHTML = `<blockquote>${esc(f.texto)}</blockquote>`; } catch (err) { dest.innerHTML = errorHtml(err); }
+      return;
+    }
+    const calif = e.target.closest("[data-calif]");
+    if (calif) {
+      await api("POST", `/api/asistente/${calif.dataset.reg}/calificar`, { correcta: calif.dataset.calif === "1" }).catch(() => {});
+      calif.parentElement.querySelectorAll("[data-calif]").forEach(b => b.classList.toggle("elegido", b === calif));
+      return;
+    }
+    if (e.target.closest("[data-copiar]")) {
+      const texto = e.target.closest(".chat-cuerpo").querySelector(".chat-texto").innerText;
+      navigator.clipboard?.writeText(texto);
+      e.target.textContent = "✓"; setTimeout(() => { e.target.textContent = "⧉"; }, 1200);
+    }
+  });
 }

@@ -39,14 +39,18 @@ Un servidor Amazon Lightsail (Ubuntu 24.04, plan de 7 USD/mes) con Caddy para HT
 
 ## Asistente con modelo de lenguaje (opcional)
 
-Las cifras siempre las calculan herramientas deterministas de solo lectura. El modelo solo redacta, y si añade cifras que no están en el resultado, se descarta su texto. El agente es un grafo **LangGraph** con los nodos interpretar → aclarar, denegar o ejecutar → redactar → registrar. La redacción usa **LangChain**: Gemini como proveedor principal y Anthropic de respaldo (`with_fallbacks`).
+El asistente es un chat con memoria que responde sobre el proyecto, analiza los datos del cierre y propone recomendaciones, citando cada dato. Está en `api/agente_chat.py` y es un agente **LangGraph** con el patrón estándar: nodo de modelo con `bind_tools`, `ToolNode`, `tools_condition` y memoria por conversación con `InMemorySaver`. El modelo usa **LangChain**: Gemini como proveedor principal y Anthropic de respaldo (`with_fallbacks`).
+
+- **Herramientas de solo lectura y por perfil.** Cubren cartera, fichas, series de ventas y compras, coberturas, oportunidades, simulador, seguimientos, indicadores de solicitudes, políticas vigentes y la documentación del proyecto (`api/conocimiento.py`). Identidad, empresa y permisos salen de la sesión, y una herramienta no autorizada no se ofrece al modelo.
+- **Citas verificables.** Cada herramienta numera sus fuentes y el modelo cita `[n]`. La respuesta incluye las fuentes, los pasos consultados y las cifras que no aparecen en los datos consultados, que se marcan para revisión.
+- **Memoria aislada.** El hilo de conversación incluye usuario, empresa y cierre.
 
 ```bash
 python -m pip install -r requirements-llm.txt
 cp .env.example .env   # completa GEMINI_API_KEY y/o ANTHROPIC_API_KEY
 ```
 
-Sin esas dependencias o claves, el asistente funciona igual con plantillas y ejecuta los mismos nodos en secuencia.
+Sin esas dependencias o claves, o si el modelo no responde, el asistente pasa a **modo básico**: el grafo de reglas de `api/agente.py` (interpretar → aclarar, denegar o ejecutar → redactar → registrar) con plantillas deterministas.
 
 ## Estructura del carril B
 

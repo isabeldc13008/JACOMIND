@@ -383,7 +383,7 @@ def motor() -> str:
     return "langgraph" if not isinstance(grafo(), _GrafoSecuencial) else "secuencial (langgraph no instalado)"
 
 
-def preguntar(con, usuario, pregunta: str, cierre: str | None = None) -> dict:
+def preguntar(con, usuario, pregunta: str, cierre: str | None = None, conversacion: str | None = None) -> dict:
     pregunta = (pregunta or "").strip()
     if not pregunta:
         raise ErrorApi(400, "pregunta_vacia", "Escribe una pregunta")
@@ -391,9 +391,18 @@ def preguntar(con, usuario, pregunta: str, cierre: str | None = None) -> dict:
         raise ErrorApi(400, "pregunta_larga", "La pregunta supera 1.000 caracteres")
     if not bandera(con, "asistente"):
         return _resp("fuera_de_alcance", None, {}, texto="El asistente está desactivado. Usa los filtros de la agenda y las fichas.") | {"version": None}
+    aviso = None
+    from . import agente_chat
+    if agente_chat.disponible():
+        try:
+            return agente_chat.preguntar(con, usuario, pregunta, cierre, conversacion)
+        except ErrorApi:
+            raise
+        except Exception as e:  # modelo caído o respuesta inválida: el servicio sigue con las reglas
+            aviso = f"El modelo de lenguaje no respondió ({type(e).__name__}); respuesta en modo básico."
     final = grafo().invoke({"pregunta": pregunta, "ctx": {"con": con, "usuario": usuario, "cierre": cierre},
                             "inicio": time.perf_counter(), "parametros": {}})
-    return final["respuesta"] | {"motor": motor()}
+    return final["respuesta"] | {"motor": motor(), "modo": "basico", "aviso": aviso}
 
 
 def calificar(con, registro_id: int, correcta: bool, usuario) -> None:

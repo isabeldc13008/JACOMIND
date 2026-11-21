@@ -116,6 +116,19 @@ def modelo_chat():
     return _cadena_cache[clave]
 
 
+def modelo_con_herramientas(herramientas: list):
+    """Modelo con tool calling y la misma cadena de respaldo, o None si no hay proveedores.
+
+    Cada modelo se enlaza a las herramientas antes de encadenar los respaldos: así un modelo
+    de reserva también puede llamar herramientas.
+    """
+    lista = proveedores()
+    if not lista:
+        return None
+    modelos = [m.bind_tools(herramientas) for p in lista for m in _crear(p)]
+    return modelos[0].with_fallbacks(modelos[1:]) if len(modelos) > 1 else modelos[0]
+
+
 def _texto(resp) -> str:
     contenido = getattr(resp, "content", resp)
     if isinstance(contenido, str):

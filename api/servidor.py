@@ -337,7 +337,22 @@ def r_fragmento(c: Ctx):
 @ruta("POST", "/api/asistente", "agente.datos", "agente.portal")
 def r_asistente(c: Ctx):
     with c.db.conexion() as con:
-        return agente.preguntar(con, c.usuario, str(c.body.get("pregunta", "")), c.body.get("cierre"))
+        return agente.preguntar(con, c.usuario, str(c.body.get("pregunta", "")), c.body.get("cierre"), c.body.get("conversacion"))
+
+
+@ruta("DELETE", "/api/asistente/conversaciones/{conversacion}", "agente.datos", "agente.portal")
+def r_olvidar(c: Ctx):
+    from . import agente_chat
+    with c.db.conexion() as con:
+        cierre = publicacion.resolver_cierre(con, c.q("cierre", "activo"))
+    agente_chat.olvidar(c.usuario, cierre["id"], c.params["conversacion"])
+    return {"ok": True}
+
+
+@ruta("GET", "/api/asistente/capacidades", "agente.datos", "agente.portal")
+def r_capacidades(c: Ctx):
+    from . import agente_chat
+    return {"modo": "agente" if agente_chat.disponible() else "basico", "llm": llm.version(), "motor": agente.motor()}
 
 
 @ruta("POST", "/api/asistente/{id}/calificar", "agente.datos", "agente.portal")
