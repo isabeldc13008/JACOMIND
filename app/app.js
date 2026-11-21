@@ -280,7 +280,7 @@ async function vistaTableros(rolSel) {
 function graficoLinea(hist, proy) {
   const pts = [...hist.map(p => ({ ...p, tipo: "Histórico" })), ...proy.map(p => ({ ...p, tipo: "Proyección" }))];
   if (!pts.length) return '<p class="muted">Sin serie publicada.</p>';
-  const W = 560, H = 220, m = { l: 64, r: 12, t: 12, b: 28 };
+  const W = 560, H = 220, m = { l: 64, r: 34, t: 12, b: 28 };
   const vals = pts.map(p => p.valor).filter(v => v != null);
   const max = Math.max(1, ...vals) * 1.1;
   const x = i => m.l + (pts.length === 1 ? 0 : i * (W - m.l - m.r) / (pts.length - 1));
@@ -300,7 +300,7 @@ function graficoLinea(hist, proy) {
     ${ticks.map(t => `<line x1="${m.l}" x2="${W - m.r}" y1="${y(t)}" y2="${y(t)}" stroke="var(--rejilla)"/><text x="${m.l - 6}" y="${y(t) + 4}" text-anchor="end" font-size="11" fill="var(--texto-2)">${fmt.format(Math.round(t / 1e6))} M</text>`).join("")}
     <path d="${seg(0, nh - 1)}" fill="none" stroke="var(--serie-1)" stroke-width="2"/>
     ${proy.length ? `<path d="${seg(Math.max(0, nh - 1), pts.length - 1)}" fill="none" stroke="var(--serie-1)" stroke-width="2" stroke-dasharray="5 4"/>` : ""}
-    ${pts.map((p, i) => p.valor == null ? `<text x="${x(i)}" y="${H - m.b - 4}" text-anchor="middle" font-size="10" fill="var(--texto-3)">s/d</text>` :
+    ${pts.map((p, i) => p.valor == null ? `<text x="${x(i) + 6}" y="${H - m.b - 16}" text-anchor="start" font-size="10" fill="var(--texto-3)">s/d</text>` :
       `<circle cx="${x(i)}" cy="${y(p.valor)}" r="4" fill="var(--serie-1)" stroke="var(--superficie)" stroke-width="2"/><circle class="hit" cx="${x(i)}" cy="${y(p.valor)}" r="12" fill="transparent" data-tip="${esc(`${p.periodo} · ${p.tipo}: ${cop(p.valor)}`)}"/>`).join("")}
     ${pts.map((p, i) => (i % Math.ceil(pts.length / 8) === 0 || i === pts.length - 1) ? `<text x="${x(i)}" y="${H - 8}" text-anchor="middle" font-size="11" fill="var(--texto-2)">${esc(p.periodo)}</text>` : "").join("")}
   </svg><div class="tip oculto"></div>
@@ -498,7 +498,8 @@ function vistaAsistente() {
     try {
       const r = await api("POST", "/api/asistente", { pregunta, cierre: S.cierre });
       const ev = r.evidencia || {};
-      const fuentes = (ev.fuentes || []).map(f => f.titulo ? `${esc(f.titulo)} v${f.version} (${esc(f.localizador)})` : esc(JSON.stringify(f))).join("; ");
+      const fuentes = (ev.fuentes || []).map(f => f.titulo ? `${esc(f.titulo)} v${f.version} (${esc(f.localizador)})`
+        : f.beneficio_id ? `${esc(f.beneficio_id)} v${f.version} (${esc(f.fuente)})` : esc(JSON.stringify(f))).join("; ");
       html = `<div class="burbuja"><div>${esc(r.texto)}</div><div class="muted">estado ${esc(r.estado)} · herramienta ${esc(r.herramienta || "—")}${ev.corte ? ` · corte ${esc(ev.corte)}` : ""}${ev.unidad ? ` · ${esc(ev.unidad)}` : ""}${ev.filtros && Object.keys(ev.filtros).length ? ` · filtros ${esc(JSON.stringify(ev.filtros))}` : ""}${ev.detalle ? ` · <a href="${esc(ev.detalle)}">detalle</a>` : ""}${fuentes ? ` · fuentes: ${fuentes}` : ""} · ${esc(r.motor || "")} · ${esc(r.version || "")}</div></div>`;
     } catch (e) { html = errorHtml(e); }
     historialChat.push(html);
