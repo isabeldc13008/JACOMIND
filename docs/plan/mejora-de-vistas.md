@@ -264,6 +264,8 @@ Implementado en la rama `feat/mejora-de-vistas` sobre el cierre sintético de oc
 
 **Móvil.** Se midieron 21 vistas de los seis perfiles en una ventana de 394 px: ninguna se desborda hacia los lados, y la frase principal y la acción quedan en la primera pantalla. La agenda pasa a tarjetas en pantallas estrechas.
 
+**Accesibilidad automatizada.** En las vistas de los seis perfiles, con temas claro y oscuro, se revisó lo que expone el navegador a un lector de pantalla. Todos los controles tienen nombre accesible, cada gráfica tiene descripción y una tabla equivalente, y el texto cumple el contraste mínimo de WCAG AA (4,5:1; 3:1 en texto grande). La revisión encontró y corrigió el texto blanco sobre el verde claro de los botones en modo oscuro (2,2:1). No sustituye a la prueba con un lector real en un teléfono.
+
 **Material complementario.** `docs/formacion/visor-formacion.html` es la versión de formación del visor local. La genera `python docs/formacion/generar_visor.py`, que comprueba la huella del original contra `MANIFIESTO_SHA256.txt` y no lo modifica. Muestra la advertencia de fotografía precalculada con su fecha fija, el recuento seleccionado y el detalle en palabras, con el registro original desplegable. También corrige el texto «frío» dañado en los datos del original.
 
 **Prueba con personas.** El guion, las consignas por perfil con su respuesta correcta y la hoja de registro están en [prueba-con-personas.md](prueba-con-personas.md). Su ejecución requiere participantes reales y queda a cargo del equipo, al igual que la confirmación en teléfonos reales.

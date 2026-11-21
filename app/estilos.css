@@ -1,17 +1,17 @@
 :root {
   --fondo: #f5f6f4; --superficie: #fcfcfb; --borde: #dfe2dd; --texto: #0b0b0b; --texto-2: #52514e; --texto-3: #6f6e69;
   --acento: #1f6e43; --acento-suave: #e3f0e8; --serie-1: #2a78d6; --rejilla: #e8e8e4;
-  --bueno: #0ca30c; --aviso: #fab219; --serio: #ec835a; --critico: #d03b3b; --sombra: 0 1px 2px rgba(0,0,0,.06);
+  --bueno: #0ca30c; --aviso: #fab219; --serio: #ec835a; --critico: #d03b3b; --sombra: 0 1px 2px rgba(0,0,0,.06); --sobre-acento: #fff;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     --fondo: #121211; --superficie: #1a1a19; --borde: #33332f; --texto: #f0efec; --texto-2: #c3c2b7; --texto-3: #9b9a92;
-    --acento: #5cc28a; --acento-suave: #1f3329; --serie-1: #3987e5; --rejilla: #2c2c29; --critico: #e66767; --sombra: none;
+    --acento: #5cc28a; --acento-suave: #1f3329; --serie-1: #3987e5; --rejilla: #2c2c29; --critico: #e66767; --sombra: none; --sobre-acento: #0b0b0b;
   }
 }
 :root[data-theme="dark"] {
   --fondo: #121211; --superficie: #1a1a19; --borde: #33332f; --texto: #f0efec; --texto-2: #c3c2b7; --texto-3: #9b9a92;
-  --acento: #5cc28a; --acento-suave: #1f3329; --serie-1: #3987e5; --rejilla: #2c2c29; --critico: #e66767; --sombra: none;
+  --acento: #5cc28a; --acento-suave: #1f3329; --serie-1: #3987e5; --rejilla: #2c2c29; --critico: #e66767; --sombra: none; --sobre-acento: #0b0b0b;
 }
 * { box-sizing: border-box; }
 body { margin: 0; font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; background: var(--fondo); color: var(--texto); }
@@ -34,7 +34,7 @@ h1 { font-size: 22px; margin: 4px 0 12px; } h2 { font-size: 17px; margin: 20px 0
 label { font-size: 13px; color: var(--texto-2); display: grid; gap: 2px; }
 input, select, textarea, button { font: inherit; color: var(--texto); background: var(--superficie); border: 1px solid var(--borde); border-radius: 6px; padding: 6px 8px; }
 textarea { width: 100%; min-height: 90px; }
-button { cursor: pointer; background: var(--acento); color: #fff; border-color: var(--acento); font-weight: 600; }
+button { cursor: pointer; background: var(--acento); color: var(--sobre-acento); border-color: var(--acento); font-weight: 600; }
 button.sec { background: var(--superficie); color: var(--texto); border-color: var(--borde); font-weight: 500; }
 button:disabled { opacity: .5; cursor: default; }
 :focus-visible { outline: 3px solid var(--serie-1); outline-offset: 2px; }
@@ -107,7 +107,7 @@ blockquote { margin: 6px 0; padding: 6px 10px; border-left: 3px solid var(--acen
 .opcion-origen.activa, .opcion-origen:hover { border-color: var(--acento); box-shadow: 0 0 0 1px var(--acento); }
 .opcion-origen.deshabilitada { opacity: .6; cursor: default; }
 a.boton, a.boton-sec { display: inline-block; padding: 6px 12px; border-radius: 6px; text-decoration: none; font-weight: 600; }
-a.boton { background: var(--acento); color: #fff; }
+a.boton { background: var(--acento); color: var(--sobre-acento); }
 a.boton-sec { border: 1px solid var(--borde); color: var(--texto); background: var(--superficie); font-weight: 500; }
 button.enlace { background: none; border: none; color: var(--acento); padding: 0 4px; font-weight: 500; text-decoration: underline; }
 label.en-linea { display: flex; flex-direction: row; gap: 6px; align-items: center; }
@@ -135,7 +135,7 @@ legend { font-size: 13px; color: var(--texto-2); padding: 0 4px; }
 .intencion.activa { border-color: var(--acento); box-shadow: 0 0 0 1px var(--acento); }
 .campos-accion { display: grid; gap: 8px; max-width: 560px; }
 .paso.hecho h2 .num-paso { background: var(--bueno); }
-.num-paso { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: var(--acento); color: #fff; font-size: 13px; margin-right: 6px; }
+.num-paso { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: var(--acento); color: var(--sobre-acento); font-size: 13px; margin-right: 6px; }
 .borrador { border-top: 1px solid var(--borde); padding-top: 10px; margin-top: 10px; }
 .vista-previa { border-style: dashed; }
 .fuentes { padding-left: 18px; }
