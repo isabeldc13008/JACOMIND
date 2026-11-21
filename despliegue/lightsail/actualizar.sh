@@ -7,6 +7,7 @@ APP=/opt/jacomind/app
 VENV=/opt/jacomind/venv
 RAMA="${1:-$(sudo -u jacomind git -C "$APP" rev-parse --abbrev-ref HEAD)}"
 set -a; . /etc/jacomind/jacomind.env; set +a
+cd "$APP"
 
 sudo -u jacomind --preserve-env "$VENV/bin/python" -m api --db "$JACOMIND_DB" respaldo >/dev/null   # respaldo previo
 sudo -u jacomind git -C "$APP" fetch -q origin "$RAMA"
@@ -14,7 +15,6 @@ sudo -u jacomind git -C "$APP" reset -q --hard "origin/$RAMA"
 if "$VENV/bin/python" -c "import langgraph" 2>/dev/null; then
   sudo -u jacomind "$VENV/bin/pip" install -q -r "$APP/requirements-llm.txt"
 fi
-cd "$APP"
 sudo -u jacomind --preserve-env "$VENV/bin/python" -m api migrar >/dev/null
 systemctl restart jacomind
 sleep 2

@@ -18,7 +18,7 @@ En la integración (PR #1) se modificó código del carril A. Su autor debe revi
 
 ## 2. Desplegar en Lightsail (primera vez)
 
-`instalar.sh` **no se ha ejecutado aún en una instancia real**. Esta es la primera prueba; si un paso falla, corrige el script en un PR.
+`instalar.sh` y `actualizar.sh` se probaron en un Ubuntu 24.04 con systemd dentro de Docker (`bash despliegue/lightsail/prueba/probar-instalacion.sh`): instalación, servicios, Caddy, cierre real, respaldo, actualización y reinstalación. **Falta la primera ejecución en una instancia Lightsail real** (DNS, Let's Encrypt, firewall). Si un paso falla, corrige el script en un PR.
 
 - [ ] Crear una alerta de presupuesto en AWS Budgets (p. ej. 10 USD/mes) antes de crear recursos.
 - [ ] Crear la instancia: Ubuntu 24.04 LTS, plan de 1 GB (7 USD/mes), región cercana a los usuarios.
@@ -56,6 +56,7 @@ Crear `.github/workflows/ci.yml`, que se ejecute en cada `pull_request` y en cad
 - [ ] Un trabajo adicional con `pip install -r requirements-llm.txt` que ejecute las pruebas de B. Comprueba que el agente funciona con LangGraph instalado, **sin** claves de API.
 - [ ] `node --check app/contrato.js` y `node --input-type=module --check < app/app.js`.
 - [ ] Lint de shell: `shellcheck despliegue/lightsail/*.sh` (y `bash -n` sobre cada script).
+- [ ] Prueba del instalador en Docker (los runners `ubuntu-latest` traen Docker): `LIMPIAR=1 RAMA=${{ github.head_ref || github.ref_name }} bash despliegue/lightsail/prueba/probar-instalacion.sh`. Como clona la rama desde GitHub, ejecútala solo en ramas del propio repositorio.
 - [ ] Comprobar que los scripts de despliegue conservan finales LF (`git ls-files --eol despliegue/`).
 - [ ] Decidir qué hacer con los datos. Sin el paquete `Green_Services_Recursos_de_Prueba`, las pruebas que lo necesitan **se omiten solas**. Si se quiere ejecutarlas en CI, guardar el paquete sintético como artefacto privado o en un repositorio aparte y exponerlo con `JACOMIND_DATOS`. **Nunca** subir datos empresariales.
 - [ ] Proteger `main`: exigir que el CI pase y una revisión aprobada antes de fusionar.

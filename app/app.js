@@ -485,10 +485,41 @@ async function vistaBeneficios() {
 
 // ---------------------------------------------------------------- asistente (B07/B08/B10)
 const historialChat = [];
-function vistaAsistente() {
-  const ejemplos = S.usuario.externo
-    ? ["¿Cuál es el estado de mi caso?", "¿Qué beneficios tengo disponibles?", "¿Cómo solicito un beneficio de renovación por fidelidad?"]
-    : ["¿Qué compró DEMO01?", "¿A qué proveedores compramos en septiembre de 2026?", "¿Qué clientes redujeron compras entre agosto y septiembre de 2026?", "Ventas de octubre de 2026", "¿Qué significa frío?"];
+const MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
+let contextoEjemplos = null;
+
+// Ejemplos construidos con el cierre activo (cliente real y meses del corte), no con datos fijos.
+async function ejemplosAsistente() {
+  if (S.usuario.externo) return ["¿Cuál es el estado de mi caso?", "¿Qué beneficios tengo disponibles?", "¿Cómo solicito un beneficio de renovación por fidelidad?"];
+  if (!contextoEjemplos || contextoEjemplos.cierre !== S.cierre) {
+    const ctx = { cierre: S.cierre, cliente: null, corte: null };
+    try {
+      if (puede("cartera.ver")) {
+        const a = await api("GET", `/api/cierres/${S.cierre}/agenda?tam=1`);
+        ctx.cliente = a.items[0]?.cliente_id || null; ctx.corte = a.corte;
+      } else if (puede("finanzas.ver")) {
+        ctx.corte = (await api("GET", `/api/cierres/${S.cierre}/resumen`)).cierre.corte;
+      }
+    } catch { /* sin cierre publicado: ejemplos genéricos */ }
+    contextoEjemplos = ctx;
+  }
+  const { cliente, corte } = contextoEjemplos;
+  const ej = [];
+  if (cliente) ej.push(`¿Qué compró ${cliente}?`);
+  if (corte) {
+    const anio = Number(corte.slice(0, 4)), mes = Number(corte.slice(5, 7));
+    const ant = mes === 1 ? [12, anio - 1] : [mes - 1, anio];
+    const ant2 = ant[0] === 1 ? [12, ant[1] - 1] : [ant[0] - 1, ant[1]];
+    ej.push(`¿A qué proveedores compramos en ${MESES[ant[0] - 1]} de ${ant[1]}?`,
+      `¿Qué clientes redujeron compras entre ${MESES[ant2[0] - 1]} de ${ant2[1]} y ${MESES[ant[0] - 1]} de ${ant[1]}?`,
+      `Ventas de ${MESES[mes - 1]} de ${anio}`);
+  }
+  ej.push("¿Qué significa frío?");
+  return ej;
+}
+
+async function vistaAsistente() {
+  const ejemplos = await ejemplosAsistente();
   $vista.innerHTML = `<h1>Asistente</h1><p class="muted">Las cifras las calcula el servicio con herramientas de solo lectura; el modelo de lenguaje solo redacta. Comprueba la evidencia.</p>
   <div id="chat">${historialChat.join("")}</div>
   <form id="f" class="fila"><input id="p" style="flex:1;min-width:220px" maxlength="1000" placeholder="Escribe tu pregunta" autocomplete="off"><button>Preguntar</button></form>

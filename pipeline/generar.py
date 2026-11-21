@@ -81,6 +81,7 @@ def generar(datos: str | Path, corte: str, salida: str | Path) -> dict:
     compras = _load(raiz, "compras.csv", "compras")
     productos = {str(p["producto_id"]): p for p in _load(raiz, "productos.csv", "productos")}
     instalaciones = _load(raiz, "base_instalada.csv", "instalaciones")
+    nombres_proveedor = {str(p["proveedor_id"]): p.get("nombre_prueba") for p in _load(raiz, "proveedores.csv", "proveedores")}
     tasas = _rates(raiz)
 
     # A02: importes por operación con la política de redondeo de A.
@@ -104,6 +105,7 @@ def generar(datos: str | Path, corte: str, salida: str | Path) -> dict:
             continue
         c = compra_por_id[str(r["id"])]
         compras_prov.append({"compra_id": str(r["id"]), "fecha": _iso(c["fecha"]), "proveedor_id": str(c["proveedor_id"]),
+                             "proveedor": nombres_proveedor.get(str(c["proveedor_id"])),
                              "producto_id": str(c["producto_id"]), "familia": r["family"], "cantidad": int(c["cantidad"]),
                              "moneda": c["moneda"], "costo_unitario": float(c["costo_unitario"]),
                              "tasa": _f(tasas[c["fecha"]]) if c["moneda"] == "USD" else None, "importe_cop": _f(r["amount_cop"])})
