@@ -49,12 +49,12 @@ resource app 'Microsoft.Web/sites@2023-12-01' = {
       minTlsVersion: '1.2'
       healthCheckPath: '/api/estado'
       appSettings: [
-        { name: 'JACOMIND_DB'; value: '/home/data/jacomind.sqlite3' }
-        { name: 'JACOMIND_VAR'; value: '/home/data/var' }
-        { name: 'JACOMIND_SALIDA'; value: '/home/data/salida' }
-        { name: 'JACOMIND_DATOS'; value: '/home/data/datos' }
-        { name: 'JACOMIND_COOKIE_SEGURA'; value: '1' }
-        { name: 'JACOMIND_LLM'; value: '0' }
+        { name: 'JACOMIND_DB'; value: '/home/data/jacomind.sqlite3' },
+        { name: 'JACOMIND_VAR'; value: '/home/data/var' },
+        { name: 'JACOMIND_SALIDA'; value: '/home/data/salida' },
+        { name: 'JACOMIND_DATOS'; value: '/home/data/datos' },
+        { name: 'JACOMIND_COOKIE_SEGURA'; value: '1' },
+        { name: 'JACOMIND_LLM'; value: '0' },
         { name: 'WEBSITE_HTTPLOGGING_RETENTION_DAYS'; value: '7' }
       ]
     }
