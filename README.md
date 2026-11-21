@@ -4,6 +4,8 @@
 
 [Plan de implementación del proyecto completo](PLAN_IMPLEMENTACION.md) · [Tareas de datos y modelos](docs/plan/datos-y-modelos.md) · [Tareas de aplicación y operación](docs/plan/aplicacion-y-operacion.md)
 
+[Plan de mejora de las vistas por perfil](docs/plan/mejora-de-vistas.md)
+
 ## Arranque rápido
 
 Requiere Python 3.10 o superior. La aplicación y la API usan solo la biblioteca estándar.
@@ -52,7 +54,7 @@ Sin esas dependencias o claves, el asistente funciona igual con plantillas y eje
 |---|---|
 | `contratos/` | Esquemas C1–C4, validador sin dependencias, reglas de orden y muestras. Ver [contratos/README.md](contratos/README.md) |
 | `api/` | Servidor HTTP y API, migraciones SQLite, identidad y permisos, publicación de cierres, consultas, tareas, PQRS, beneficios, documentos/RAG, agente, finanzas y operación |
-| `app/` | Interfaz web (HTML/JS sin dependencias) y `fixtures/agenda.json` |
+| `app/` | Interfaz web (HTML/JS sin dependencias): `app.js` (entrada y enrutado), `nucleo.js` (sesión, API y formatos), `ui.js` (barras, «Ver datos y cálculo», gráfica, cronología), `vistas/` (una por área) y `fixtures/agenda.json` |
 | `tests/app/`, `tests/integracion/` | Pruebas de unidad, de contrato, de la API, del servidor real y de fusión con A |
 | `docs/demo.md`, `docs/operacion.md` | Guion por rol y procedimiento de cierre, respaldo y recuperación |
 

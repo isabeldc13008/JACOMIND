@@ -95,8 +95,10 @@ def detalle(con, usuario, radicado: str) -> dict:
     r = _cargar(con, usuario, radicado)
     if usuario.externo:
         bit = [dict(b) for b in con.execute(
-            "SELECT ts, accion, a_estado FROM pqrs_bitacora WHERE pqrs_id = ? AND interna = 0 ORDER BY id", (r["id"],))]
-        return _publico(r) | {"historial": bit}
+            "SELECT ts, accion, a_estado FROM pqrs_bitacora WHERE pqrs_id = ? AND interna = 0 "
+            "AND accion NOT IN ('categorizar', 'reasignar') ORDER BY id", (r["id"],))]
+        # Última actualización pública: el último cambio visible para la empresa.
+        return _publico(r) | {"historial": bit, "actualizado_en": bit[-1]["ts"] if bit else r["creado_en"]}
     d = dict(r)
     d["bitacora"] = [dict(b) for b in con.execute("SELECT * FROM pqrs_bitacora WHERE pqrs_id = ? ORDER BY id", (r["id"],))]
     d["sugerencias"] = [dict(s) for s in con.execute("SELECT * FROM pqrs_sugerencias WHERE pqrs_id = ? ORDER BY id", (r["id"],))]
@@ -200,6 +202,11 @@ def indicadores(con) -> dict:
             "antiguedad_mediana_dias": {e: med(v) for e, v in antiguedad.items()},
             "horas_primera_gestion_mediana": {k: med(v) for k, v in primera.items()},
             "horas_resolucion_mediana": {k: med(v) for k, v in resolucion.items()},
+            "casos_medidos_primera_gestion": {k: len(v) for k, v in primera.items()},
+            "casos_medidos_resolucion": {k: len(v) for k, v in resolucion.items()},
+            "horas_primera_gestion_mediana_total": med([x for v in primera.values() for x in v]),
+            "horas_resolucion_mediana_total": med([x for v in resolucion.values() for x in v]),
+            "definicion_mediana": "Valor central de los tiempos medidos: la mitad de los casos tardó menos y la otra mitad más.",
             "abiertos_por_categoria": abiertos_cat,
             "nota": "Los vencimientos solo se calculan para casos con plazo aprobado."}
 

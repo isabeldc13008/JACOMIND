@@ -7,10 +7,47 @@ from collections import Counter, defaultdict
 
 from contratos.agenda import ORDEN_ACCION, motivos
 
-from .base import ErrorApi, bandera, loads
+from .base import ErrorApi, ahora, bandera, loads
 from .publicacion import filas, resolver_cierre
 
 TAM_MAX = 200
+LIMITE_OPORTUNIDADES = 20
+TIPO_A_ACCION = {"reactivacion": "Revisar reactivación", "renovacion": "Revisar cobertura",
+                 "recompra": "Revisar oportunidad de recompra", "primera_compra": "Revisar primera compra"}
+# Intervalos de días hasta el fin de cobertura (relativos al corte) para el tablero de Operaciones.
+INTERVALOS_COBERTURA = [("vencidas", "Vencidas", None, -1), ("0-15", "Vencen en 0–15 días", 0, 15),
+                        ("16-30", "Vencen en 16–30 días", 16, 30), ("31-45", "Vencen en 31–45 días", 31, 45)]
+
+
+def comparacion_mensual(series: list[dict]) -> dict | None:
+    """Último mes completo frente al anterior, por familia, a partir de las series históricas publicadas.
+
+    Devuelve el par de meses comparado, el valor de cada familia en ambos y la diferencia. Un mes
+    incompleto (``completo`` falso o valor nulo) no se compara y se informa aparte.
+    """
+    hist = [s for s in series if s.get("tipo") == "historico"]
+    total = sorted((s for s in hist if s["familia"] == "Total"), key=lambda s: s["periodo"])
+    if not total:
+        return None
+    completos = [s for s in total if s.get("valor_cop") is not None and s.get("completo", True)]
+    incompletos = [s["periodo"] for s in total if s.get("valor_cop") is None or not s.get("completo", True)]
+    if len(completos) < 2:
+        return {"mes": completos[-1]["periodo"] if completos else None, "mes_anterior": None, "familias": [],
+                "meses_incompletos": incompletos, "estado": "sin_comparacion"}
+    act, ant = completos[-1], completos[-2]
+    por_fam: dict[str, dict] = defaultdict(dict)
+    for s in hist:
+        if s["periodo"] in (act["periodo"], ant["periodo"]):
+            por_fam[s["familia"]][s["periodo"]] = s.get("valor_cop")
+    familias = []
+    for fam, v in por_fam.items():
+        a, b = v.get(ant["periodo"]), v.get(act["periodo"])
+        familias.append({"familia": fam, "valor_anterior": a, "valor": b,
+                         "diferencia": None if a is None or b is None else round(b - a, 2)})
+    familias.sort(key=lambda f: (f["familia"] != "Total", -abs(f["diferencia"] or 0), f["familia"]))
+    return {"mes": act["periodo"], "valor": act["valor_cop"], "mes_anterior": ant["periodo"], "valor_anterior": ant["valor_cop"],
+            "diferencia": round(act["valor_cop"] - ant["valor_cop"], 2), "familias": familias,
+            "meses_incompletos": [m for m in incompletos if m > act["periodo"]], "estado": "ok"}
 
 
 def _umbral(cierre: dict) -> float | None:
@@ -112,10 +149,13 @@ def ficha(con, cierre_ref: str, cliente_id: str) -> dict:
         "cliente": c,
         "historial_disponible": bool(historial) or c["sin_historial"],
         "historial": historial[:100],
+        "historial_total": len(historial),
         "productos": [dict(producto=k, **{**v, "importe_cop": round(v["importe_cop"], 2)}) for k, v in sorted(por_producto.items())],
         "coberturas": sorted(filas(con, cid, "coberturas", cliente_id), key=lambda x: x["fecha_fin"]),
         "segmento": seg[0] if seg else ({"segmento": c.get("segmento")} if c.get("segmento") else None),
-        "oportunidades": filas(con, cid, "oportunidades", cliente_id),
+        "oportunidades": [o | {"accion": TIPO_A_ACCION.get(o.get("tipo"), o.get("tipo"))}
+                          for o in filas(con, cid, "oportunidades", cliente_id)],
+        "modelo": (cierre["manifiesto"].get("modelo") if modelo_activo else None),
         "tarea": dict(tarea, motivos=loads(tarea["motivos_json"])) if tarea else None,
         "rfm": {"recencia_dias": c.get("dias_sin_compra"), "frecuencia": c.get("ventas_confirmadas"),
                 "monetario_cop": c.get("ingreso_cop")},
@@ -130,22 +170,39 @@ def tablero(con, cierre_ref: str, rol: str) -> dict:
     base = {"cierre": {"id": cid, "corte": cierre["corte"]}, "rol": rol}
     if rol == "ventas":
         seg = Counter(c.get("segmento") or "Sin segmento" for c in clientes)
-        opps = sorted(filas(con, cid, "oportunidades"), key=lambda o: (o["prioridad"], -(o.get("probabilidad") or -1), o["cliente_id"]))
-        return base | {"segmentos": [{"segmento": k, "clientes": v} for k, v in sorted(seg.items())],
-                       "oportunidades": opps[:20],
+        desc = {s["segmento"]: s.get("descripcion") for s in filas(con, cid, "segmentos")}
+        todas = sorted(filas(con, cid, "oportunidades"), key=lambda o: (o["prioridad"], -(o.get("probabilidad") or -1), o["cliente_id"]))
+        opps = [o | {"accion": TIPO_A_ACCION.get(o.get("tipo"), o.get("tipo"))} for o in todas[:LIMITE_OPORTUNIDADES]]
+        return base | {"segmentos": [{"segmento": k, "clientes": v, "descripcion": desc.get(k)}
+                                     for k, v in sorted(seg.items(), key=lambda kv: (-kv[1], kv[0]))],
+                       "total_clientes": len(clientes),
+                       "oportunidades": opps, "limite_oportunidades": LIMITE_OPORTUNIDADES, "total_oportunidades": len(todas),
                        "etiquetas": {"frecuentes": sum(c["frecuente"] for c in clientes), "frios": sum(c["frio"] for c in clientes),
+                                     "ambas": sum(bool(c["frecuente"] and c["frio"]) for c in clientes),
                                      "nota": "Un cliente puede ser frecuente y frío a la vez."}}
     if rol == "operaciones":
         cob = filas(con, cid, "coberturas")
         tareas = {r[0]: r[1] for r in con.execute("SELECT estado, count(*) FROM tareas GROUP BY estado")}
-        return base | {"coberturas_proximas": [c for c in cob if c["estado"] == "proxima"],
-                       "coberturas_vencidas": [c for c in cob if c["estado"] == "vencida"],
+        proximas = sorted((c for c in cob if c["estado"] == "proxima"), key=lambda c: (c.get("dias_para_fin") or 0, c["cliente_id"]))
+        vencidas = sorted((c for c in cob if c["estado"] == "vencida"), key=lambda c: (c.get("dias_para_fin") or 0, c["cliente_id"]))
+        intervalos = []
+        for clave, etiqueta, desde, hasta in INTERVALOS_COBERTURA:
+            if desde is None:
+                n = len(vencidas)
+            else:
+                n = sum(1 for c in proximas if c.get("dias_para_fin") is not None and desde <= c["dias_para_fin"] <= hasta)
+            intervalos.append({"clave": clave, "etiqueta": etiqueta, "coberturas": n, "desde": desde, "hasta": hasta})
+        return base | {"coberturas_proximas": proximas,
+                       "coberturas_vencidas": vencidas,
+                       "intervalos": intervalos, "unidad_intervalos": "coberturas (un cliente puede tener varias)",
+                       "detalle_disponible": bool(cob),
                        "resumen_coberturas": {"renovaciones_proximas": sum(c["renovaciones_proximas"] for c in clientes),
                                               "coberturas_vencidas": sum(c["coberturas_vencidas"] for c in clientes)},
-                       "tareas_por_estado": tareas,
+                       "tareas_por_estado": tareas, "tareas_consultadas_en": ahora(),
                        "nota": "La ventana de cobertura es contractual; la próxima compra estimada es una predicción."}
     if rol == "gerencia":
-        series = [s for s in filas(con, cid, "series_mensuales") if s["familia"] == "Total" and s["tipo"] == "historico" and s["serie"] == "ventas"]
+        ventas = [s for s in filas(con, cid, "series_mensuales") if s["serie"] == "ventas"]
+        series = [s for s in ventas if s["familia"] == "Total" and s["tipo"] == "historico"]
         seg = defaultdict(lambda: {"clientes": 0, "ingreso_cop": 0.0})
         for c in clientes:
             s = seg[c.get("segmento") or "Sin segmento"]
@@ -155,17 +212,22 @@ def tablero(con, cierre_ref: str, rol: str) -> dict:
                                        "clientes": res["clientes"], "clientes_frios": res["clientes_frios"],
                                        "unidad": "COP acumulado al corte (histórico)"},
                        "evolucion": sorted(series, key=lambda s: s["periodo"]),
+                       "comparacion": comparacion_mensual(ventas),
+                       "fuente": {"cierre_id": cid, "origen": cierre["origen"], "publicado_en": cierre["publicado_en"],
+                                  "tablas": ["series_mensuales", "agenda"]},
                        "segmentos": [{"segmento": k, "clientes": v["clientes"], "ingreso_cop": round(v["ingreso_cop"], 2)}
-                                     for k, v in sorted(seg.items())]}
+                                     for k, v in sorted(seg.items(), key=lambda kv: (-kv[1]["ingreso_cop"], kv[0]))]}
     raise ErrorApi(404, "tablero_desconocido", f"No existe el tablero {rol}")
 
 
-def exportar_csv(con, cierre_ref: str) -> str:
+def exportar_csv(con, cierre_ref: str, accion=None, segmento=None, q=None, frio=None) -> str:
+    """Exporta la agenda con los mismos filtros que la vista (sin filtros: toda la cartera)."""
     cierre = resolver_cierre(con, cierre_ref)
-    datos = agenda(con, cierre["id"], tam=TAM_MAX, pagina=1)
+    filtros = {"accion": accion or None, "segmento": segmento or None, "q": q or None, "frio": frio or None}
+    datos = agenda(con, cierre["id"], tam=TAM_MAX, pagina=1, **filtros)
     todos = list(datos["items"])
     for p in range(2, datos["paginas"] + 1):
-        todos += agenda(con, cierre["id"], tam=TAM_MAX, pagina=p)["items"]
+        todos += agenda(con, cierre["id"], tam=TAM_MAX, pagina=p, **filtros)["items"]
     buf = io.StringIO()
     campos = ["cliente_id", "accion", "motivos", "prob_compra_30d", "dias_sin_compra", "ventas_confirmadas", "ingreso_cop",
               "frecuente", "frio", "renovaciones_proximas", "coberturas_vencidas", "segmento"]

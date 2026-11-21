@@ -157,7 +157,8 @@ def r_agenda(c: Ctx):
 @ruta("GET", "/api/cierres/{cierre}/agenda.csv", "cartera.exportar")
 def r_agenda_csv(c: Ctx):
     with c.db.conexion() as con:
-        texto = consultas.exportar_csv(con, c.params["cierre"])
+        texto = consultas.exportar_csv(con, c.params["cierre"], accion=c.q("accion"), segmento=c.q("segmento"),
+                                       q=c.q("q"), frio=c.q("frio"))
     return Respuesta(200, ("﻿" + texto).encode("utf-8"), "text/csv; charset=utf-8",
                      {"Content-Disposition": f'attachment; filename="agenda-{c.params["cierre"]}.csv"'})
 
@@ -186,7 +187,7 @@ def r_tareas(c: Ctx):
 @ruta("GET", "/api/tareas/metricas", "tareas.ver")
 def r_tareas_metricas(c: Ctx):
     with c.db.conexion() as con:
-        return tareas.metricas(con)
+        return tareas.metricas(con, responsable=c.usuario.id if c.q("mias") == "1" else c.q("responsable"))
 
 
 @ruta("GET", "/api/tareas/{id}", "tareas.ver")

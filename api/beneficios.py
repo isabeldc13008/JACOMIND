@@ -55,8 +55,37 @@ def transicion(db: BaseDatos, usuario, bid: str, version: int, accion: str) -> d
         return _fila(con.execute("SELECT * FROM beneficios WHERE id = ? AND version = ?", (bid, version)).fetchone())
 
 
+def condicion_texto(criterio: dict) -> str:
+    """Traduce el criterio de elegibilidad a una frase legible (vista previa del catálogo y del portal)."""
+    partes = []
+    if criterio.get("organizaciones"):
+        partes.append("empresas " + ", ".join(criterio["organizaciones"]))
+    if criterio.get("segmentos"):
+        segs = criterio["segmentos"]
+        partes.append(("empresas del segmento " if len(segs) == 1 else "empresas de los segmentos ") + " o ".join(segs))
+    texto = "Aplica a " + " y ".join(partes) if partes else "Aplica a todas las empresas"
+    if criterio.get("requiere"):
+        texto += "; requiere tener registrado: " + ", ".join(criterio["requiere"])
+    return texto + "."
+
+
+def disponibilidad(b: dict, fecha=None) -> str:
+    """Estado de las fechas, independiente del estado editorial: programado, disponible o vencido."""
+    f = (fecha or hoy()).isoformat()
+    if b["vigencia_desde"] > f:
+        return "programado"
+    if b.get("vigencia_hasta") and b["vigencia_hasta"] < f:
+        return "vencido"
+    return "disponible"
+
+
 def catalogo(con) -> list[dict]:
-    return [_fila(r) for r in con.execute("SELECT * FROM beneficios ORDER BY id, version DESC")]
+    salida = []
+    for r in con.execute("SELECT * FROM beneficios ORDER BY id, version DESC"):
+        b = _fila(r)
+        salida.append(b | {"condicion": condicion_texto(b["criterio"]), "disponibilidad": disponibilidad(b),
+                           "visible_en_portal": b["estado"] == "publicado" and disponibilidad(b) == "disponible"})
+    return salida
 
 
 def elegibilidad(criterio: dict, org) -> str | None:
@@ -91,7 +120,8 @@ def portal(con, usuario, fecha=None) -> list[dict]:
             continue
         salida.append({"id": b["id"], "version": b["version"], "titulo": b["titulo"], "descripcion": b["descripcion"],
                        "empresa_emisora": b["empresa_emisora"], "fuente": b["fuente"], "vigencia_desde": b["vigencia_desde"],
-                       "vigencia_hasta": b["vigencia_hasta"], "como_solicitar": b["como_solicitar"], "elegibilidad": e})
+                       "vigencia_hasta": b["vigencia_hasta"], "como_solicitar": b["como_solicitar"], "elegibilidad": e,
+                       "condicion": condicion_texto(b["criterio"])})
     return salida
 
 
@@ -107,7 +137,9 @@ def retencion(con) -> dict:
                            sum(resultado LIKE '%recuper%' OR resultado = 'resultado_atribuido') recuperaciones
                            FROM tareas WHERE beneficio_id IS NOT NULL GROUP BY beneficio_id""").fetchall()
     elegibles = con.execute("SELECT count(*) FROM tareas WHERE tipo = 'reactivacion'").fetchone()[0]
-    return {"elegibles_reactivacion": elegibles, "por_beneficio": [dict(r) for r in filas],
+    clientes = con.execute("SELECT count(DISTINCT cliente_id) FROM tareas WHERE tipo = 'reactivacion'").fetchone()[0]
+    return {"elegibles_reactivacion": elegibles, "tareas_reactivacion": elegibles, "clientes_con_tarea_reactivacion": clientes,
+            "por_beneficio": [dict(r) for r in filas],
             "nota": "Las recuperaciones son observadas; la ventana de medición se acuerda con Ventas."}
 
 

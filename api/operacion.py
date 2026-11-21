@@ -31,6 +31,10 @@ from .publicacion import cierre_activo, publicar_ruta
 
 IMPORTADOR_A = os.environ.get("JACOMIND_IMPORTADOR", "pipeline.importar:importar_archivo")
 BANDERAS = {"asistente": "Asistente de consultas y del portal", "modelo_compra": "Probabilidad de compra a 30 días en agenda y fichas"}
+EFECTO_BANDERAS = {
+    "asistente": "Si lo desactivas, el asistente interno y el del portal responden que no están disponibles. Tareas, PQRS y beneficios siguen funcionando.",
+    "modelo_compra": "Si lo desactivas, la agenda y las fichas muestran «Hay compras, pero falta la estimación», el orden pasa a ser acción e ID y las reglas siguen marcando reactivación, cobertura y primera compra.",
+}
 
 # Diccionario de datos del paquete (columnas, clave y tipos) para la validación preliminar.
 TABLAS_CARGA = {
@@ -175,7 +179,7 @@ def _validacion_preliminar(ruta: Path, tabla: str, hoja=None, mapeo=None) -> dic
             "validador": "preliminar-B (referencias entre tablas las valida A01)"}
 
 
-def validar_archivo(ruta: Path, tabla: str, hoja=None, mapeo=None) -> dict:
+def _validar(ruta: Path, tabla: str, hoja=None, mapeo=None) -> dict:
     modulo, _, funcion = IMPORTADOR_A.partition(":")
     try:
         fn = getattr(importlib.import_module(modulo), funcion)
@@ -191,6 +195,19 @@ def validar_archivo(ruta: Path, tabla: str, hoja=None, mapeo=None) -> dict:
         r.setdefault("validador", f"A01:{IMPORTADOR_A}")
         return r
     return _validacion_preliminar(ruta, tabla, hoja, mapeo)
+
+
+def validar_archivo(ruta: Path, tabla: str, hoja=None, mapeo=None) -> dict:
+    """Valida el archivo y añade lo necesario para mapear columnas con controles en la vista."""
+    r = _validar(ruta, tabla, hoja, mapeo)
+    if "encabezados" not in r:
+        try:
+            datos, _ = leer_tabla(ruta, hoja, None)
+            r["encabezados"] = list(datos[0].keys()) if datos else []
+        except Exception:  # noqa: BLE001 - los encabezados son una ayuda, no bloquean la validación
+            r["encabezados"] = []
+    r.setdefault("columnas_esperadas", list(TABLAS_CARGA.get(tabla, {}).get("columnas", {})))
+    return r
 
 
 def previsualizar_carga(db: BaseDatos, usuario, nombre: str, contenido: bytes, tabla: str, periodo: str | None,
@@ -321,7 +338,8 @@ def estado_operacion(con) -> dict:
     return {"version_app": __version__, "cierre_activo": act, "corte": c["corte"] if c else None,
             "publicado_en": c["publicado_en"] if c else None, "frescura_dias": frescura,
             "versiones": man.get("versiones"), "ejecuciones": ejec, "filas_aisladas_en_cargas": rechazadas,
-            "banderas": {k: {"activo": bandera(con, k), "descripcion": d} for k, d in BANDERAS.items()}}
+            "banderas": {k: {"activo": bandera(con, k), "descripcion": d, "efecto": EFECTO_BANDERAS.get(k)} for k, d in BANDERAS.items()},
+            "tablas_carga": {t: list(spec["columnas"]) for t, spec in TABLAS_CARGA.items()}}
 
 
 def fijar_bandera(db: BaseDatos, usuario, nombre: str, activo: bool) -> dict:

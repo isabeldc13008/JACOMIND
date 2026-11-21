@@ -220,6 +220,8 @@ def bandeja_revision(con) -> list[dict]:
 
 
 # Asistente del portal: enruta por intención dentro del contexto autenticado -------
+ESTADO_PUBLICO = {"recibido": "recibida y pendiente de revisión", "en_gestion": "en revisión por nuestro equipo",
+                  "respondido": "respondida", "cerrado": "cerrada"}
 _RE_RADICADO = re.compile(r"PQRS-\d{8}-\d{5}", re.I)
 
 
@@ -234,14 +236,14 @@ def asistente_portal(con, usuario, pregunta: str) -> dict:
             except ErrorApi:
                 return {"estado": "no_encontrado", "herramienta": "pqrs", "parametros": {"radicado": m.group(0).upper()},
                         "evidencia": {"fuentes": []}, "texto": "No encontré ese radicado entre los casos de tu empresa."}
-            texto = f"Tu caso {c['radicado']} («{c['asunto']}») está en estado {c['estado'].replace('_', ' ')}."
+            texto = f"Tu solicitud {c['radicado']} («{c['asunto']}») está {ESTADO_PUBLICO.get(c['estado'], c['estado'])}."
             if c.get("respuesta_publicada"):
                 texto += f" Respuesta publicada: {c['respuesta_publicada']}"
             return {"estado": "ok", "herramienta": "pqrs", "parametros": {"radicado": c["radicado"]},
                     "resultado": {"estado": c["estado"]}, "evidencia": {"detalle": f"#/pqrs/{c['radicado']}", "fuentes": []}, "texto": texto}
         casos = modulo_pqrs.listar(con, usuario) if usuario.externo else []
         texto = ("No tienes casos registrados." if not casos else
-                 "Tus casos: " + "; ".join(f"{c['radicado']} ({c['estado'].replace('_', ' ')})" for c in casos[:5]) + ".")
+                 "Tus casos: " + "; ".join(f"{c['radicado']} ({ESTADO_PUBLICO.get(c['estado'], c['estado'])})" for c in casos[:5]) + ".")
         return {"estado": "ok" if casos else "sin_datos", "herramienta": "pqrs", "parametros": {}, "resultado": casos[:5],
                 "evidencia": {"fuentes": []}, "texto": texto}
     if "beneficio" in t or "descuento" in t or "fidelizacion" in t:

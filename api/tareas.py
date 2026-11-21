@@ -143,7 +143,9 @@ def detalle(con, tarea_id: int) -> dict:
     d = _fila(t)
     d["historial_evidencia"] = [dict(r, motivos=loads(r["motivos_json"]), evidencia=loads(r["evidencia_json"]))
                                 for r in con.execute("SELECT cierre_id, motivos_json, evidencia_json, version_modelo, ts FROM tarea_evidencias WHERE tarea_id = ? ORDER BY id", (tarea_id,))]
-    d["eventos"] = [dict(r) for r in con.execute("SELECT evento_id, tipo, fecha, actor, estado, resultado FROM eventos WHERE episodio_id = ? ORDER BY fecha", (t["episodio_id"],))]
+    d["eventos"] = [dict({k: r[k] for k in ("evento_id", "tipo", "fecha", "actor", "estado", "resultado")},
+                         datos=loads(r["datos_json"]) if r["datos_json"] else None)
+                    for r in con.execute("SELECT evento_id, tipo, fecha, actor, estado, resultado, datos_json FROM eventos WHERE episodio_id = ? ORDER BY fecha", (t["episodio_id"],))]
     return d
 
 
@@ -212,16 +214,24 @@ def avisos(con, destinatario=None) -> list[dict]:
     return [dict(r) for r in cur]
 
 
-def metricas(con) -> dict:
+def metricas(con, responsable=None) -> dict:
+    """Medición del equipo (todas las tareas) y, aparte, el total pendiente de la selección antes del cupo."""
+    where, args = "estado NOT IN ('descartada','atendida')", []
+    if responsable:
+        where += " AND responsable_id = ?"; args.append(responsable)
+    pendientes = con.execute(f"SELECT count(*) FROM tareas WHERE {where}", args).fetchone()[0]
     por_tipo = {}
     for r in con.execute("""SELECT tipo, count(*) total, sum(estado = 'atendida') atendidas, sum(estado = 'descartada') descartadas
                             FROM tareas GROUP BY tipo"""):
-        por_tipo[r["tipo"]] = {"total": r["total"], "fraccion_atendida": round(r["atendidas"] / r["total"], 4),
+        por_tipo[r["tipo"]] = {"total": r["total"], "atendidas": r["atendidas"], "descartadas": r["descartadas"],
+                               "fraccion_atendida": round(r["atendidas"] / r["total"], 4),
                                "tasa_descarte": round(r["descartadas"] / r["total"], 4)}
     dup = con.execute("SELECT count(*) FROM (SELECT tarea_id, tipo, mensaje FROM avisos GROUP BY 1,2,3 HAVING count(*) > 1)").fetchone()[0]
     multi = con.execute("SELECT count(*) FROM (SELECT episodio_id FROM tareas GROUP BY 1 HAVING count(*) > 1)").fetchone()[0]
     expuestas = con.execute("SELECT count(DISTINCT episodio_id) FROM eventos WHERE tipo = 'expuesta'").fetchone()[0]
-    return {"por_tipo": por_tipo, "avisos_duplicados": dup, "episodios_con_varias_tareas": multi,
+    return {"por_tipo": por_tipo, "alcance": "equipo (todas las tareas, con independencia del filtro por responsable)",
+            "pendientes_seleccion": pendientes, "seleccion": {"responsable": responsable},
+            "avisos_duplicados": dup, "episodios_con_varias_tareas": multi,
             "denominador_expuestas": expuestas,
             "nota": "Compra posterior observada ≠ contacto registrado ≠ resultado atribuido al seguimiento."}
 
