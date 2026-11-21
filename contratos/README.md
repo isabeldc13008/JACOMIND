@@ -43,9 +43,9 @@ B los busca por nombre y, si no existen o no cumplen el contrato, sigue funciona
 
 | Pieza de A | Ruta por defecto | Firma esperada |
 |---|---|---|
-| Generador del cierre | `python -m pipeline.generar --datos D --corte AAAA-MM-DD --salida salida/.../agenda.json` | escribe C1 (y opcionalmente `manifiesto.json` y tablas C2 en el mismo directorio); código ≠ 0 si falla |
+| Generador del cierre | `python -m pipeline.generar --datos D --corte AAAA-MM-DD --salida salida/.../agenda.json` | escribe C1 (y opcionalmente `manifiesto.json` y tablas C2 en el mismo directorio); código ≠ 0 si falla. **Mientras A no lo publique**, B usa `api/integracion_a.py` (`python -m api generar-desde-a`), que construye C1/C2 con las funciones reales de `pipeline/`: `cargar_lote` (A01), `calcular_cierre` (A02), `construir_ficha` (A03), `entrenar_y_evaluar_desde_paquete` y `construir_fotografias` (A04), `segmentar_clientes` (A05), `pronosticar_media_movil` (A08) y `simular_exposicion` (A09) |
 | Importador A01 | `JACOMIND_IMPORTADOR=pipeline.importar:importar_archivo` | `importar_archivo(ruta, tabla, hoja=None, mapeo=None) -> {"leidas", "aceptadas", "duplicadas", "aisladas", "bloqueante", "incidencias": [{"fila", "campo", "motivo", "accion"}]}` |
-| Clasificador A10 | `JACOMIND_CLASIFICADOR=modelos.clasificador_pqrs:clasificar` | `clasificar(texto) -> {"categoria": peticion\|queja\|reclamo\|sugerencia, "confianza": 0–1, "version", "revisar": bool, "motivo"?, "responsable"?}` |
+| Clasificador A10 | `JACOMIND_CLASIFICADOR=modelos.clasificador_pqrs:clasificar,pipeline.pqrs:clasificar_pqrs` (se usa el primero que exista) | `clasificar(texto) -> {"categoria": peticion\|queja\|reclamo\|sugerencia, "confianza": 0–1, "version", "revisar": bool, "motivo"?, "responsable"?}` |
 
 ## Muestras
 
@@ -60,3 +60,14 @@ B los busca por nombre y, si no existen o no cumplen el contrato, sigue funciona
 | `agenda/id_repetido.json` | inválida: ID repetido |
 | `agenda/tipo_invalido.json` | inválida: probabilidad como texto |
 | `trabajo/eventos.json`, `asistencia/clasificacion.json` | ejemplos mínimos de C3 y C4 |
+
+## Estado de la integración con la rama de A (`codex/datos-modelos-completos`)
+
+Fusionada en `integracion/a-b`. Solo hubo conflictos en `README.md` y `.gitignore`, que se resolvieron uniendo ambos lados. Con el paquete de datos, el cierre de octubre generado con las funciones de A concilia exactamente: 120 clientes, 1.371 ventas confirmadas, 5.647.449.456,36 COP, 41 fríos y umbral del modelo 0,4.
+
+Pendiente para A:
+
+- Sus pruebas `tests/datos/test_ficha.py`, `test_operaciones.py`, `test_aceptacion_a01.py` y `tests/modelos/test_modelo_compra.py` usan una ruta fija a su equipo (`C:\Users\idelg\...`). En otro equipo fallan aunque el código sea correcto; con la ruta local pasan las 36. Se sugiere leer la ruta de `JACOMIND_DATOS` o buscar la carpeta hermana `../Green_Services_Recursos_de_Prueba`.
+- `pipeline.pqrs.clasificar_pqrs` devuelve `categoria: "revision_manual"` sin el campo `revisar`. B lo normaliza a C4 (`categoria: null`, `revisar: true`).
+- Venta cruzada (A07) todavía no se publica: genera una sugerencia por cada familia no comprada, sin soporte mínimo evaluado.
+- El pronóstico (A08) se publica sin error histórico (`mae: null`) y la vista lo indica.

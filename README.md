@@ -25,6 +25,13 @@ python -m contratos.validar salida/agenda.json    # válido / inválido / incomp
 python -m api publicar salida/agenda.json         # o un directorio C2 con manifiesto.json
 ```
 
+Mientras A no publique `pipeline.generar`, el cierre usa las funciones de `pipeline/` a través de un adaptador del lado de B:
+
+```bash
+python -m api cierre --corte 2026-10-31 --datos ../Green_Services_Recursos_de_Prueba   # A01→A09 → C2 → publicación
+python -m api generar-desde-a --datos ../Green_Services_Recursos_de_Prueba --corte 2026-10-31 --salida salida/cierres/oct
+```
+
 ## Asistente con modelo de lenguaje (opcional)
 
 Las cifras siempre las calculan herramientas deterministas de solo lectura. El modelo solo redacta, y si añade cifras que no están en el resultado, se descarta su texto. El agente es un grafo **LangGraph** con los nodos interpretar → aclarar, denegar o ejecutar → redactar → registrar. La redacción usa **LangChain**: Gemini como proveedor principal y Anthropic de respaldo (`with_fallbacks`).
