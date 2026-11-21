@@ -33,7 +33,7 @@ python -m api cierre --corte 2026-10-31 --datos ../Green_Services_Recursos_de_Pr
 
 ## Despliegue
 
-Un servidor Amazon Lightsail (Ubuntu 24.04, plan de 7 USD/mes) con Caddy para HTTPS, systemd, respaldo diario y cierre mensual programado. Se instala con un solo comando; ver [docs/despliegue.md](docs/despliegue.md).
+Un servidor Amazon Lightsail (Ubuntu 24.04, plan de 7 USD/mes) con Caddy para HTTPS, systemd, respaldo diario y cierre mensual programado. Se instala con un solo comando; ver [docs/despliegue.md](docs/despliegue.md). Lo que falta para la puesta en producción (primer despliegue, CI y CD) está en [PENDIENTES.md](PENDIENTES.md).
 
 ## Asistente con modelo de lenguaje (opcional)
 
