@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import csv
+import posixpath
 from pathlib import Path
 from typing import Iterable
-from zipfile import ZipFile
+from zipfile import BadZipFile, ZipFile
 from xml.etree import ElementTree as ET
 
 
@@ -22,12 +23,15 @@ def _validar_encabezados(headers: list[str]) -> list[str]:
     return cleaned
 
 
-def _rows_from_matrix(matrix: Iterable[list[str]]) -> list[dict[str, str]]:
+def _rows_from_matrix(matrix: Iterable[list[str]], required_columns: Iterable[str] = ()) -> list[dict[str, str]]:
     iterator = iter(matrix)
     try:
         headers = _validar_encabezados(next(iterator))
     except StopIteration as exc:
         raise FormatoError("El archivo está vacío") from exc
+    missing = sorted(set(required_columns) - set(headers))
+    if missing:
+        raise FormatoError(f"Faltan columnas obligatorias: {', '.join(missing)}")
     rows: list[dict[str, str]] = []
     for values in iterator:
         values = list(values)
@@ -38,11 +42,11 @@ def _rows_from_matrix(matrix: Iterable[list[str]]) -> list[dict[str, str]]:
     return rows
 
 
-def leer_csv(ruta: Path, encoding: str = "utf-8-sig", delimiter: str = ",") -> list[dict[str, str]]:
+def leer_csv(ruta: Path, encoding: str = "utf-8-sig", delimiter: str = ",", required_columns: Iterable[str] = ()) -> list[dict[str, str]]:
     """Lee un CSV manteniendo todas las celdas como texto."""
     try:
         with ruta.open("r", encoding=encoding, newline="") as stream:
-            return _rows_from_matrix(csv.reader(stream, delimiter=delimiter))
+            return _rows_from_matrix(csv.reader(stream, delimiter=delimiter, strict=True), required_columns)
     except (OSError, UnicodeError, csv.Error) as exc:
         raise FormatoError(f"No se pudo leer CSV {ruta}: {exc}") from exc
 
@@ -79,7 +83,7 @@ def _column_index(reference: str) -> int:
     return index - 1
 
 
-def leer_xlsx(ruta: Path, hoja: str | None = None) -> list[dict[str, str]]:
+def leer_xlsx(ruta: Path, hoja: str | None = None, required_columns: Iterable[str] = ()) -> list[dict[str, str]]:
     """Lee una hoja XLSX sencilla, incluyendo textos inline y compartidos."""
     try:
         with ZipFile(ruta) as archive:
@@ -102,7 +106,7 @@ def leer_xlsx(ruta: Path, hoja: str | None = None) -> list[dict[str, str]]:
             target = rel_targets.get(relationship_id or "")
             if not target:
                 raise FormatoError("La hoja no tiene una relación válida")
-            worksheet_path = "xl/" + target.lstrip("/")
+            worksheet_path = target.lstrip("/") if target.startswith("/") else posixpath.normpath(posixpath.join("xl", target))
             shared: list[str] = []
             if "xl/sharedStrings.xml" in archive.namelist():
                 shared_root = ET.fromstring(archive.read("xl/sharedStrings.xml"))
@@ -118,16 +122,16 @@ def leer_xlsx(ruta: Path, hoja: str | None = None) -> list[dict[str, str]]:
                         values.extend([""] * (index + 1 - len(values)))
                     values[index] = _xlsx_cell(cell, shared)
                 matrix.append(values)
-            return _rows_from_matrix(matrix)
+            return _rows_from_matrix(matrix, required_columns)
     except FormatoError:
         raise
-    except (OSError, KeyError, ET.ParseError, ValueError) as exc:
+    except (OSError, KeyError, ET.ParseError, ValueError, BadZipFile) as exc:
         raise FormatoError(f"No se pudo leer XLSX {ruta}: {exc}") from exc
 
 
-def leer_tabla(ruta: Path, tipo: str, hoja: str | None = None, delimiter: str = ",") -> list[dict[str, str]]:
+def leer_tabla(ruta: Path, tipo: str, hoja: str | None = None, delimiter: str = ",", required_columns: Iterable[str] = ()) -> list[dict[str, str]]:
     if tipo.lower() == "csv":
-        return leer_csv(ruta, delimiter=delimiter)
+        return leer_csv(ruta, delimiter=delimiter, required_columns=required_columns)
     if tipo.lower() in {"xlsx", "xlsm"}:
-        return leer_xlsx(ruta, hoja=hoja)
+        return leer_xlsx(ruta, hoja=hoja, required_columns=required_columns)
     raise FormatoError(f"Tipo de archivo no soportado: {tipo}")

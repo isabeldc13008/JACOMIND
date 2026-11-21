@@ -54,6 +54,10 @@ def validar_fila(
             issues.append(_issue(archivo, fila, "moneda", "MONEDA_NO_ADMITIDA", f"Moneda no admitida: {currency}"))
         if row.get("cantidad") is not None and row.get("cantidad", 0) <= 0:
             issues.append(_issue(archivo, fila, "cantidad", "CANTIDAD_NO_POSITIVA", "La cantidad debe ser mayor que cero"))
+    if spec.name == "trm" and row.get("cop_por_usd") is not None and row.get("cop_por_usd") <= 0:
+        issues.append(_issue(archivo, fila, "cop_por_usd", "TASA_NO_POSITIVA", "La tasa debe ser mayor que cero"))
+    if spec.name == "instalaciones" and row.get("unidades") is not None and row.get("unidades") <= 0:
+        issues.append(_issue(archivo, fila, "unidades", "UNIDADES_NO_POSITIVAS", "Las unidades deben ser mayores que cero"))
     if spec.name == "ventas":
         if row.get("descuento_pct") is not None and not (Decimal("0") <= row["descuento_pct"] <= Decimal("100")):
             issues.append(_issue(archivo, fila, "descuento_pct", "DESCUENTO_FUERA_DE_RANGO", "El descuento debe estar entre 0 y 100"))
@@ -73,10 +77,13 @@ def validar_tabla(
     catalogos: Mapping[str, set[str]],
     *,
     archivo: str = "",
+    source_rows: Iterable[int] | None = None,
 ) -> TableValidation:
     result = TableValidation()
     seen: dict[tuple[object, ...], dict[str, object]] = {}
-    for row_number, row in enumerate(rows, start=2):
+    materialized = list(rows) if not isinstance(rows, list) else rows
+    row_numbers = iter(source_rows) if source_rows is not None else iter(range(2, 2 + len(materialized)))
+    for row_number, row in zip(row_numbers, materialized):
         key = tuple(row.get(column) for column in spec.primary_key)
         issues = validar_fila(row, spec, catalogos, archivo=archivo, fila=row_number)
         if key in seen:
