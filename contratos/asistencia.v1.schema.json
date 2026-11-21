@@ -8,7 +8,7 @@
       "type": "object",
       "required": ["categoria", "confianza", "version", "revisar"],
       "properties": {
-        "categoria": {"enum": ["peticion", "queja", "reclamo", "sugerencia"]},
+        "categoria": {"enum": ["peticion", "queja", "reclamo", "sugerencia", null], "description": "null cuando el clasificador no decide y el caso va a revisión humana"},
         "confianza": {"type": "number", "minimum": 0, "maximum": 1},
         "version": {"type": "string", "minLength": 1},
         "revisar": {"type": "boolean"},

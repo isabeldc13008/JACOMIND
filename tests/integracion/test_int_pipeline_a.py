@@ -17,7 +17,8 @@ from pathlib import Path
 RAIZ = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(RAIZ))
 PAQUETE = Path(os.environ.get("JACOMIND_DATOS", RAIZ.parent / "Green_Services_Recursos_de_Prueba"))
-HAY_PIPELINE = importlib.util.find_spec("pipeline") is not None and importlib.util.find_spec("pipeline.generar") is not None
+HAY_PIPELINE = importlib.util.find_spec("pipeline") is not None
+HAY_GENERAR = HAY_PIPELINE and importlib.util.find_spec("pipeline.generar") is not None
 
 from api import base, consultas, publicacion  # noqa: E402
 from api.base import BaseDatos  # noqa: E402
@@ -34,10 +35,13 @@ class PruebasFusionConA(unittest.TestCase):
         cls.salida.mkdir()
 
         def generar(destino):
-            p = subprocess.run([sys.executable, "-m", "pipeline.generar", "--datos", str(PAQUETE), "--corte", "2026-10-31",
-                                "--salida", str(destino / "agenda.json")], cwd=RAIZ, capture_output=True, text=True, timeout=1800)
+            # Generador propio de A si existe; si no, el adaptador de B sobre las funciones reales de pipeline/.
+            cmd = (["-m", "pipeline.generar", "--datos", str(PAQUETE), "--corte", "2026-10-31", "--salida", str(destino / "agenda.json")]
+                   if HAY_GENERAR else
+                   ["-m", "api", "generar-desde-a", "--datos", str(PAQUETE), "--corte", "2026-10-31", "--salida", str(destino)])
+            p = subprocess.run([sys.executable, *cmd], cwd=RAIZ, capture_output=True, text=True, timeout=1800)
             if p.returncode != 0:
-                raise AssertionError(f"pipeline.generar falló: {p.stderr[-2000:]}")
+                raise AssertionError(f"La generación con el carril A falló: {p.stderr[-2000:]}")
         generar(cls.salida)
         cls.repeticion = cls.tmp / "repeticion"; cls.repeticion.mkdir()
         generar(cls.repeticion)

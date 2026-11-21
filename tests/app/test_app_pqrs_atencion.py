@@ -83,11 +83,22 @@ class PruebasPqrs(CasoBase):
 
 class PruebasAtencion(CasoBase):
     def test_clasificador_simulado(self):
-        self.assertFalse(atencion.clasificar("Nos cobraron dos veces la factura, solicito reembolso por el cobro")["revisar"])
-        self.assertTrue(atencion.clasificar("")["revisar"])
-        self.assertTrue(atencion.clasificar("Hola, escribo por lo del mes pasado")["revisar"])
-        dos = atencion.clasificar("Solicito información y sugiero mejorar")
-        self.assertTrue(dos["revisar"])
+        self.assertFalse(atencion._simulado("Nos cobraron dos veces la factura, solicito reembolso por el cobro")["revisar"])
+        self.assertTrue(atencion._simulado("")["revisar"])
+        self.assertTrue(atencion._simulado("Hola, escribo por lo del mes pasado")["revisar"])
+        self.assertTrue(atencion._simulado("Solicito información y sugiero mejorar")["revisar"])
+
+    def test_cualquier_clasificador_activo_cumple_c4(self):
+        from contratos.esquema import validar
+        for texto in ("Solicito información del contrato", "Tengo una queja y sugiero mejorar", ""):
+            r = atencion.clasificar(texto)
+            self.assertEqual(validar(r, atencion.ESQUEMA_CLASIF), [], r)
+            if r["categoria"] is None:
+                self.assertTrue(r["revisar"])
+
+    def test_forma_de_pipeline_pqrs_se_normaliza(self):
+        r = atencion._normalizar_salida_a({"categoria": "revision_manual", "confianza": 0.0, "motivo": "múltiples intenciones", "version": "reglas-v1"})
+        self.assertEqual((r["categoria"], r["revisar"]), (None, True))
 
     def test_clasificador_de_a_fuera_de_contrato_cae_a_revision(self):
         import sys, types

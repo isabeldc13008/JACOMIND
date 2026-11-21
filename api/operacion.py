@@ -10,6 +10,7 @@ from __future__ import annotations
 import csv
 import hashlib
 import importlib
+import importlib.util
 import io
 import json
 import os
@@ -274,11 +275,17 @@ def ejecutar_cierre(db: BaseDatos, actor: str, corte: str, datos: str | None = N
                     if not datos:
                         raise RuntimeError("Indica --datos con la carpeta de insumos")
                     salida.mkdir(parents=True, exist_ok=True)
-                    cmd = [sys.executable, "-m", "pipeline.generar", "--datos", str(datos), "--corte", corte,
-                           "--salida", str(salida / "agenda.json")]
-                    p = subprocess.run(cmd, cwd=RAIZ, capture_output=True, text=True, timeout=1800)
-                    if p.returncode != 0:
-                        raise RuntimeError(f"pipeline.generar terminó con código {p.returncode}: {(p.stderr or p.stdout)[-800:]}")
+                    if importlib.util.find_spec("pipeline") is not None and importlib.util.find_spec("pipeline.generar") is not None:
+                        cmd = [sys.executable, "-m", "pipeline.generar", "--datos", str(datos), "--corte", corte,
+                               "--salida", str(salida / "agenda.json")]
+                        p = subprocess.run(cmd, cwd=RAIZ, capture_output=True, text=True, timeout=1800)
+                        if p.returncode != 0:
+                            raise RuntimeError(f"pipeline.generar terminó con código {p.returncode}: {(p.stderr or p.stdout)[-800:]}")
+                        return
+                    from . import integracion_a
+                    if not integracion_a.disponible():
+                        raise RuntimeError("No está disponible el pipeline del carril A (pipeline/)")
+                    integracion_a.generar(datos, corte, salida)
                 etapa("generar", generar)
             objetivo = salida if (salida / "manifiesto.json").exists() else salida / "agenda.json"
             resultado = etapa("validar_y_publicar", lambda: publicar_ruta(db, objetivo, actor))

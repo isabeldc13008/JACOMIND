@@ -61,3 +61,13 @@ python -m unittest discover -s tests/integracion -t tests/integracion
 - `null` significa «sin dato» y 0 es un valor medido: «Sin historial» y «Modelo no disponible» no equivalen a 0.
 - Orden estable de la agenda: acción, probabilidad descendente (nulos al final) e ID.
 - `contratos/ejemplos/` se versiona. `salida/` y `var/` no.
+
+## Carga A01 (carril A)
+
+La ingesta, normalización y validación de datos vive en `pipeline/`. Ejecuta la carga sobre el paquete sintético con:
+
+```powershell
+uv run --python 3.12 python -m pipeline.cli --datos C:\ruta\Green_Services_Recursos_de_Prueba --salida C:\ruta\salida\a01
+```
+
+El comando genera inventario, incidencias y tablas publicadas para el siguiente bloque A02. Los recursos de prueba y los datos empresariales permanecen fuera del repositorio.

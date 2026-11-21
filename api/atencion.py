@@ -15,7 +15,7 @@ UMBRAL_CONFIANZA = float(os.environ.get("JACOMIND_UMBRAL_PQRS", "0.6"))
 ESQUEMA_CLASIF = cargar_esquema("asistencia.v1.schema.json")["$defs"]["clasificacion_pqrs"]
 # Ruta del clasificador de A (C4). Formato "modulo:funcion"; la función recibe el texto
 # y devuelve {"categoria", "confianza", "version", "revisar", "motivo"?, "responsable"?}.
-CLASIFICADOR_A = os.environ.get("JACOMIND_CLASIFICADOR", "modelos.clasificador_pqrs:clasificar")
+CLASIFICADOR_A = os.environ.get("JACOMIND_CLASIFICADOR", "modelos.clasificador_pqrs:clasificar,pipeline.pqrs:clasificar_pqrs")
 AREAS = {"reclamo": "Facturación y cartera", "queja": "Calidad del servicio", "peticion": "Atención general",
          "sugerencia": "Mejora continua"}
 PALABRAS = {
@@ -51,11 +51,25 @@ def _simulado(texto: str) -> dict:
 def _cargar_clasificador_a():
     if os.environ.get("JACOMIND_CLASIFICADOR_DESACTIVADO") == "1":
         return None
-    modulo, _, funcion = CLASIFICADOR_A.partition(":")
-    try:
-        return getattr(importlib.import_module(modulo), funcion)
-    except (ImportError, AttributeError):
-        return None
+    for ruta in CLASIFICADOR_A.split(","):
+        modulo, _, funcion = ruta.strip().partition(":")
+        try:
+            return getattr(importlib.import_module(modulo), funcion)
+        except (ImportError, AttributeError):
+            continue
+    return None
+
+
+def _normalizar_salida_a(r) -> dict:
+    """Acepta la forma de pipeline.pqrs (categoria 'revision_manual', sin 'revisar') y la lleva a C4."""
+    if not isinstance(r, dict):
+        return r
+    r = dict(r)
+    if r.get("categoria") == "revision_manual":
+        r["categoria"] = None
+        r["revisar"] = True
+    r.setdefault("revisar", False)
+    return r
 
 
 def clasificar(texto: str) -> dict:
@@ -63,12 +77,12 @@ def clasificar(texto: str) -> dict:
     fn = _cargar_clasificador_a()
     if fn is not None:
         try:
-            r = fn(texto)
+            r = _normalizar_salida_a(fn(texto))
             errores = validar_esquema(r, ESQUEMA_CLASIF)
             if not errores:
                 r = dict(r)
-                r["revisar"] = bool(r["revisar"] or r["confianza"] < UMBRAL_CONFIANZA)
-                r.setdefault("responsable", AREAS.get(r["categoria"]))
+                r["revisar"] = bool(r["revisar"] or r["confianza"] < UMBRAL_CONFIANZA or r["categoria"] is None)
+                r.setdefault("responsable", AREAS.get(r["categoria"]) if r["categoria"] else None)
                 return r
             return _simulado(texto) | {"revisar": True, "motivo": f"Salida del clasificador fuera de contrato: {errores[0]}"}
         except Exception as e:

@@ -40,6 +40,8 @@ def main(argv=None) -> int:
     r = sub.add_parser("respaldo"); r.add_argument("--salida")
     rs = sub.add_parser("restaurar"); rs.add_argument("respaldo"); rs.add_argument("--destino", required=True)
     e = sub.add_parser("exportar-eventos"); e.add_argument("--salida")
+    g = sub.add_parser("generar-desde-a", help="construye C2/C1 con las funciones de pipeline/ (carril A)")
+    g.add_argument("--datos", required=True); g.add_argument("--corte", required=True); g.add_argument("--salida", required=True)
     a = p.parse_args(argv)
 
     db = BaseDatos(a.db)
@@ -78,6 +80,10 @@ def main(argv=None) -> int:
         elif a.cmd == "restaurar":
             from .operacion import restaurar
             imprimir(restaurar(a.respaldo, a.destino))
+        elif a.cmd == "generar-desde-a":
+            from .integracion_a import generar
+            m = generar(a.datos, a.corte, a.salida)
+            imprimir({"cierre_id": m["cierre_id"], "tablas": {k: v["filas"] for k, v in m["tablas"].items()}, "calidad": m["calidad"].get("notas")})
         elif a.cmd == "exportar-eventos":
             from .tareas import exportar_eventos
             with db.conexion() as con:
