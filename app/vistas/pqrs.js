@@ -135,7 +135,7 @@ async function gestionCaso(rad, aviso = "") {
     : '<p class="estado error">Ninguna política respalda este borrador: requiere revisión humana antes de publicar.</p>';
   $vista.innerHTML = `<a href="#/pqrs">← Bandeja</a><h1>${esc(c.asunto)}</h1>
   <dl class="cifras encabezado-tarea"><div><dt>Número</dt><dd><code>${esc(c.radicado)}</code></dd></div><div><dt>Empresa</dt><dd>${esc(c.organizacion)}</dd></div>
-    <div><dt>Estado</dt><dd>${esc(ESTADO_INTERNO[c.estado] || c.estado)}</dd></div><div><dt>Responsable</dt><dd>${esc(c.responsable_id || "Sin responsable")}</dd></div><div><dt>Recibido</dt><dd>${esc(fechaHora(c.creado_en))}</dd></div></dl>
+    <div><dt>Estado</dt><dd>${esc(ESTADO_INTERNO[c.estado] || c.estado)}</dd></div><div><dt>Responsable</dt><dd>${esc(c.responsable_id || "Sin responsable")}</dd></div><div><dt>Recibido</dt><dd>${esc(fechaHora(c.creado_en))}</dd></div><div><dt>Última actualización</dt><dd>${esc(fechaHora(c.bitacora.at(-1)?.ts || c.creado_en))}</dd></div></dl>
   <div class="burbuja">${esc(c.descripcion)}</div><div id="msg">${aviso}</div>
   <section class="panel paso ${categoriaOk ? "hecho" : ""}"><h2><span class="num-paso">1</span> Revisa la categoría</h2>
     <p>Sugerida por el clasificador: <strong>${esc(CATEGORIAS[sug?.categoria] || "sin sugerencia")}</strong>${sug?.confianza != null ? ` con ${esc(pct(sug.confianza))} de confianza` : ""}${sug?.revisar ? ` · <span class="chip">requiere revisión: ${esc(sug.motivo || "baja confianza")}</span>` : ""}.

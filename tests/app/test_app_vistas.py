@@ -133,3 +133,42 @@ class PruebasInterfaz(unittest.TestCase):
         for f in sorted(Path(RAIZ / "app").rglob("*.js")):
             r = subprocess.run(["node", "--input-type=module", "--check"], input=f.read_bytes(), capture_output=True)
             self.assertEqual(r.returncode, 0, f"{f.name}: {r.stderr.decode(errors='replace')}")
+
+
+class PruebasRevisionDelPlan(CasoBase):
+    def test_estado_informa_fecha_y_origen_del_cierre(self):
+        _, e = self.http("GET", "/api/estado")
+        self.assertEqual((e["corte_activo"], e["origen_activo"]), ("2026-10-31", "sintetico"))
+
+    def test_modelo_desactivado_conserva_reglas_y_orden_por_id(self):
+        self.http("POST", "/api/operacion/banderas", {"nombre": "modelo_compra", "activo": False}, como="ops1")
+        _, r = self.http("GET", "/api/cierres/activo/resumen", como="ventas1")
+        self.assertFalse(r["modelo_activo"])
+        _, a = self.http("GET", "/api/cierres/activo/agenda?accion=Revisar%20cobertura", como="ventas1")
+        self.assertEqual([c["cliente_id"] for c in a["items"]], ["DEMO02", "DEMO06"])
+        self.assertTrue(all(c["prob_compra_30d"] is None for c in a["items"]))
+
+    def test_asistente_de_empresa_resume_condicion_y_politica(self):
+        _, r = self.http("POST", "/api/asistente", {"pregunta": "¿Qué beneficios tengo disponibles?"}, como="cli_a")
+        self.assertIn("Aplica a", r["texto"]); self.assertIn("política POL-BENEF v2", r["texto"])
+        self.assertNotIn("filtros", r["texto"])
+
+    def test_reapertura_visible_en_el_historial_publico(self):
+        _, lista = self.http("GET", "/api/pqrs", como="cli_a")
+        rad = lista[0]["radicado"]
+        _, d = self.http("GET", f"/api/pqrs/{rad}", como="aten1")
+        _, d = self.http("POST", f"/api/pqrs/{rad}/responder", {"version": d["version"], "respuesta": "Revisado."}, como="aten1")
+        self.http("POST", f"/api/pqrs/{rad}/reabrir", {"version": d["version"], "nota": "Nueva evidencia"}, como="aten1")
+        _, pub = self.http("GET", f"/api/pqrs/{rad}", como="cli_a")
+        self.assertEqual([h["accion"] for h in pub["historial"]][-1], "reabrir")
+
+    def test_conflicto_de_version_en_tarea_informa_el_estado_actual(self):
+        _, lista = self.http("GET", "/api/tareas?k=1", como="ventas1")
+        t = lista[0]
+        self.http("POST", f"/api/tareas/{t['id']}/asignar", {"version": t["version"]}, como="ventas2")
+        st, e = self.http("POST", f"/api/tareas/{t['id']}/contacto", {"version": t["version"], "nota": "x"}, como="ventas1")
+        self.assertEqual((st, e["error"]), (409, "conflicto_version"))
+        self.assertEqual(e["detalle"]["estado_actual"], "asignada")
+        _, actual = self.http("GET", f"/api/tareas/{t['id']}", como="ventas1")
+        self.assertEqual(actual["responsable_id"], "ventas2")
+        self.assertIn("actualizada_en", actual)

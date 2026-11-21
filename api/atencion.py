@@ -252,8 +252,10 @@ def asistente_portal(con, usuario, pregunta: str) -> dict:
             texto = "No hay beneficios vigentes publicados para tu empresa en este momento."
         else:
             texto = "Beneficios disponibles: " + "; ".join(
-                f"{b['titulo']} ({'consulta tu elegibilidad con Atención' if b['elegibilidad'] == 'revision' else 'vigente hasta ' + (b['vigencia_hasta'] or 'nuevo aviso')})"
-                for b in lista) + ". Para solicitarlo, abre una PQRS de tipo petición."
+                f"{b['titulo']}: {b['descripcion'].rstrip('.')}. {b['condicion']} "
+                f"{'Atención debe revisar tu caso' if b['elegibilidad'] == 'revision' else 'Puedes solicitarlo hasta ' + (b['vigencia_hasta'] or 'nuevo aviso')} "
+                f"(política {b['fuente']})"
+                for b in lista) + ". Para solicitarlo, usa «Solicitar este beneficio» en Beneficios."
         return {"estado": "ok" if lista else "sin_datos", "herramienta": "beneficios", "parametros": {}, "resultado": lista,
                 "evidencia": {"fuentes": [{"beneficio_id": b["id"], "version": b["version"], "fuente": b["fuente"]} for b in lista]},
                 "texto": texto}

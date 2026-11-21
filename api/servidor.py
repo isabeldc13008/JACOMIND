@@ -88,7 +88,9 @@ def _ruta_publicable(texto: str) -> Path:
 def r_estado(c: Ctx):
     with c.db.conexion() as con:
         act = publicacion.cierre_activo(con)
-    return {"version": __version__, "esquema": c.db.version_esquema(), "cierre_activo": act, "modo_practica": c.app.practica,
+        fila = con.execute("SELECT corte, origen FROM cierres WHERE id = ?", (act,)).fetchone() if act else None
+    return {"version": __version__, "esquema": c.db.version_esquema(), "cierre_activo": act,
+            "corte_activo": fila["corte"] if fila else None, "origen_activo": fila["origen"] if fila else None, "modo_practica": c.app.practica,
             "login_demo": c.app.login_demo, "asistente": {"motor": agente.motor(), "llm": llm.version()}}
 
 

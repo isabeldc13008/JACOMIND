@@ -113,7 +113,7 @@ export async function vistaTarea(id, intencion = null, aviso = "") {
   <h1>${esc(TIPOS[t.tipo] || t.tipo)} · ${esc(t.cliente_id)}</h1>
   <dl class="cifras encabezado-tarea"><div><dt>Cliente</dt><dd>${puede("cartera.ver") ? `<a href="#/clientes/${encodeURIComponent(t.cliente_id)}">${esc(t.cliente_id)}</a>` : esc(t.cliente_id)}</dd></div>
     <div><dt>Motivo</dt><dd>${esc(t.motivos.join(" · "))}</dd></div><div><dt>Responsable</dt><dd>${esc(responsable(t.responsable_id))}</dd></div>
-    <div><dt>Próxima revisión</dt><dd>${t.fecha_revision ? esc(fechaLarga(t.fecha_revision)) : "Sin fecha"}</dd></div><div><dt>Estado</dt><dd>${esc(ESTADOS[t.estado] || t.estado)}</dd></div></dl>
+    <div><dt>Próxima revisión</dt><dd>${t.fecha_revision ? esc(fechaLarga(t.fecha_revision)) : "Sin fecha"}</dd></div><div><dt>Estado</dt><dd>${esc(ESTADOS[t.estado] || t.estado)}</dd></div><div><dt>Última actualización</dt><dd>${esc(fechaHora(t.actualizada_en))}</dd></div></dl>
   ${t.resultado ? `<p><strong>Resultado declarado:</strong> ${esc(t.resultado)}${t.siguiente_paso ? ` · siguiente paso: ${esc(t.siguiente_paso)}` : ""}</p>` : t.siguiente_paso ? `<p><strong>Siguiente paso:</strong> ${esc(t.siguiente_paso)}</p>` : ""}
   ${t.motivo_descarte ? `<p><strong>Descartada:</strong> ${esc(t.motivo_descarte)}</p>` : ""}
   <div id="msg">${aviso}</div>

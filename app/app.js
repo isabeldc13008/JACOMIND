@@ -39,7 +39,9 @@ function pintarCabecera() {
   if (!S.fuente) origen = "Elige cómo quieres trabajar";
   else if (enServidor()) {
     origen = `<strong>${esc(FUENTES.servidor.corto)}</strong>`;
-    if (S.estadoApi?.cierre_activo) origen += ` · ${esc(S.cierre === "activo" ? S.estadoApi.cierre_activo : S.cierre)}`;
+    if (S.cierre !== "activo") origen += ` · ${esc(S.cierre)}`;
+    else if (S.estadoApi?.corte_activo) origen += ` · datos hasta el ${esc(fechaLarga(S.estadoApi.corte_activo))}`;
+    if (S.estadoApi?.origen_activo === "sintetico") origen += " · <strong>datos de práctica</strong>";
   } else {
     origen = `<strong>${esc(FUENTES[S.fuente].corto)}</strong>`;
     if (S.local?.datos) origen += ` · datos hasta el ${esc(fechaLarga(S.local.datos.corte))}`;
