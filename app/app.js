@@ -5,7 +5,8 @@ import { ACCIONES, motivos, ordenar, validarAgenda } from "./contrato.js";
 
 const $vista = document.getElementById("vista");
 const fmt = new Intl.NumberFormat("es-CO", { maximumFractionDigits: 2 });
-const cop = x => x == null ? "—" : `${fmt.format(x)} COP`;
+const fmtCop = new Intl.NumberFormat("es-CO", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const cop = x => x == null ? "—" : `${fmtCop.format(x)} COP`;
 const pct = p => p == null ? null : `${(p * 100).toFixed(1).replace(".", ",")} %`;
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const FUENTES = { servidor: "Servidor (cierre publicado)", salida: "Salida local /salida/agenda.json", ejemplo: "Ejemplo de práctica (ficticio)" };
@@ -525,7 +526,7 @@ async function vistaFinanzas() {
   ${!pan.disponible ? estadoHtml("", "Pronóstico no disponible en este cierre: se muestran solo datos observados cuando existan.") : ""}
   <div class="grid2"><div class="panel grafico" style="position:relative"><h2>${serie === "ventas" ? "Ventas" : "Compras"} Total por mes (COP)</h2>
     ${total ? graficoLinea(total.historico.map(s => ({ periodo: s.periodo, valor: s.valor_cop })), total.pronostico.map(s => ({ periodo: s.periodo, valor: s.valor_cop }))) : '<p class="muted">Sin serie.</p>'}
-    ${total?.pronostico.length ? `<p class="muted">Línea continua: histórico observado. Punteada: proyección (${esc(total.metodo)}, calculada ${esc(total.calculado_en)}; MAE por horizonte ${esc(JSON.stringify(total.mae_por_horizonte))}). «s/d» = mes incompleto, distinto de cero.</p>` : ""}</div>
+    ${total?.pronostico.length ? `<p class="muted">Línea continua: histórico observado. Punteada: proyección (${esc(total.metodo)}, calculada ${esc(total.calculado_en)}). Error absoluto medio por horizonte: ${Object.entries(total.mae_por_horizonte).map(([h, m]) => `${h} m: ${m == null ? "sin evaluar" : cop(m)}${total.mae_ingenuo_por_horizonte?.[h] != null ? ` (ingenuo ${cop(total.mae_ingenuo_por_horizonte[h])})` : ""}`).map(esc).join(" · ")}. «s/d» = mes incompleto, distinto de cero.</p>` : ""}</div>
    <div class="panel"><h2>Mayores cambios mensuales por familia</h2><table><tr><th>Familia</th><th>Mes</th><th class="n">Cambio COP</th><th class="n">%</th></tr>${pan.mayores_cambios.map(c => `<tr><td>${esc(c.familia)}</td><td>${esc(c.periodo)}</td><td class="n">${cop(c.cambio_cop)}</td><td class="n">${c.cambio_pct == null ? "base 0" : fmt.format(c.cambio_pct)}</td></tr>`).join("")}</table><p class="muted">${esc(pan.agregacion)}</p></div></div>
   <div class="panel"><h2>Simulador de TRM (escenario, no modifica el cierre)</h2><form id="sim" class="filtros">
     <label>Periodo <input name="periodo" value="${esc(q.get("periodo") || pan.cierre.corte.slice(0, 7))}" pattern="\\d{4}-\\d{2}"></label>

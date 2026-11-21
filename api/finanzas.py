@@ -30,7 +30,8 @@ def panel(con, cierre_ref: str, serie: str = "ventas") -> dict:
                             "cambio_pct": round(d / a["valor_cop"] * 100, 2) if a["valor_cop"] else None})
         salida.append({"familia": fam, "historico": h, "pronostico": p, "cambios": cambios,
                        "metodo": p[0].get("metodo") if p else None, "calculado_en": p[0].get("calculado_en") if p else None,
-                       "mae_por_horizonte": {x.get("horizonte"): x.get("mae") for x in p}})
+                       "mae_por_horizonte": {x.get("horizonte"): x.get("mae") for x in p},
+                       "mae_ingenuo_por_horizonte": {x.get("horizonte"): x.get("mae_ingenuo") for x in p}})
     mayores = sorted((dict(c, familia=s["familia"]) for s in salida if s["familia"] != "Total" for c in s["cambios"] if c["cambio_cop"] is not None),
                      key=lambda c: -abs(c["cambio_cop"]))[:5]
     return {"cierre": {"id": cierre["id"], "corte": cierre["corte"]}, "serie": serie, "unidad": "COP",
