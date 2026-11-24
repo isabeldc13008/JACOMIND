@@ -136,6 +136,12 @@ def publicar(db: BaseDatos, manifiesto: dict, datos: dict, actor: str) -> dict:
     except Exception as e:  # la publicación ya es válida; se registra el problema
         with db.transaccion() as con:
             auditar(con, actor, "tareas.sincronizar", cierre_id, "fallido", None, {"error": str(e)})
+    try:  # monitoreo M1: salud y distribución del cierre publicado (el desempeño madura después)
+        from .monitoreo_modelos import observar_cierre
+        observar_cierre(db, cierre_id)
+    except Exception as e:  # noqa: BLE001
+        with db.transaccion() as con:
+            auditar(con, actor, "monitoreo.observar", cierre_id, "fallido", None, {"error": str(e)})
     return {"cierre_id": cierre_id, "revision": revision, "ya_publicado": False}
 
 
@@ -147,6 +153,8 @@ def publicar_ruta(db: BaseDatos, ruta: str | Path, actor: str) -> dict:
         if not res.valido:
             with db.transaccion() as con:
                 auditar(con, actor, "cierre.publicar", str(ruta), "rechazado", None, res.como_dict())
+            from .monitoreo import registrar_integridad
+            registrar_integridad(db, "compra_30d", list(res.errores), str(ruta))
             raise ErrorApi(409 if res.incompatible else 422, "publicacion_invalida",
                            "La publicación no cumple el contrato; se conserva el cierre anterior", res.como_dict())
         return publicar(db, datos["manifiesto"], datos, actor)

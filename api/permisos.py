@@ -24,6 +24,8 @@ MATRIZ: dict[str, set[str]] = {
     "anomalias.ver": {"operaciones", "finanzas", "gerencia"},      # M6 experimental: cola de operaciones atípicas (importe COP solo con finanzas.ver)
     "anomalias.revisar": {"operaciones", "finanzas"},              # confirmar error, cambio legítimo o información insuficiente (motivo obligatorio)
     "anomalias.exportar": {"operaciones", "finanzas", "gerencia"},
+    "monitoreo.ver": {"operaciones", "finanzas", "gerencia"},     # monitoreo de modelos: además exige el permiso de cada modelo (y COP en M5)
+    "monitoreo.reconocer": {"operaciones", "gerencia"},           # reconocer o resolver avisos con motivo (no cambia modelos)
     "cierres.publicar": {"operaciones"},
     "cargas.ejecutar": {"operaciones"},
     "tablero.ventas": {"ventas", "gerencia"},

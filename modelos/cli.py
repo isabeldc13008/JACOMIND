@@ -488,12 +488,22 @@ def cmd_promover(a) -> int:
     from .compra import entorno
     from .inferencia import cargar_artefacto
     ejec = Path(a.ejecucion)
-    decision_path = ejec / "decision.json"
-    if not decision_path.exists():
-        _imprimir({"error": "La ejecución no tiene decision.json: evalúa antes de promover"})
-        return 2
-    art = cargar_artefacto(ejec / "artefacto.json")
-    decision = json.loads(decision_path.read_text(encoding="utf-8"))
+    cfg = ejec / "config.json"
+    version_p = json.loads(cfg.read_text(encoding="utf-8")).get("version_protocolo", "") if cfg.exists() else ""
+    if version_p.startswith(("m1.1-", "m1.2-", "m1.3-")):
+        # M1.1–M1.3: solo una evaluación TERMINADA y vinculada a la congelación (formato 3); el formato antiguo no se promueve.
+        from .compra_m1_ejecucion import decision_para_registro
+        ruta_art, decision = decision_para_registro(ejec, getattr(a, "candidato", None))
+        art = cargar_artefacto(ruta_art)
+    else:
+        decision_path = ejec / "decision.json"
+        if not decision_path.exists():
+            _imprimir({"error": "La ejecución no tiene decision.json: evalúa antes de promover"})
+            return 2
+        if getattr(a, "candidato", None):
+            raise SystemExit("--candidato solo se usa con ejecuciones M1.3")
+        art = cargar_artefacto(ejec / "artefacto.json")
+        decision = json.loads(decision_path.read_text(encoding="utf-8"))
     origen = {"operacion": "promover", "ejecucion": str(ejec.resolve()), "estado": a.estado, "entorno": entorno(),
               "datos": json.loads((ejec / "datos.json").read_text(encoding="utf-8"))}
     try:
@@ -628,7 +638,7 @@ def cmd_m12_entrenar(a) -> int:
                "desarrollo_top20": {k: f"{v['aciertos_top20']}/{v['denominador_top20']}" for k, v in d["agregado"].items()},
                "diferencia_fusion_menos_recencia": d["diferencia_fusion_menos_recencia_top10"],
                "ic95": [d["ic95_bootstrap_clientes"].get("p2_5"), d["ic95_bootstrap_clientes"].get("p97_5")],
-               "primer_corte_prospectivo": r["congelacion"]["fechas"]["primer_corte_prospectivo"]})
+               "primer_corte_prospectivo": (r["congelacion"].get("volatiles") or {}).get("primer_corte_prospectivo")})
     return 0
 
 
@@ -821,7 +831,8 @@ def main(argv=None) -> int:
     s.set_defaults(f=cmd_evaluar)
     s = sub.add_parser("promover", help="registra la ejecución como sombra u operativa si su decisión lo autoriza")
     s.add_argument("--ejecucion", required=True); s.add_argument("--registro", default=None); s.add_argument("--version", required=True)
-    s.add_argument("--estado", choices=["sombra", "operativo"], default="sombra"); s.set_defaults(f=cmd_promover)
+    s.add_argument("--estado", choices=["sombra", "operativo"], default="sombra")
+    s.add_argument("--candidato", default=None, help="M1.3: candidato evaluado a promover (S, P, ...)"); s.set_defaults(f=cmd_promover)
     s = sub.add_parser("revertir", help="restituye la versión anterior de un puntero")
     s.add_argument("--registro", default=None); s.add_argument("--estado", choices=["sombra", "operativo"], default="operativo")
     s.add_argument("--a", default=None, help="versión explícita"); s.set_defaults(f=cmd_revertir)

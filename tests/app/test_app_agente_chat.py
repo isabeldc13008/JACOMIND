@@ -88,10 +88,73 @@ class PruebasAgenteConversacional(CasoBase):
         self.assertIn("modo básico", r["aviso"])
         self.assertIn("90 días", r["texto"])
 
+    def test_herramientas_de_modelos_segun_perfil(self):
+        modelos = {"riesgo_inactividad", "proxima_compra", "venta_cruzada", "pronostico_demanda", "operaciones_atipicas", "monitoreo_de_modelos", "resultados_de_modelos"}
+        _, m = self.preguntar("ger1", "hola", ["Hola"])
+        self.assertTrue(modelos <= set(m.herramientas))
+        _, m = self.preguntar("fin1", "hola", ["Hola"])
+        self.assertEqual(modelos & set(m.herramientas), {"pronostico_demanda", "operaciones_atipicas", "monitoreo_de_modelos"})  # sin datos de clientes
+        _, m = self.preguntar("ventas1", "hola", ["Hola"])
+        self.assertEqual(modelos & set(m.herramientas), {"riesgo_inactividad", "proxima_compra", "venta_cruzada", "resultados_de_modelos"})
+        _, m = self.preguntar("cli_a", "hola", ["Hola"])
+        self.assertFalse(modelos & set(m.herramientas))                                       # el portal externo no recibe nada de modelos
+
+    def test_herramientas_de_modelos_sin_publicacion_y_citadas(self):
+        r, _ = self.preguntar("ger1", "¿Quién puede dejar de comprar?",
+                              [[("riesgo_inactividad", {}), ("monitoreo_de_modelos", {"modelo": "inactividad_60d"})], "No hay publicación de riesgo importada [1]; monitoreo [2]."])
+        self.assertEqual([p["herramienta"] for p in r["pasos"]], ["riesgo_inactividad", "monitoreo_de_modelos"])
+        self.assertEqual({f["titulo"] for f in r["fuentes"]}, {"Riesgo de inactividad (M2)", "Monitoreo de modelos"})
+
+    def test_pronostico_en_cop_restringido_a_finanzas(self):
+        from pathlib import Path
+        from api import demanda
+        pub = Path(__file__).resolve().parents[2] / "salida" / "sombra" / "demanda" / "2026-10"
+        if not (pub / "manifiesto.json").exists():
+            self.skipTest("Sin la publicación local de demanda")
+        demanda.importar_sombra(self.db, pub, "ops1")
+        import json
+        from api.publicacion import resolver_cierre
+        with self.db.conexion() as con:
+            for ident, cop in (("ops1", False), ("fin1", True)):
+                hs = {h.name: h for h in agente_chat.construir_herramientas(con, self.usuario(ident), resolver_cierre(con, "activo"), agente_chat.Fuentes())}
+                d = json.loads(hs["pronostico_demanda"].invoke({"serie": "ventas_cop:Total"}))
+                self.assertEqual(d["serie"].startswith("ventas_cop"), cop, ident)
+                self.assertEqual(any(s.startswith("ventas_cop") for s in d["series_disponibles_para_tu_perfil"]), cop, ident)
+
     def test_documentacion_del_proyecto_es_citable(self):
         from api import conocimiento
         res = conocimiento.buscar("probabilidad de compra a 30 días")
         self.assertTrue(res); self.assertTrue(res[0]["archivo"].endswith(".md"))
+
+
+class PruebasModelosModoBasico(CasoBase):
+    """Modo básico (sin modelo de lenguaje): intenciones sobre los modelos de IA con los permisos de sus vistas."""
+
+    def preguntar(self, ident, pregunta):
+        with mock.patch.object(agente_chat, "disponible", return_value=False):
+            with self.db.conexion() as con:
+                return agente.preguntar(con, self.usuario(ident), pregunta, "activo", None)
+
+    def test_intenciones_de_modelos(self):
+        from api.agente import interpretar_modelos
+        casos = {"¿qué clientes pueden dejar de comprar?": "modelo_inactividad", "próxima compra de los clientes": "modelo_proxima",
+                 "recomendaciones de venta cruzada para cli001": "modelo_venta_cruzada", "pronóstico de demanda de pro01": "modelo_demanda",
+                 "operaciones atípicas de compras a proveedores": "modelo_anomalias", "estado de los modelos": "modelo_monitoreo",
+                 "¿qué modelos de ia hay?": "modelo_resultados"}
+        from api import documentos
+        for q, esperado in casos.items():
+            r = interpretar_modelos(documentos.normalizar(q), None)
+            self.assertEqual(r and r[0], esperado, q)
+        self.assertEqual(interpretar_modelos(documentos.normalizar("operaciones atípicas de compras a proveedores"), None)[1], {"universo": "compra"})
+
+    def test_permisos_y_sin_publicacion(self):
+        self.assertEqual(self.preguntar("fin1", "riesgo de inactividad")["estado"], "no_autorizado")
+        self.assertEqual(self.preguntar("ventas1", "monitoreo de modelos")["estado"], "no_autorizado")
+        r = self.preguntar("ger1", "¿qué clientes pueden dejar de comprar?")
+        self.assertEqual((r["estado"], r["herramienta"]), ("sin_datos", "modelo_inactividad"))  # sin publicación importada: lo dice
+        r = self.preguntar("ger1", "estado de los modelos")
+        self.assertEqual(r["estado"], "ok")
+        self.assertIn("Sin información", r["texto"])                                            # nunca «saludable» sin observaciones
 
 
 class PruebasSinModelo(CasoBase):

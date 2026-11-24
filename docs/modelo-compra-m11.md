@@ -155,3 +155,7 @@ python -m modelos.cli comparar --operativo salida/puntuaciones/2026-10-31/operat
 - Datos necesarios: un lote A01 con cobertura declarada hasta el 2026‑11‑30 para puntuar y otro hasta el 2026‑12‑30 o después para evaluar. Con tres cortes mensuales (36 plazas a K = 10), una diferencia de 1–2 compradores no es concluyente; hacen falta varios meses o una cartera mayor.
 - Antes de reemplazar `v1` o `v2`: datos empresariales posteriores a la congelación, una evaluación con protocolo nuevo y una autorización con `aprobado_por`.
 - Señales comerciales: integrarlas exige el contrato de datos `senales_comerciales` y una versión de variables nueva.
+
+## Integridad y recuperación (24-11-2026)
+
+La ejecución histórica de esta variante es de **formato 2**: sigue legible con verificación parcial declarada (lo que su sello no protege, p. ej. la evidencia de desarrollo, figura en `verificacion.no_verificable`), pero no puede volver a evaluarse ni promoverse con `promover`. Las ejecuciones nuevas usan el **formato 3** (congelación y evaluación selladas, archivos obligatorios, coherencia candidato–artefacto–decisión y recuperación de interrupciones). La reproducción en carpeta nueva dio artefactos, métricas y decisión **idénticos**: la corrección no cambia el resultado predictivo ni la decisión. Detalle: [monitoreo e integridad](monitoreo-modelos.md#a-integridad-y-recuperación-de-m11-m12-y-m13).

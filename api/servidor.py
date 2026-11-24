@@ -19,7 +19,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
 
 from . import (__version__, agente, atencion, auth, beneficios, consultas, documentos, finanzas, llm, operacion,
-               pqrs, prevencion, proxima, publicacion, tareas, venta_cruzada, demanda, anomalias)
+               pqrs, prevencion, proxima, publicacion, tareas, venta_cruzada, demanda, anomalias, monitoreo)
 from .base import DIR_SALIDA, DIR_VAR, RAIZ, BaseDatos, ErrorApi
 from .permisos import IDENTIDADES
 
@@ -213,6 +213,33 @@ def r_prevencion_sombra(c: Ctx):
 @ruta("POST", "/api/prevencion/sincronizar", "prevencion.sincronizar")
 def r_prevencion_sincronizar(c: Ctx):
     return prevencion.sincronizar(c.db, c.usuario.id)
+
+
+# ------------------------------------------------------------------ monitoreo de modelos (M1–M6)
+@ruta("GET", "/api/monitoreo", "monitoreo.ver")
+def r_monitoreo(c: Ctx):
+    with c.db.conexion() as con:
+        return monitoreo.panel(con, c.usuario, modelo=c.q("modelo") or None, variante=c.q("variante") or None, periodo=c.q("periodo") or None,
+                               estado=c.q("estado") or None, severidad=c.q("severidad") or None, tipo=c.q("tipo") or None)
+
+
+@ruta("GET", "/api/monitoreo/aviso", "monitoreo.ver")
+def r_monitoreo_aviso(c: Ctx):
+    with c.db.conexion() as con:
+        return monitoreo.detalle_aviso(con, c.usuario, str(c.q("clave") or ""))
+
+
+@ruta("POST", "/api/monitoreo/aviso", "monitoreo.reconocer")
+def r_monitoreo_aviso_estado(c: Ctx):
+    b = c.body
+    return monitoreo.cambiar_estado_aviso(c.db, c.usuario, str(b.get("clave", "")), str(b.get("accion", "")), str(b.get("motivo", "")))
+
+
+@ruta("GET", "/api/monitoreo/exportar.csv", "monitoreo.ver")
+def r_monitoreo_csv(c: Ctx):
+    with c.db.conexion() as con:
+        texto = monitoreo.exportar_csv(con, c.usuario, c.q("modelo") or None)
+    return Respuesta(200, ("\ufeff" + texto).encode("utf-8"), "text/csv; charset=utf-8", {"Content-Disposition": 'attachment; filename="monitoreo.csv"'})
 
 
 # ------------------------------------------------------------------ operaciones atípicas (M6, en sombra)

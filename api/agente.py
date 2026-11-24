@@ -36,8 +36,10 @@ INDICADORES = {
     "cobertura": "Renovación próxima: fin de cobertura entre el corte y los 45 días siguientes, ambos incluidos. Vencida: fin anterior al corte.",
     "recencia": "Recencia: días entre la última compra confirmada y la fecha de corte.",
 }
+INTENCIONES_MODELOS = {"modelo_inactividad", "modelo_proxima", "modelo_venta_cruzada", "modelo_demanda", "modelo_anomalias",
+                       "modelo_monitoreo", "modelo_resultados"}
 INTENCIONES_DATOS = {"historial_cliente", "productos_cliente", "ventas_periodo", "compras_proveedor", "oportunidades",
-                     "explicar_indicador", "clientes_reducen"}
+                     "explicar_indicador", "clientes_reducen"} | INTENCIONES_MODELOS
 INTENCIONES_PORTAL = {"portal"}
 
 
@@ -71,6 +73,9 @@ def interpretar_reglas(pregunta: str, anio_defecto: int, externo: bool) -> tuple
         return "portal", {"pregunta": pregunta}, None
     cliente = re.search(r"\b(cli\d{3}|demo\d{2})\b", t)
     periodos = _periodos(t, anio_defecto)
+    modelo = interpretar_modelos(t, cliente)
+    if modelo:
+        return modelo[0], modelo[1], None
     for clave, _ in INDICADORES.items():
         if re.search(r"que (significa|es)|explica|definicion|como se calcula", t) and clave in t:
             return "explicar_indicador", {"indicador": clave}, None
@@ -97,6 +102,25 @@ def interpretar_reglas(pregunta: str, anio_defecto: int, externo: bool) -> tuple
         return None, {}, ("«Compras» puede referirse a ventas a clientes o a adquisiciones a proveedores. "
                           "¿Cuál necesitas? Indica también el periodo.")
     return None, {}, None
+
+
+def interpretar_modelos(t: str, cliente) -> tuple[str, dict] | None:
+    """Preguntas sobre los modelos de IA (se evalúan antes que «compras» y «ventas»)."""
+    if re.search(r"monitoreo|avisos? de (los )?modelos?|estado de (los )?modelos?|salud de(l| los) modelos?", t):
+        return "modelo_monitoreo", {}
+    if re.search(r"(que|cuales) modelos|resultados de (los )?modelos|modelos de ia|como (les )?(va|fue) a (los )?modelos", t):
+        return "modelo_resultados", {}
+    if re.search(r"inactividad|dejar de comprar|dejen de comprar|riesgo de (perder|abandono)|abandon", t):
+        return "modelo_inactividad", {}
+    if re.search(r"proxima compra|cuando (va a|volvera a|podria) comprar|ventana de compra", t):
+        return "modelo_proxima", {}
+    if re.search(r"venta cruzada|recomendaci|productos? complementari|que (mas|otro producto) (le )?(podria|puedo) (venderle|ofrecer)", t):
+        return "modelo_venta_cruzada", {"cliente_id": cliente.group(1).upper() if cliente else None}
+    if re.search(r"pronostico|proyeccion|demanda", t):
+        return "modelo_demanda", {"serie": "ventas_unidades:" + m.group(1).upper() if (m := re.search(r"\b(pro\d{2})\b", t)) else None}
+    if re.search(r"atipic|anomal|inusual", t):
+        return "modelo_anomalias", {"universo": "compra" if re.search(r"compras? (a )?proveedor|\bcompras atipic|proveedor", t) else "venta"}
+    return None
 
 
 def _interpretar_llm(pregunta: str) -> tuple[str | None, dict]:
@@ -287,6 +311,83 @@ def herramienta_indicador(con, cierre, p) -> dict:
     return _resp("ok", "explicar_indicador", p, {"definicion": d}, _evid(cierre, None, p), d)
 
 
+# ---------------------------------------------------------------- modelos de IA (lectura; mismos permisos que sus vistas)
+def _pct(x) -> str:
+    return "—" if x is None else f"{round(x * 100)} %"
+
+
+EXPERIMENTAL = "Estimación EXPERIMENTAL en sombra (datos de práctica): es para revisión humana, no un hecho ni una tarea."
+
+
+def herramienta_modelos(con, usuario, cierre, intencion: str, p: dict) -> dict:
+    from . import anomalias, demanda, monitoreo, prevencion, proxima, venta_cruzada
+    permiso = {"modelo_inactividad": ("prevencion.ver",), "modelo_proxima": ("proxima.ver",), "modelo_venta_cruzada": ("venta_cruzada.ver",),
+               "modelo_demanda": ("demanda.ver_cop", "demanda.ver_unidades"), "modelo_anomalias": ("anomalias.ver",),
+               "modelo_monitoreo": ("monitoreo.ver",), "modelo_resultados": ("cartera.ver",)}[intencion]
+    if not any(usuario.puede(x) for x in permiso):
+        return _resp("no_autorizado", intencion, p, texto="Tu rol no tiene acceso a ese modelo.")
+    ev = lambda enlace: _evid(cierre, None, p, None, [{"tipo": "vista", "enlace": enlace}])  # noqa: E731
+    sin = lambda d: _resp("sin_datos", intencion, p, texto=d.get("mensaje") or "No hay publicación importada de este modelo.")  # noqa: E731
+    if intencion == "modelo_inactividad":
+        d = prevencion.lista(con)
+        if d.get("estado") == "sin_sombra":
+            return sin(d)
+        top = "; ".join(f"{x['cliente_id']} ({_pct(x.get('probabilidad'))}, {x.get('recencia_dias')} días sin comprar)" for x in d["items"][:5])
+        return _resp("ok", intencion, p, {"items": d["items"][:10]}, ev("#/prevencion"),
+                     f"{EXPERIMENTAL} Mayor riesgo de inactividad a 60 días al {d['sombra'].get('corte')}: {top}. Lista completa en Prevención (IA).")
+    if intencion == "modelo_proxima":
+        d = proxima.lista(con)
+        if d.get("estado") == "sin_sombra":
+            return sin(d)
+        top = "; ".join(f"{x['cliente_id']} (inicio probable {x.get('fecha_p10')} a {x.get('fecha_p50')})" for x in d["items"][:5])
+        return _resp("ok", intencion, p, {"items": d["items"][:10]}, ev("#/proxima"),
+                     f"{EXPERIMENTAL} Ventanas de inicio probable de la próxima compra (no son fechas de compra): {top}.")
+    if intencion == "modelo_venta_cruzada":
+        if p.get("cliente_id"):
+            d = venta_cruzada.para_ficha(con, p["cliente_id"])
+            if not d:
+                return _resp("sin_datos", intencion, p, texto=f"No hay propuestas de venta cruzada para {p['cliente_id']}.")
+            items = d["items"]
+        else:
+            d = venta_cruzada.lista(con)
+            if d.get("estado") == "sin_sombra":
+                return sin(d)
+            items = [x for x in d["items"] if x["posicion"] == 1][:5]
+        top = "; ".join(f"{x['cliente_id']}: {x.get('producto_nombre') or x['producto_id']} (compatibilidad {x.get('estado_compatibilidad')})" for x in items)
+        return _resp("ok", intencion, p, {"items": items}, ev("#/venta-cruzada"),
+                     f"{EXPERIMENTAL} Propuestas de venta cruzada (popularidad filtrada, para revisión de Ventas; no son ofertas): {top}.")
+    if intencion == "modelo_demanda":
+        d = demanda.panel(con, usuario, p.get("serie"))
+        if d.get("estado") == "sin_sombra":
+            return sin(d)
+        cop = d["serie_id"].startswith(("ventas_cop", "compras"))
+        val = lambda v: "sin pronóstico" if v is None else (_cop(v) if cop else f"{v:,.1f}".replace(",", "X").replace(".", ",").replace("X", "."))  # noqa: E731
+        proy = "; ".join(f"{x['periodo_objetivo']}: {val(x['valor'])}" for x in d["pronosticos"])
+        return _resp("ok", intencion, p, {"serie": d["serie_id"], "pronosticos": d["pronosticos"]}, ev(f"#/demanda?serie={d['serie_id']}"),
+                     f"{EXPERIMENTAL} Proyección de {d['serie_id']} desde {d['origen']} (no es ingreso realizado): {proy}.")
+    if intencion == "modelo_anomalias":
+        d = anomalias.lista(con, usuario, p.get("universo") or "venta")
+        if d.get("estado") == "sin_sombra":
+            return sin(d)
+        r = d["resumen"]
+        top = "; ".join(f"{x['operacion_id']} ({'; '.join(x['motivos'][:1])})" for x in d["items"] if x["alerta"])[:900]
+        return _resp("ok", intencion, p, {"resumen": r}, ev(f"#/anomalias?universo={d['universo']}"),
+                     f"{EXPERIMENTAL} La rareza no es fraude ni un error confirmado. {d['universo'].capitalize()}s: {r['alertas']} alertas de "
+                     f"{r['validas']} operaciones, {r['casos_pendientes']} casos pendientes de revisión. {top}")
+    if intencion == "modelo_monitoreo":
+        d = monitoreo.panel(con, usuario)
+        estado = "; ".join(f"{m['nombre']}: {m['estado_texto']}" + (f" ({len(m['avisos_activos'])} avisos)" if m["avisos_activos"] else "") for m in d["modelos"])
+        return _resp("ok", intencion, p, {"modelos": [{k: m[k] for k in ("modelo_id", "estado", "ultimo_corte")} for m in d["modelos"]]}, ev("#/monitoreo"),
+                     f"Estado del monitoreo (reglas iniciales): {estado}. Ningún aviso promueve ni revierte modelos.")
+    from .base import RAIZ
+    ruta_r = RAIZ / "salida" / "ia" / "resumen.json"
+    if not ruta_r.is_file():
+        return _resp("sin_datos", intencion, p, texto="Aún no se ha generado el resumen de los modelos de IA.")
+    rs = json.loads(ruta_r.read_text(encoding="utf-8"))
+    txt = " ".join(f"{m['titulo']} ({m['estado']}): {m['lectura'][0]}" for m in rs["modelos"])
+    return _resp("ok", intencion, p, {"modelos": [m["titulo"] for m in rs["modelos"]]}, ev("#/ia"), f"{rs.get('advertencia', '')} {txt}")
+
+
 HERRAMIENTAS = {"historial_cliente": herramienta_historial, "productos_cliente": herramienta_productos,
                 "ventas_periodo": herramienta_ventas, "compras_proveedor": herramienta_compras,
                 "oportunidades": herramienta_oportunidades, "clientes_reducen": herramienta_reducen,
@@ -303,6 +404,8 @@ def nodo_ejecutar(s: Estado) -> Estado:
     except ErrorApi as e:
         return {"respuesta": _resp("sin_datos", s["intencion"], s["parametros"], texto=e.mensaje)}
     try:
+        if s["intencion"] in INTENCIONES_MODELOS:
+            return {"respuesta": herramienta_modelos(con, u, cierre, s["intencion"], s["parametros"])}
         return {"respuesta": HERRAMIENTAS[s["intencion"]](con, cierre, s["parametros"])}
     except (KeyError, TypeError, ValueError) as e:
         return {"respuesta": _resp("error", s["intencion"], s["parametros"], texto=f"Parámetros inválidos: {e}")}

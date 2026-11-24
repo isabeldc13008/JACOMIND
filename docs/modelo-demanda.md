@@ -213,3 +213,7 @@ python -m api sombra salida/sombra/demanda/2026-10
   3. cuando cada objetivo se complete, `incorporar-observaciones`, sin reescribir el pronóstico.
 - **Registro**: se conservan la fecha de emisión y el corte de información, y las simulaciones históricas se mantienen separadas de los pronósticos prospectivos.
 - **Bandas de candidatos**: se habilitan cuando acumulen 12 errores comparables.
+
+## Monitoreo (24-11-2026)
+
+M5: por universo de unidad (COP y cada producto en su unidad, nunca mezclados); MAE, WAPE, sesgo y cobertura de bandas solo con meses completos, frente a A08 en los mismos objetivos; las series en COP solo para Finanzas y Gerencia. Ver [monitoreo de modelos](monitoreo-modelos.md#b-monitoreo-de-m1m6).

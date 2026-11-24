@@ -476,3 +476,7 @@ python -m modelos.cli puntuar --modelo inactividad_60d --ejecucion salida/experi
   - intervalo de confianza, presentado como orientativo porque los datos son sintéticos y el periodo ya estaba visto.
 - Las señales de cada cliente incluyen la renovación de una instalación cuando se abre antes del cruce.
 - Se comprobó en el navegador con una base temporal (`python -m api demo` seguido de `python -m api sombra`).
+
+## Monitoreo (24-11-2026)
+
+M2: estimados, estructurales y abstenciones por separado (un estado estructural no es un fallo); desempeño a 60 días con Brier y precisión al cupo frente a recencia. Ver [monitoreo de modelos](monitoreo-modelos.md#b-monitoreo-de-m1m6).

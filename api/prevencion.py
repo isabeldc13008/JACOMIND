@@ -41,6 +41,8 @@ def importar_sombra(db: BaseDatos, directorio: str | Path, actor: str, modelo_id
     mismo corte o posterior pasa a ser la activa. Repetir la importación no cambia nada."""
     errores, man, filas = leer_publicacion_sombra(directorio)
     if errores:
+        from .monitoreo import registrar_integridad
+        registrar_integridad(db, modelo_id, errores, str(directorio))
         raise ErrorApi(422, "sombra_invalida", "La publicación en sombra no cumple el contrato", {"errores": errores[:20]})
     if man.get("modelo_id") != modelo_id or modelo_id not in MODELOS_SOMBRA:
         raise ErrorApi(422, "sombra_invalida", f"Se esperaba una publicación de {modelo_id}, no de {man.get('modelo_id')!r}")
@@ -65,7 +67,8 @@ def importar_sombra(db: BaseDatos, directorio: str | Path, actor: str, modelo_id
     salida = {"sombra_id": sid, "ya_importada": False, "filas": len(filas), "activa": activar}
     if not activar:
         salida["motivo"] = f"Corte {man['corte']} anterior al de la publicación activa ({actual['corte']}): se conserva sin desplazarla."
-    return salida
+    from .monitoreo_modelos import tras_importar
+    return tras_importar(db, salida, actor)
 
 
 def ordenar_estimadas(preds: dict[str, dict]) -> list[dict]:

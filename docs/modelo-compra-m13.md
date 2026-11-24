@@ -63,3 +63,7 @@ Protocolo: [`modelos/config/compra_30d_m13.json`](../modelos/config/compra_30d_m
 python -m modelos.cli m13-entrenar --datos salida/a01 --config modelos/config/compra_30d_m13.json --salida salida/experimentos/compra_30d_m13/ejecucion-002
 python -m modelos.cli m13-evaluar --ejecucion salida/experimentos/compra_30d_m13/ejecucion-002
 ```
+
+## Integridad y recuperación (24-11-2026)
+
+La ejecución histórica de esta variante es de **formato 2**: sigue legible con verificación parcial declarada (lo que su sello no protege, p. ej. la evidencia de desarrollo, figura en `verificacion.no_verificable`), pero no puede volver a evaluarse ni promoverse con `promover`. Las ejecuciones nuevas usan el **formato 3** (congelación y evaluación selladas, archivos obligatorios, coherencia candidato–artefacto–decisión y recuperación de interrupciones). La reproducción en carpeta nueva dio artefactos, métricas y decisión **idénticos**: la corrección no cambia el resultado predictivo ni la decisión. Detalle: [monitoreo e integridad](monitoreo-modelos.md#a-integridad-y-recuperación-de-m11-m12-y-m13).

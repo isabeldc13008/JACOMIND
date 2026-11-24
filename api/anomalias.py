@@ -103,22 +103,20 @@ def importar_sombra(db: BaseDatos, directorio: str | Path, actor: str) -> dict:
                         [(sid, c["tipo_operacion"], c["periodo"], dumps(c)) for c in tablas["cobertura_anomalias"]])
         con.execute("INSERT INTO sombra_muestras_revision (sombra_id, datos_json) VALUES (?,?)", (sid, dumps(muestra)))
         casos = {"nuevo": 0, "correccion": 0, "existente": 0}
-        nuevos_avisos = []
         if activar:  # solo la publicación vigente abre casos: una antigua no produce eventos con cronología incoherente
             for f in filas:
                 clave = (f["tipo_operacion"], f["operacion_id"])
                 if f["alerta"] or clave in en_muestra:
                     origen = "+".join(x for x, ok in (("alerta", f["alerta"]), ("muestra_revision", clave in en_muestra)) if ok)
                     casos[_abrir_o_actualizar(con, sid, f, origen, actor)] += 1
-            previo_mon = (loads(actual["manifiesto_json"]).get("monitoreo") or {}).get("universos") if actual else None
-            for a in M.comparar((man.get("monitoreo") or {}).get("universos"), previo_mon, (man.get("monitoreo") or {}).get("umbrales") or {}):
-                if M.registrar_aviso(con, f"{a['tipo']}:{sid}:{a['universo']}", MODELO_ID, a["tipo"], "estadistico", a["mensaje"], a["datos"], sid):
-                    nuevos_avisos.append(a["tipo"])
         auditar(con, actor, "sombra.importar", sid, "ok" if activar else "importada_sin_activar", None,
                 {"filas": len(filas), "activa": activar, "casos": casos})
-    salida = {"sombra_id": sid, "ya_importada": False, "activa": activar, "filas": len(filas), "casos": casos, "avisos": nuevos_avisos}
+    salida = {"sombra_id": sid, "ya_importada": False, "activa": activar, "filas": len(filas), "casos": casos}
     if not activar:
         salida["motivo"] = f"Corte {man['corte']} anterior al de la publicación activa ({actual['corte']}): se conserva sin desplazarla ni abrir casos."
+    from .monitoreo_modelos import tras_importar
+    salida = tras_importar(db, salida, actor)  # motor común de monitoreo (avisos persistentes e idempotentes)
+    salida["avisos"] = (salida.get("monitoreo") or {}).get("avisos", [])
     return salida
 
 
@@ -269,6 +267,8 @@ def revisar(db: BaseDatos, usuario, tipo: str, operacion_id: str, estado: str, m
         _evento(con, caso["caso_id"], "revision", usuario.id, anterior=caso["estado"], nuevo=estado, motivo=motivo, evidencia=(evidencia or "").strip() or None,
                 version=ev.get("version_modelo"), sombra_id=ev.get("sombra_id"))
         auditar(con, usuario.id, "anomalias.revisar", caso["caso_id"], "ok", None, {"estado_anterior": caso["estado"], "estado": estado})
+    from .monitoreo_modelos import observar_revision
+    observar_revision(db, MODELO_ID)  # grupo D: resultados de revisión humana
     return {"caso_id": caso["caso_id"], "estado_anterior": caso["estado"], "estado": estado, "version_examinada": ev.get("version_modelo")}
 
 
@@ -295,4 +295,4 @@ def panel_monitoreo(con) -> dict:
         pubs.append({"sombra_id": r["id"], "corte": r["corte"], "version": r["version_modelo"], "activa": bool(r["activa"]), "importada_en": r["importada_en"],
                      "monitoreo": man.get("monitoreo"), "duracion_puntuacion_s": (man.get("volatiles") or {}).get("duracion_puntuacion_s")})
     estados = {e: n for e, n in con.execute("SELECT estado, count(*) FROM casos_anomalia WHERE reemplazado_por IS NULL GROUP BY estado")}
-    return {"publicaciones": pubs, "casos_por_estado": estados, "avisos": M.avisos(con, MODELO_ID), "experimental": True}
+    return {"publicaciones": pubs, "casos_por_estado": estados, "avisos": M.avisos(con, MODELO_ID), "experimental": True}  # vista global: /api/monitoreo

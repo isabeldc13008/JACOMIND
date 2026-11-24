@@ -34,6 +34,8 @@ ORIGEN = {"modelo": "modelo de IA (puntaje de ranking)", "popularidad": "popular
 def importar_sombra(db: BaseDatos, directorio: str | Path, actor: str) -> dict:
     errores, man, tablas = leer_publicacion_sombra(directorio)
     if errores:
+        from .monitoreo import registrar_integridad
+        registrar_integridad(db, MODELO_ID, errores, str(directorio))
         raise ErrorApi(422, "sombra_invalida", "La publicación en sombra no cumple el contrato", {"errores": errores[:20]})
     if man.get("modelo_id") != MODELO_ID:
         raise ErrorApi(422, "sombra_invalida", f"Se esperaba una publicación de {MODELO_ID}")
@@ -58,7 +60,8 @@ def importar_sombra(db: BaseDatos, directorio: str | Path, actor: str) -> dict:
             con.execute("INSERT INTO sombra_muestras_revision (sombra_id, datos_json) VALUES (?,?)", (sid, dumps(tablas["muestra_revision"])))
         auditar(con, actor, "sombra.importar", sid, "ok" if activar else "importada_sin_activar", None,
                 {"recomendaciones": len(tablas["recomendaciones_productos"]), "activa": activar})
-    return {"sombra_id": sid, "ya_importada": False, "activa": activar, "recomendaciones": len(tablas["recomendaciones_productos"])}
+    from .monitoreo_modelos import tras_importar
+    return tras_importar(db, {"sombra_id": sid, "ya_importada": False, "activa": activar, "recomendaciones": len(tablas["recomendaciones_productos"])}, actor)
 
 
 def sombra_activa(con) -> dict | None:
@@ -243,6 +246,8 @@ def registrar_revision(db: BaseDatos, usuario, cliente_id: str, producto_id: str
         con.execute("""INSERT INTO revisiones_venta_cruzada (sombra_id, cliente_id, producto_id, version_propuesta, estado_revision, revisor, fecha, motivo, evidencia)
                        VALUES (?,?,?,?,?,?,?,?,?)""", (s["id"], cliente_id, producto_id, par["version_propuesta"], estado, usuario.id, ahora(), motivo, evidencia))
         auditar(con, usuario.id, "venta_cruzada.revisar", f"{cliente_id}:{producto_id}", "ok", None, {"estado": estado})
+    from .monitoreo_modelos import observar_revision
+    observar_revision(db, MODELO_ID)  # grupo D: revisión comercial (la observación anterior queda enlazada)
     return {"registrada": True, "estado": estado}
 
 

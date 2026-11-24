@@ -235,3 +235,7 @@ python -m modelos.cli comparar --operativo salida/puntuaciones/2026-11-30/operat
 - Tres meses de comprobación con cortes del mismo cliente correlacionados: no demuestran estabilidad.
 - Mide propensión, no el efecto causal del contacto. El umbral de F1 no es una política de Green.
 - Coberturas, ciudad, sector y canal no forman parte del candidato; incorporarlos requiere reconstruir su disponibilidad histórica.
+
+## Monitoreo (24-11-2026)
+
+M1 (cierres operativos): salud y distribución en cada cierre publicado; desempeño a 30 días (Brier, precisión al cupo 10 frente a mayor recencia) con `python -m api monitoreo resultados` cuando la cobertura declarada alcanza corte + 30. Los cierres anteriores a la disponibilidad de la versión operativa quedan en abstención y su estado es «sin información». Ver [monitoreo de modelos](monitoreo-modelos.md#b-monitoreo-de-m1m6).

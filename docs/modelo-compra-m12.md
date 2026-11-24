@@ -59,3 +59,7 @@ python -m modelos.cli m12-evaluar --ejecucion salida/experimentos/compra_30d_m12
 ```
 
 Lo que más podría cambiar el resultado no es otra reordenación de las mismas ventas, sino información nueva (cotizaciones, renovaciones gestionadas, solicitudes: ver el [contrato de señales](plan/modelos/m1.1-senales-comerciales.md)) y más meses o más clientes para que las diferencias sean medibles.
+
+## Integridad y recuperación (24-11-2026)
+
+La ejecución histórica de esta variante es de **formato 2**: sigue legible con verificación parcial declarada (lo que su sello no protege, p. ej. la evidencia de desarrollo, figura en `verificacion.no_verificable`), pero no puede volver a evaluarse ni promoverse con `promover`. Las ejecuciones nuevas usan el **formato 3** (congelación y evaluación selladas, archivos obligatorios, coherencia candidato–artefacto–decisión y recuperación de interrupciones). La reproducción en carpeta nueva dio artefactos, métricas y decisión **idénticos**: la corrección no cambia el resultado predictivo ni la decisión. Detalle: [monitoreo e integridad](monitoreo-modelos.md#a-integridad-y-recuperación-de-m11-m12-y-m13).

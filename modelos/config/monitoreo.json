@@ -1,0 +1,38 @@
+{
+ "version": "monitoreo-reglas-v1",
+ "contrato": "jacomind.monitoreo.v1",
+ "fijado_en": "2026-11-24",
+ "nota": "Reglas INICIALES de ingeniería (base común: caída de cobertura > 10 pp; deterioro relativo > 20 % frente a la referencia en dos cortes maduros). No son políticas aprobadas por la empresa. Ningún aviso promueve, revierte ni reentrena modelos.",
+ "grupos": {
+  "salud": "A. Salud de datos y publicación: conteos, cobertura, abstenciones, integridad",
+  "distribucion": "B. Cambios de distribución: puntajes, probabilidades, tasas de alerta. Una variación de distribución NO demuestra deterioro predictivo",
+  "desempeno": "C. Desempeño con resultados observados (solo con madurez suficiente)",
+  "revision": "D. Resultados de revisión humana"
+ },
+ "direccion_metricas": {
+  "brier": "menor", "log_loss": "menor", "mae": "menor", "wape": "menor", "sesgo_absoluto": "menor", "brier_horizonte": "menor",
+  "precision_cupo": "mayor", "hitrate1": "mayor", "cobertura_banda_error": "menor"
+ },
+ "reglas": {
+  "integridad": {"definicion": "la publicación no cumple sello, huellas o contrato: se rechaza, no se importa y queda un aviso; bloquea solo la publicación afectada"},
+  "caida_cobertura": {"umbral_pp": 10.0, "definicion": "100 · (cobertura_previa − cobertura_actual) >= umbral_pp, con cobertura = puntuados / elegibles. Elegibles = 0 → cobertura nula (no cero) y aviso sin_registros."},
+  "sin_registros": {"definicion": "el periodo publicado tiene 0 elegibles: estado explícito, nunca cobertura 100 % ni 0 %"},
+  "cambio_tasa_alertas": {"umbral_relativo": 0.5, "min_operaciones": 30, "min_alertas_desde_cero": 1,
+                          "definicion": "r = |a − b| / b si b > 0; si b = 0 y a >= min_alertas_desde_cero: cambio desde cero (r indefinido, se avisa); si b = 0 y a = 0: sin cambio. Ambos periodos con >= min_operaciones. a, b = alertas por 100 válidas."},
+  "deterioro_frente_referencia": {"umbral_relativo": 0.20, "cortes_maduros_consecutivos": 2, "soporte_minimo": 30,
+                                  "definicion": "Por observación madura de desempeño y métrica con dirección: d = (x − r)/|r| si 'menor' es mejor; d = (r − x)/|r| si 'mayor' es mejor (x modelo, r referencia del MISMO universo y corte). r = 0: si x = r, d = 0; si no, d no estimable (motivo referencia_cero, sin aviso). Valores ausentes: d nulo con motivo. Aviso si d > umbral con soporte >= soporte_minimo en la observación actual y en la observación madura comparable inmediatamente anterior (dos cortes maduros consecutivos)."},
+  "cambio_politica": {"definicion": "la clave de comparabilidad (métrica, horizonte, universo, elegibilidad, unidad, política y su versión, referencia) cambió respecto de la observación anterior: se registra el cambio como informativo y NO se compara ni se declara deterioro"}
+ },
+ "madurez": {
+  "compra_30d": {"horizonte_dias": 30},
+  "inactividad_60d": {"horizonte_dias": 60},
+  "proxima_compra": {"horizontes_dias": [15, 30, 60]},
+  "venta_cruzada": {"horizonte_dias": 60},
+  "demanda": {"regla": "el mes objetivo debe estar completo en la cobertura declarada de la fuente"},
+  "anomalias": {"regla": "solo revisiones humanas; sin revisiones no hay precisión"},
+  "definicion": "Madura = la cobertura DECLARADA de la fuente (datos_observados_hasta) alcanza corte + horizonte; el paso del calendario no basta."
+ },
+ "cupos": {"compra_30d": 10, "inactividad_60d": 10},
+ "referencias": {"compra_30d": "mayor_recencia (menos días desde la última compra primero)", "inactividad_60d": "mayor_recencia (más días desde la última compra primero)",
+                 "demanda": "media_movil_3 (A08) en los mismos orígenes y objetivos"}
+}

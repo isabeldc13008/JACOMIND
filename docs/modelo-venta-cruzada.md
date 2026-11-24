@@ -286,3 +286,7 @@ python -m modelos.cli resumen-ia
 - **M4 intacto**: la reevaluación de M4 sigue idéntica y la sombra publicada no cambia.
 - **Pruebas**: `tests/modelos/test_venta_cruzada_m41.py`, con 3 pruebas: secuencias sin fuga, suavizado y azar reproducible.
 - **«Modelos de IA»**: la página incluye ahora venta cruzada, con M4, M4.1, popularidad, coocurrencia, azar y techo en la misma tabla.
+
+## Monitoreo (24-11-2026)
+
+M4: elegibles, con candidatos y con recomendaciones; compatibilidad; revisión comercial (grupo D) al registrar revisiones; HitRate a 60 días como exposición y compra posterior, sin atribución causal. Ver [monitoreo de modelos](monitoreo-modelos.md#b-monitoreo-de-m1m6).

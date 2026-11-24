@@ -369,3 +369,7 @@ python -m modelos.cli evaluar --ejecucion salida/experimentos/proxima_compra_m32
 - Puntuar en sombra **las dos variantes** congeladas: sin nivel (operativa en sombra) y con nivel (contexto).
 - Desde el 2027-01-29, comparar calibración, cobertura y ventanas útiles con datos posteriores a la congelación.
 - Solo entonces decidir, con un protocolo nuevo, si conviene el ajuste de nivel o una regla de ventana distinta.
+
+## Monitoreo (24-11-2026)
+
+M3: cobertura de probabilidades y ventanas; desempeño por horizonte (15, 30 y 60 días) solo cuando madura; los clientes censurados nunca cuentan como no compradores. Ver [monitoreo de modelos](monitoreo-modelos.md#b-monitoreo-de-m1m6).

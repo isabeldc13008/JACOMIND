@@ -58,9 +58,9 @@ def lectura(filas: list[dict], tasa: float) -> list[str]:
 
 def resumen_compra(m13: Path, registro: Path) -> dict:
     from . import registro as R
-    from .compra_m13 import verificar_congelacion_m13
-    verificar_congelacion_m13(m13)
-    met, dec = _leer(m13 / "metricas_comprobacion_historica.json"), _leer(m13 / "decision.json")
+    from .compra_m1_ejecucion import leer_evaluacion
+    ev = leer_evaluacion(m13, "m13")  # formato 3 verificado o formato 2 en solo lectura con verificación parcial declarada
+    met, dec = ev["metricas"], ev["decision"]
     reg = R.leer_registro(registro, "compra_30d")
     _, operativo = R.artefacto_registrado(registro, "compra_30d", "operativo")
     huellas = {"P": dec["artefactos"]["P"]}
@@ -87,7 +87,7 @@ def resumen_compra(m13: Path, registro: Path) -> dict:
             "modo_demostracion": R.modo_demostracion(reg),
             "periodo": [c["corte"] for c in res["recencia"]["elegible"]["por_mes"]],
             "casos": met["poblacion"]["poblacion"], "eventos": met["poblacion"]["positivos"],
-            "tasa_observada": ag("P")["tasa_observada"], "filas": filas,
+            "tasa_observada": ag("P")["tasa_observada"], "filas": filas, "verificacion": ev["congelacion"]["verificacion"],
             "lectura": lectura(filas, ag("P")["tasa_observada"])}
 
 

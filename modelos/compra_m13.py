@@ -24,7 +24,10 @@ from .compra import (LIMITACIONES, DependenciaEntrenamiento, ProtocoloError, _at
                      _json, _leer, _primer_fin_de_mes_posterior, ajustar_logistica, conteos, entorno, huella_protocolo, identidad_protocolo,
                      poblacion)
 from .compra_m11 import REFERENCIAS_REGISTRO, cortes_entrenamiento, origenes, preparar
+from .compra_m1_ejecucion import (congelar, exigir_formato_nuevo, guardar_protocolo_inicial, huellas_codigo, metadatos_comunes,
+                                   publicar_evaluacion, verificar)
 from .datos import DatosAceptados, cargar_datos
+from .ejecucion import json_bytes
 from .inferencia import FORMATO, MODELO_ID, cargar_artefacto, desde_dict, sellar
 from .supervivencia import FORMATO_SUPERVIVENCIA, ajustar_curva
 from .variables import VERSION_INTERVALOS, VERSION_VARIABLES, ajustar_transformaciones, aplicar_transformaciones
@@ -138,8 +141,7 @@ def entrenar_m13(datos: DatosAceptados, config: dict, salida: str | Path) -> dic
     _comprobar_version_protocolo(salida, config)
     protocolo = {"version": config["version_protocolo"], "huella": huella_protocolo(config), "identidad": identidad_protocolo(config),
                  "guardado_en": _hoy_utc()}
-    _json(salida / "config.json", config)
-    _json(salida / "protocolo.json", protocolo)  # antes de calcular cualquier resultado
+    arch = guardar_protocolo_inicial(salida, config, protocolo)  # antes de calcular cualquier resultado
     ds = preparar(datos, dict(config, version_variables=VERSION_INTERVALOS))
     h = config["horizonte_dias"]
     cortes_dev = sorted(ds["por_corte"])
@@ -204,45 +206,25 @@ def entrenar_m13(datos: DatosAceptados, config: dict, salida: str | Path) -> dic
     equivalencia["S_recarga_json"] = max(abs(recargado.probabilidad(f) - s_final.probabilidad(f)) for f in entren)
     artefactos = {"S": s_final.datos, **{n: a.datos for n, (a, _) in logs.items()}}
     for n, d in artefactos.items():
-        _json(salida / f"artefacto_{n}.json", d)
+        arch[f"artefacto_{n}.json"] = json_bytes(d)
     refs = {}
     for nombre, v in (("v1_congelada", "v1"), ("m1_v2_congelado", "v2")):
         r = cargar_artefacto(REFERENCIAS_REGISTRO / v)
         refs[nombre] = {"version": r.version, "huella": r.huella}
-        _json(salida / f"referencia_{nombre}.json", r.datos)
-    hoy = datetime.now(timezone.utc).date()
-    primer = _primer_fin_de_mes_posterior(hoy)
-    cong = {"formato": 2, "congelado_en": _hoy_utc(), "protocolo": {k: protocolo[k] for k in ("version", "huella")},
-            "artefactos": {n: d["huella"] for n, d in artefactos.items()}, "referencias": refs, "huella_datos": datos.huella_datos,
-            "revision_datos": datos.revision, "cortes_entrenamiento_final": [c.isoformat() for c in cortes_final],
-            "curva_S_datos_hasta": curva_final["datos_hasta"], "equivalencia": equivalencia,
-            "bloques_usados": ["desarrollo"], "bloque_reservado": "comprobacion_historica",
-            "fechas": {"congelacion_real": hoy.isoformat(), "disponibilidad_simulada_desde": config["disponible_desde"],
-                       "datos_observados_hasta": datos.observado_hasta.isoformat(), "primer_corte_prospectivo": primer.isoformat(),
-                       "primer_corte_prospectivo_madura_el": (primer + timedelta(days=h)).isoformat(),
-                       "nota": "julio–septiembre y octubre de 2026 son comprobaciones retrospectivas"}}
-    cong["sello"] = hashlib.sha256(_canon({k: cong[k] for k in ("protocolo", "artefactos", "referencias", "huella_datos")}).encode()).hexdigest()
-    _json(salida / "desarrollo.json", desarrollo)
-    _json(salida / "datos.json", dict(datos.descripcion(), desarrollo=conteos(ds["desarrollo"]), ejecutado_en=_hoy_utc()))
-    _json(salida / "entorno.json", entorno())
-    _json(salida / "congelacion.json", cong)
+        arch[f"referencia_{nombre}.json"] = json_bytes(r.datos)
+    meta, volatiles = metadatos_comunes(config, protocolo, refs, datos, cortes_final, h)
+    meta.update(artefactos={n: d["huella"] for n, d in artefactos.items()}, curva_S_datos_hasta=curva_final["datos_hasta"],
+                equivalencia=equivalencia, codigo=huellas_codigo("compra_m13.py", "supervivencia.py"))
+    arch["desarrollo.json"] = json_bytes(desarrollo)
+    arch["datos.json"] = json_bytes(dict(datos.descripcion(), desarrollo=conteos(ds["desarrollo"])))
+    arch["entorno.json"] = json_bytes(entorno())
+    cong = congelar(salida, "m13", arch, meta, volatiles)
     return {"desarrollo": desarrollo, "congelacion": cong, "artefactos": artefactos}
 
 
 def verificar_congelacion_m13(ejecucion: Path) -> dict:
-    cong = _leer(ejecucion / "congelacion.json")
-    if huella_protocolo(_leer(ejecucion / "config.json")) != cong["protocolo"]["huella"]:
-        raise ProtocoloError(f"El protocolo de {ejecucion} cambió después de congelarse; crea una versión y una ejecución nuevas.")
-    for n, h in cong["artefactos"].items():
-        if cargar_artefacto(ejecucion / f"artefacto_{n}.json").huella != h:
-            raise ProtocoloError(f"artefacto_{n}.json no coincide con el congelado")
-    for n, r in cong["referencias"].items():
-        if cargar_artefacto(ejecucion / f"referencia_{n}.json").huella != r["huella"]:
-            raise ProtocoloError(f"La referencia {n} no coincide con la congelada")
-    sello = hashlib.sha256(_canon({k: cong[k] for k in ("protocolo", "artefactos", "referencias", "huella_datos")}).encode()).hexdigest()
-    if sello != cong["sello"]:
-        raise ProtocoloError("congelacion.json fue alterado (el sello no coincide)")
-    return cong
+    """Formato 3: marcador, archivos obligatorios y coherencia completos. Formato 2 (histórico): verificación parcial declarada."""
+    return verificar(ejecucion, "m13")
 
 
 def decidir(desarrollo: dict, comprobacion: dict, config: dict) -> dict:
@@ -269,6 +251,7 @@ def decidir(desarrollo: dict, comprobacion: dict, config: dict) -> dict:
 def evaluar_m13(ejecucion: str | Path, datos: DatosAceptados | None = None) -> dict[str, Any]:
     ejecucion = Path(ejecucion)
     cong = verificar_congelacion_m13(ejecucion)
+    exigir_formato_nuevo(cong)
     config = _leer(ejecucion / "config.json")
     info = _leer(ejecucion / "datos.json")
     if datos is None:
@@ -294,19 +277,10 @@ def evaluar_m13(ejecucion: str | Path, datos: DatosAceptados | None = None) -> d
                            for pob, c in (("elegible", filas), ("atendible", sub))}
     desarrollo = _leer(ejecucion / "desarrollo.json")
     decision = decidir(desarrollo, comprobacion, config)
-    metricas = {"bloque": "comprobacion_historica", "evaluado_en": _hoy_utc(),
+    metricas = {"bloque": "comprobacion_historica",
                 "alcance": "comprobación histórica exploratoria: periodo ya inspeccionado; el criterio principal es la validación temporal",
                 "poblacion": conteos(ds["prueba"]), "atendible_n": len(sub), "resultados": comprobacion}
-    doc = {"candidatos": decision, "version_protocolo": config["version_protocolo"], "protocolo_huella": cong["protocolo"]["huella"],
-           "artefactos": cong["artefactos"], "origen_datos": config["origen_datos"], "fechas": cong["fechas"], "alcance": metricas["alcance"],
+    doc = {"candidatos": decision, "version_protocolo": config["version_protocolo"], "origen_datos": config["origen_datos"], "fechas": cong["fechas"], "alcance": metricas["alcance"],
            "limitaciones": LIMITACIONES + ["Ningún artefacto M1.3 se promueve automáticamente."]}
-    ruta_m, ruta_d = ejecucion / "metricas_comprobacion_historica.json", ejecucion / "decision.json"
-    normal = lambda d: json.loads(json.dumps({k: v for k, v in d.items() if k not in ("evaluado_en", "decidido_en")}, default=str))  # noqa: E731
-    if ruta_m.exists() and normal(_leer(ruta_m)) != normal(metricas):
-        raise ProtocoloError(f"{ruta_m} ya contiene métricas distintas; una ejecución congelada no se sobrescribe")
-    if ruta_d.exists() and normal(_leer(ruta_d)) != normal(doc):
-        raise ProtocoloError(f"{ruta_d} ya contiene una decisión distinta; una ejecución congelada no se sobrescribe")
-    if not ruta_m.exists():
-        _json(ruta_m, metricas)
-        _json(ruta_d, dict(doc, decidido_en=_hoy_utc()))
-    return {"metricas": _leer(ruta_m), "decision": _leer(ruta_d)}
+    pub = publicar_evaluacion(ejecucion, "m13", cong, metricas, doc)
+    return {"metricas": pub["metricas"], "decision": pub["decision"]}

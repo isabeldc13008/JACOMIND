@@ -22,6 +22,8 @@ NOTA = ("Proyección experimental en sombra: no es ingreso realizado, margen, or
 def importar_sombra(db: BaseDatos, directorio: str | Path, actor: str) -> dict:
     errores, man, tablas = leer_publicacion_sombra(directorio)
     if errores:
+        from .monitoreo import registrar_integridad
+        registrar_integridad(db, MODELO_ID, errores, str(directorio))
         raise ErrorApi(422, "sombra_invalida", "La publicación en sombra no cumple el contrato", {"errores": errores[:20]})
     if man.get("modelo_id") != MODELO_ID:
         raise ErrorApi(422, "sombra_invalida", f"Se esperaba una publicación de {MODELO_ID}")
@@ -46,7 +48,8 @@ def importar_sombra(db: BaseDatos, directorio: str | Path, actor: str) -> dict:
     salida = {"sombra_id": sid, "ya_importada": False, "activa": activar, "filas": len(tablas["pronosticos_demanda"])}
     if not activar:
         salida["motivo"] = f"Origen {man['origen']} anterior al de la publicación activa ({actual['corte']}): se conserva sin desplazarla."
-    return salida
+    from .monitoreo_modelos import tras_importar
+    return tras_importar(db, salida, actor)
 
 
 def _permitida(usuario, serie_id: str) -> bool:

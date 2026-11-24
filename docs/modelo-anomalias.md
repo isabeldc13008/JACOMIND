@@ -322,3 +322,7 @@ python -m modelos.cli evaluar --ejecucion salida/experimentos/anomalias_m61/ejec
 python -m modelos.cli puntuar --modelo anomalias --ejecucion salida/experimentos/anomalias_m61/ejecucion-001 --datos salida/a01 --corte 2026-10-31 --salida salida/sombra/anomalias_m61/2026-10-31
 python -m api sombra salida/sombra/anomalias_m61/2026-10-31
 ```
+
+## Monitoreo (24-11-2026)
+
+M6/M6.1: el motor común sustituye la comparación propia conservando claves y tipos de aviso; M6.1 frente a M6 se marca «no comparable» por el cambio de política; rareza, alertas, revisiones y precisión comercial se reportan por separado. Ver [monitoreo de modelos](monitoreo-modelos.md#b-monitoreo-de-m1m6).

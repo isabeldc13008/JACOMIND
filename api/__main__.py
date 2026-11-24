@@ -5,6 +5,9 @@
     python -m api publicar RUTA             # directorio C2 o agenda.json C1
     python -m api cierre --corte 2026-10-31 --datos ../Green_Services_Recursos_de_Prueba
     python -m api sombra RUTA               # importa una publicación EN SOMBRA (inactividad o próxima compra; sin agenda)
+    python -m api monitoreo recalcular      # salud, distribución y revisión de lo ya publicado (idempotente)
+    python -m api monitoreo resultados --datos salida/a01   # desempeño con resultados maduros (M1–M5) y avisos
+    python -m api monitoreo estado          # estado por modelo (sin información, pendiente, no comparable, ...)
     python -m api respaldo [--salida F]     # copia consistente + manifiesto
     python -m api restaurar RESPALDO --db DESTINO
     python -m api exportar-eventos [--salida F]
@@ -37,6 +40,11 @@ def main(argv=None) -> int:
     pb = sub.add_parser("publicar"); pb.add_argument("ruta"); pb.add_argument("--actor", default="ops1")
     sb = sub.add_parser("sombra", help="importa una publicación en sombra de inactividad_60d (no cambia la agenda)")
     sb.add_argument("ruta"); sb.add_argument("--actor", default="ops1")
+    mo = sub.add_parser("monitoreo", help="monitoreo de modelos: recalcular observaciones, incorporar resultados maduros o ver el estado")
+    mo.add_argument("accion", choices=["recalcular", "resultados", "estado"])
+    mo.add_argument("--datos", default=None, help="resultados: revisión A01 aceptada (con su cobertura declarada)")
+    mo.add_argument("--modelo", default=None, help="limitar a un modelo")
+    mo.add_argument("--observado-hasta", default=None, help="resultados: cobertura explícita (AAAA-MM-DD) si el lote no la declara")
     c = sub.add_parser("cierre")
     c.add_argument("--corte", required=True); c.add_argument("--datos"); c.add_argument("--desde")
     c.add_argument("--reintentos", type=int, default=2); c.add_argument("--actor", default="programador")
@@ -70,6 +78,24 @@ def main(argv=None) -> int:
             from .demo import solo_permisos
             from .publicacion import publicar_ruta
             solo_permisos(db); imprimir(publicar_ruta(db, a.ruta, a.actor))
+        elif a.cmd == "monitoreo":
+            from .demo import solo_permisos
+            from . import monitoreo as MON
+            from . import monitoreo_modelos as MM
+            solo_permisos(db); db.migrar()
+            if a.accion == "recalcular":
+                imprimir(MM.recalcular(db))
+            elif a.accion == "resultados":
+                if not a.datos:
+                    raise SystemExit("monitoreo resultados necesita --datos (revisión A01 aceptada)")
+                from modelos.datos import cargar_datos
+                imprimir(MM.resultados(db, cargar_datos(a.datos, observado_hasta=a.observado_hasta), a.modelo))
+            else:
+                with db.conexion() as con:
+                    filas = {m: [dict(r) for r in con.execute("SELECT * FROM monitoreo_observaciones WHERE modelo_id = ?", (m,))] for m in MON.MODELOS}
+                    imprimir({m: {"estado": MON.estado_modelo(o, MON.avisos(con, m)), "observaciones": len(o),
+                                  "avisos_activos": sum(1 for x in MON.avisos(con, m) if x.get("estado") != "resuelto")}
+                              for m, o in filas.items() if not a.modelo or m == a.modelo})
         elif a.cmd == "sombra":
             from pathlib import Path as _P
             from .demo import solo_permisos
