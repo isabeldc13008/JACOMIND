@@ -36,6 +36,19 @@
       }
     },
     "calidad": {"type": "object"},
+    "cobertura": {
+      "description": "Opcional (obligatoria si hay predicciones estimadas). Cobertura temporal del lote: datos completos hasta datos_observados_hasta, con su procedencia. 'verificada' exige datos_observados_hasta >= corte; con 'no_verificada' el modelo se abstiene.",
+      "type": "object",
+      "required": ["estado", "fuente"],
+      "properties": {
+        "corte": {"type": "string", "format": "date"},
+        "datos_observados_hasta": {"type": ["string", "null"]},
+        "fuente": {"type": "string", "minLength": 1},
+        "estado": {"enum": ["verificada", "no_verificada"]},
+        "publicacion": {"type": "string"},
+        "convencion_disponibilidad": {"type": "string"}
+      }
+    },
     "modelos": {"type": "array", "items": {"type": "object"}}
   },
   "tablas_conocidas": {
@@ -73,6 +86,48 @@
       "clave": ["cliente_id"],
       "requeridos": {"cliente_id": "string", "segmento": "string"},
       "opcionales": {"descripcion": "string", "accion_sugerida": "string", "version": "string"}
+    },
+    "predicciones_clientes": {
+      "clave": ["cliente_id", "modelo_id"],
+      "descripcion": "Predicción persistida por cliente y modelo (versión activa). 'probabilidad' null = sin estimación, con su causa en 'estado' y 'motivos'. Los motivos describen señales observadas, no causas. Para compra_30d la probabilidad debe coincidir con agenda.prob_compra_30d. inactividad_60d (riesgo de llegar a 90 días sin compra en 60 días) exige horizonte_dias = 60, umbral_frio_dias = 90 y recencia_dias; 'estructural' (recencia 0–29) lleva probabilidad 0 exacta; ya fríos y sin historial llevan null. Ambos modelos coexisten por la clave (cliente_id, modelo_id). proxima_compra (M3, tiempo residual hasta la próxima compra desde el corte) no publica probabilidad escalar (null): publica dias_p10/p50/p90 y sus fechas (nulos si el cuantil no se alcanza dentro de soporte_dias), ventana_utilizable, origen_estimacion (modelo_cox|poblacional_km), estado (estimado = tres cuantiles; estimacion_parcial = alguno no alcanzado) y la referencia personal (disponible|vencida|insuficiente).",
+      "requeridos": {"cliente_id": "string", "modelo_id": "compra_30d|inactividad_60d|proxima_compra", "probabilidad": "number|null", "estado": "estimado|estructural|referencia|sin_historial|historia_insuficiente|estimacion_vencida|no_elegible|modelo_no_disponible|estimacion_parcial|sin_soporte", "horizonte_dias": "integer", "version_modelo": "string|null", "corte": "date", "motivos": "array<string>"},
+      "opcionales": {"datos_hasta": "date", "umbral": "number|null", "supera_umbral": "boolean|null", "umbral_frio_dias": "integer", "recencia_dias": "integer|null", "poblacion": "string", "posicion": "integer|null", "dias_p10": "integer|null", "dias_p50": "integer|null", "dias_p90": "integer|null", "fecha_p10": "date|null", "fecha_p50": "date|null", "fecha_p90": "date|null", "ancho_ventana_dias": "integer|null", "ventana_utilizable": "boolean", "ancho_maximo_ventana_dias": "integer", "soporte_dias": "integer|null", "origen_estimacion": "string|null", "grupo": "string|null", "referencia_personal_estado": "string|null", "referencia_personal_dias": "number|null", "ventana_tipo": "p10_p90|p10_p50", "prob_acumulada": "object|null", "factor_nivel": "number"}
+    },
+    "recomendaciones_productos": {
+      "clave": ["cliente_id", "producto_id"],
+      "descripcion": "M4 · venta_cruzada: hasta tres productos por cliente para revisión de Ventas (sombra). puntaje = logit sin calibrar (o popularidad relativa si origen = popularidad_sin_soporte); probabilidad null sin calibración validada. Un cliente sin recomendación aparece en cobertura_recomendaciones con su motivo, nunca con un producto ficticio.",
+      "requeridos": {"cliente_id": "string", "producto_id": "string", "modelo_id": "venta_cruzada", "corte": "date", "horizonte_dias": "integer", "version_modelo": "string", "posicion": "integer", "puntaje": "number", "probabilidad": "number|null", "origen_recomendacion": "modelo|popularidad_sin_soporte|popularidad|coocurrencia", "soporte": "integer", "definicion_soporte": "string", "estado": "propuesta", "estado_compatibilidad": "confirmada|pendiente_revision", "motivos": "array<string>", "version_reglas": "string", "version_catalogo": "string"},
+      "opcionales": {"producto_nombre": "string", "evidencia": "object"}
+    },
+    "cobertura_recomendaciones": {
+      "clave": ["cliente_id"],
+      "descripcion": "Informe de cobertura de venta_cruzada por cliente: con_recomendaciones, sin_candidatos (con exclusiones y motivo), sin_historial o no_elegible.",
+      "requeridos": {"cliente_id": "string", "modelo_id": "venta_cruzada", "corte": "date", "estado": "con_recomendaciones|sin_candidatos|sin_historial|no_elegible", "n_candidatos": "integer", "n_recomendaciones": "integer", "exclusiones": "array<object>"},
+      "opcionales": {"motivo": "string|null"}
+    },
+    "pronosticos_demanda": {
+      "clave": ["origen", "serie_id", "horizonte_meses"],
+      "descripcion": "M5 · demanda: pronóstico por serie (ventas_cop:<familia>, ventas_cop:Total = suma de familias, ventas_unidades:<producto>) y horizonte en meses calendario. No es ingreso realizado, margen, orden de compra ni predicción de TRM. valor null exige estado y motivo; la banda es empírica (errores previos fuera de ajuste) y solo existe con >= 12 errores.",
+      "requeridos": {"modelo_id": "demanda", "origen": "YYYY-MM", "serie_id": "string", "fuente": "string", "medida": "string", "unidad": "string", "horizonte_meses": "integer", "periodo_objetivo": "YYYY-MM", "valor": "number|null", "metodo": "string", "estado": "estimado|sin_historia|total_incompleto", "version_modelo": "string", "motivos": "array<string>", "n_evaluaciones": "integer", "banda_soporte": "integer"},
+      "opcionales": {"familia": "string|null", "producto_id": "string|null", "valor_bruto": "number|null", "recortado": "boolean", "tipo_metodo": "string|null", "revision_datos": "integer|null", "cobertura_hasta": "date", "mae": "number|null", "periodo_evaluacion": "string|null", "alcance_evaluacion": "string|null", "banda_inferior": "number|null", "banda_superior": "number|null", "banda_metodo": "string|null", "banda_motivo": "string|null"}
+    },
+    "calendario_demanda": {
+      "clave": ["serie_id", "periodo"],
+      "descripcion": "M5 · calendario mensual continuo por serie: completo (0 = sin actividad), incompleto, no_observable o sin_cobertura (estos últimos con valor null y motivo).",
+      "requeridos": {"serie_id": "string", "periodo": "YYYY-MM", "estado": "completo|incompleto|no_observable|sin_cobertura", "valor": "number|null", "unidad": "string"},
+      "opcionales": {"motivo": "string|null"}
+    },
+    "anomalias_operaciones": {
+      "clave": ["tipo_operacion", "operacion_id"],
+      "descripcion": "M6 · cola experimental de operaciones atípicas (en sombra). Identidad (tipo_operacion, operacion_id): venta y compra con el mismo ID no colisionan. puntaje = rareza (mayor = más raro), NO probabilidad de fraude ni porcentaje de error; null con estado_puntuacion historia_insuficiente. prioridad 1..n por universo y mes; alerta = prioridad <= cupo. El estado de revisión humana vive en la aplicación, no aquí.",
+      "requeridos": {"modelo_id": "anomalias", "tipo_operacion": "venta|compra", "operacion_id": "string", "fecha": "date", "periodo": "YYYY-MM", "producto_id": "string", "moneda": "string", "unidad": "string", "cantidad": "number", "valor_unitario": "number", "soporte": "integer", "puntaje": "number|null", "metodo": "string|null", "alerta": "boolean", "prioridad": "integer|null", "cupo_periodo": "integer", "motivos": "array<string>", "variables_inusuales": "array<string>", "estado_puntuacion": "puntuada|historia_insuficiente", "version_modelo": "string", "corte": "date", "huella_valores": "string"},
+      "opcionales": {"revision_datos": "integer|null", "cliente_id": "string|null", "proveedor_id": "string|null", "descuento_pct": "number", "importe_origen": "number", "trm": "number|null", "estado_trm": "no_aplica|disponible|ausente", "importe_cop": "number|null", "referencia_cantidad": "number|null", "referencia_valor_unitario": "number|null", "razon_cantidad": "number|null", "razon_valor_unitario": "number|null", "variables": "object|null", "dispersion": "object|null", "respaldo": "object|null", "antecedentes": "array|null", "puntaje_referencia": "number|null", "puntaje_candidato": "number|null", "senalada_por_reglas": "boolean", "evidencias": "array<string>", "tipo_emision": "reconstruccion_historica|prospectiva"}
+    },
+    "cobertura_anomalias": {
+      "clave": ["tipo_operacion", "periodo"],
+      "descripcion": "M6 · cobertura por universo y mes: válidas = puntuadas + abstenciones; excluidas (p. ej. venta_anulada) fuera del universo; exceso_sobre_cupo = señaladas por reglas fuera del cupo (pendientes, nunca descartadas). Compras sin cobertura temporal declarada.",
+      "requeridos": {"modelo_id": "anomalias", "tipo_operacion": "venta|compra", "periodo": "YYYY-MM", "validas": "integer", "puntuadas": "integer", "abstenciones": "object", "excluidas": "object", "alertas": "integer", "cupo": "integer", "exceso_sobre_cupo": "integer", "cobertura_temporal": "declarada|no_declarada"},
+      "opcionales": {"senaladas_por_reglas": "integer", "cobertura_puntuacion": "number|null", "nota": "string|null"}
     }
   }
 }

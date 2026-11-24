@@ -156,6 +156,10 @@ def construir_herramientas(con, usuario, cierre: dict, fuentes: Fuentes) -> list
                        "ultima_compra": _fecha(c.get("ultima_compra")), "dias_sin_comprar": c.get("dias_sin_compra"),
                        "ventas_confirmadas": c["ventas_confirmadas"], "ingreso_acumulado": _millones(c["ingreso_cop"]),
                        "estimacion_compra_30_dias": None if c.get("prob_compra_30d") is None else f"{round(c['prob_compra_30d'] * 100)} %",
+                       "estimacion_detalle": c.get("prediccion") and {
+                           "estado": c["prediccion"]["estado"], "version": c["prediccion"]["version_modelo"],
+                           "corte": _fecha(c["prediccion"]["corte"]), "senales_observadas": c["prediccion"]["motivos"],
+                           "nota": c["prediccion"]["nota"]},
                        "productos": [{"producto": p["producto"], "operaciones": p.get("operaciones"), "importe": _millones(p.get("importe_cop")), "ultima": _fecha(p.get("ultima"))} for p in f["productos"]],
                        "operaciones_recientes": [{"fecha": _fecha(v["fecha"]), "producto": v.get("producto"), "importe": _millones(v["importe_cop"])} for v in f["historial"][:8]],
                        "coberturas": [{"producto": x.get("producto"), "fin": _fecha(x["fecha_fin"]), "dias_hasta_fin_al_cierre": x.get("dias_para_fin"), "estado": x["estado"]} for x in f["coberturas"]],

@@ -80,15 +80,34 @@ class PronosticoTests(unittest.TestCase):
 
 
 class GeneradorTests(unittest.TestCase):
-    def test_cierre_octubre_cumple_contrato_y_referencia(self):
+    """El cierre ya no entrena: los preparativos crean de forma explícita el artefacto de referencia."""
+
+    @classmethod
+    def setUpClass(cls):
         from pipeline.rutas import ruta_paquete
 
-        paquete = ruta_paquete()
+        cls.paquete = ruta_paquete()
+        cls.tmp = tempfile.TemporaryDirectory()
+        cls.registro = Path(cls.tmp.name) / "registro"
+        if cls.paquete is not None:
+            a01 = Path(cls.tmp.name) / "a01"
+            for args in (["preparar", "--datos", str(cls.paquete), "--salida", str(a01)],
+                         ["inicializar-referencia", "--datos", str(a01), "--registro", str(cls.registro), "--version", "v1"]):
+                p = subprocess.run([sys.executable, "-m", "modelos.cli", *args], cwd=RAIZ, capture_output=True, text=True, encoding="utf-8")
+                assert p.returncode == 0, p.stderr
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.tmp.cleanup()
+
+    def test_cierre_octubre_cumple_contrato_y_referencia(self):
+        paquete = self.paquete
         if paquete is None:
             self.skipTest("Paquete de datos no disponible")
         with tempfile.TemporaryDirectory() as tmp:
             p = subprocess.run([sys.executable, "-m", "pipeline.generar", "--datos", str(paquete), "--corte", "2026-10-31",
-                                "--salida", str(Path(tmp) / "agenda.json")], cwd=RAIZ, capture_output=True, text=True)
+                                "--salida", str(Path(tmp) / "agenda.json"), "--registro", str(self.registro)],
+                               cwd=RAIZ, capture_output=True, text=True)
             self.assertEqual(p.returncode, 0, p.stderr)
             v = subprocess.run([sys.executable, "-m", "contratos.validar", "--publicacion", tmp], cwd=RAIZ, capture_output=True, text=True)
             self.assertEqual(v.returncode, 0, v.stdout)
@@ -97,14 +116,13 @@ class GeneradorTests(unittest.TestCase):
             self.assertEqual(agenda["modelo"]["umbral"], 0.4)
 
     def test_corte_sin_modelo_validado_deja_probabilidad_nula(self):
-        from pipeline.rutas import ruta_paquete
         from pipeline.generar import generar
 
-        paquete = ruta_paquete()
+        paquete = self.paquete
         if paquete is None:
             self.skipTest("Paquete de datos no disponible")
         with tempfile.TemporaryDirectory() as tmp:
-            m = generar(paquete, "2026-09-30", tmp)
+            m = generar(paquete, "2026-09-30", tmp, registro=self.registro)
             agenda = json.loads((Path(tmp) / "agenda.json").read_text(encoding="utf-8"))
             self.assertIsNone(agenda["modelo"])
             self.assertTrue(all(c["prob_compra_30d"] is None for c in agenda["clientes"]))

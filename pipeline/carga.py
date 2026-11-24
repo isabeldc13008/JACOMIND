@@ -102,6 +102,50 @@ def _promote(current: Path, published: Path, revision: int) -> None:
         shutil.rmtree(backup)
 
 
+def _cobertura_declarada(configuracion: Path | None) -> dict[str, str] | None:
+    """``datos_observados_hasta`` de la configuración del lote ({tabla: AAAA-MM-DD}) o ``None`` si no se declara."""
+    if configuracion is None:
+        return None
+    valor = json.loads(configuracion.read_text(encoding="utf-8")).get("datos_observados_hasta")
+    if valor in (None, {}):
+        return None
+    if not isinstance(valor, dict) or not all(isinstance(v, str) for v in valor.values()):
+        raise ValueError("datos_observados_hasta debe ser un objeto {tabla: 'AAAA-MM-DD'}")
+    for v in valor.values():
+        date.fromisoformat(v)
+    return dict(sorted(valor.items()))
+
+
+def _incoherencias_cobertura(cobertura: dict[str, str] | None, tablas_dir: Path) -> list[Issue]:
+    """Transacciones aceptadas posteriores a la cobertura declarada para su tabla."""
+    from .formatos import leer_csv
+    if not cobertura:
+        return []
+    issues = []
+    for tabla, hasta in cobertura.items():
+        nombre = next((n for n, t in ARCHIVOS.items() if t == tabla), None)
+        if nombre is None:
+            issues.append(Issue("", 0, "datos_observados_hasta", "COBERTURA_INVALIDA", f"Tabla desconocida en la cobertura: {tabla}", "bloquear"))
+            continue
+        ruta = tablas_dir / nombre
+        if not ruta.exists():
+            continue
+        fechas = [r["fecha"] for r in leer_csv(ruta) if r.get("fecha")]
+        tardias = [f for f in fechas if f > hasta]
+        if tardias:
+            issues.append(Issue(nombre, 0, "fecha", "COBERTURA_INCOHERENTE",
+                                f"{len(tardias)} filas de {tabla} posteriores a la cobertura declarada {hasta} (máxima {max(tardias)}); "
+                                "corrige datos_observados_hasta", "bloquear"))
+    return issues
+
+
+def _evento_cobertura(anterior: dict | None, nueva: dict | None, revision: int) -> dict:
+    motivo = ("primera_declaracion" if anterior is None and nueva is not None else
+              "declaracion_retirada" if nueva is None else "declaracion_actualizada")
+    return {"revision": revision, "anterior": anterior, "nueva": nueva, "motivo": motivo,
+            "ts": datetime.now().astimezone().isoformat()}
+
+
 def cargar_lote(datos: Path, salida: Path, configuracion: Path | None = None) -> LoadResult:
     datos = datos / "01_Datos" if (datos / "01_Datos").is_dir() else datos
     salida.mkdir(parents=True, exist_ok=True)
@@ -110,11 +154,35 @@ def cargar_lote(datos: Path, salida: Path, configuracion: Path | None = None) ->
     source_hashes = {table: calcular_sha256(path) for table, path in source_paths.items() if path.exists()}
     previous_manifest_path = salida / "manifiesto.json"
     previous_manifest = json.loads(previous_manifest_path.read_text(encoding="utf-8")) if previous_manifest_path.exists() else None
+    cobertura = _cobertura_declarada(configuracion)
     if previous_manifest and previous_manifest.get("status") in {"publicable", "reutilizado"} and previous_manifest.get("source_hashes") == source_hashes:
-        reused = dict(previous_manifest)
-        reused["status"] = "reutilizado"
-        escribir_json(previous_manifest_path, reused)
-        return LoadResult("reutilizado", reused.get("tablas", {}), [], reused)
+        # Identidad del contenido = huellas de origen; la declaración de cobertura es una identidad aparte.
+        if previous_manifest.get("datos_observados_hasta") == cobertura:
+            reused = dict(previous_manifest)
+            reused["status"] = "reutilizado"
+            escribir_json(previous_manifest_path, reused)
+            return LoadResult("reutilizado", reused.get("tablas", {}), [], reused)
+        incoherentes = _incoherencias_cobertura(cobertura, salida / "publicado")
+        intento = {"ts": datetime.now().astimezone().isoformat(), "evento": "cambio_cobertura", "anterior": previous_manifest.get("datos_observados_hasta"),
+                   "nueva": cobertura, "revision_contenido": previous_manifest.get("revision")}
+        if incoherentes:
+            with (salida / "historial_lotes.jsonl").open("a", encoding="utf-8") as history:
+                history.write(json.dumps(dict(intento, resultado="rechazado", incidencias=[_issue_as_dict(i) for i in incoherentes]),
+                                         ensure_ascii=False) + "\n")
+            return LoadResult("fallido", previous_manifest.get("tablas", {}), incoherentes,
+                              dict(previous_manifest, status="fallido", motivo="declaración de cobertura incoherente; se conserva la revisión anterior"))
+        revision = int(previous_manifest.get("revision", 0)) + 1
+        actualizado = {k: v for k, v in previous_manifest.items() if k != "datos_observados_hasta"}
+        actualizado.update({"status": "reutilizado", "revision": revision, "fecha_generacion": datetime.now().astimezone().isoformat(),
+                            "contenido_de_revision": previous_manifest.get("contenido_de_revision", previous_manifest.get("revision")),
+                            "cobertura_historial": previous_manifest.get("cobertura_historial", [])
+                            + [_evento_cobertura(previous_manifest.get("datos_observados_hasta"), cobertura, revision)]})
+        if cobertura:
+            actualizado["datos_observados_hasta"] = cobertura
+        with (salida / "historial_lotes.jsonl").open("a", encoding="utf-8") as history:
+            history.write(json.dumps(previous_manifest, ensure_ascii=False) + "\n")
+        escribir_json(previous_manifest_path, actualizado)
+        return LoadResult("reutilizado", actualizado.get("tablas", {}), [], actualizado)
     current = salida / "lote_actual"
     if current.exists():
         shutil.rmtree(current)
@@ -164,7 +232,7 @@ def cargar_lote(datos: Path, salida: Path, configuracion: Path | None = None) ->
         validated[table] = result
         all_issues.extend(result.issues)
         inventory[table] = {"source": filename, "read": len(raw), "accepted": len(result.accepted), "isolated": len(result.isolated) + failed_rows, "duplicates": result.duplicate_count, "blocking": False}
-        _write_table(current / filename, spec, result.accepted)
+        _write_table(current / next(n for n, t in ARCHIVOS.items() if t == table), spec, result.accepted)
 
     # Revalida tablas dependientes después de cargar todos los catálogos.
     catalogs = _catalogs(validated)
@@ -209,6 +277,7 @@ def cargar_lote(datos: Path, salida: Path, configuracion: Path | None = None) ->
         status = "fallido"
     else:
         status = "publicable"
+    all_issues.extend(_incoherencias_cobertura(cobertura, current))
     if any(issue.action == "bloquear" for issue in all_issues):
         status = "fallido"
 
@@ -217,6 +286,11 @@ def cargar_lote(datos: Path, salida: Path, configuracion: Path | None = None) ->
     escribir_json(salida / "inventario.json", inventory_doc)
     revision = int(previous_manifest.get("revision", 0)) + 1 if previous_manifest else 1
     manifest = {"status": status, "revision": revision, "fecha_generacion": datetime.now().astimezone().isoformat(), "source_hashes": source_hashes, "tablas": inventory, "ultima_publicacion_conservada": (salida / "publicado").exists()}
+    if cobertura:
+        manifest["datos_observados_hasta"] = cobertura  # declarada por quien entrega el lote, p. ej. {"ventas": "AAAA-MM-DD"}
+    anterior_cob = previous_manifest.get("datos_observados_hasta") if previous_manifest else None
+    manifest["cobertura_historial"] = (previous_manifest or {}).get("cobertura_historial", []) + (
+        [_evento_cobertura(anterior_cob, cobertura, revision)] if anterior_cob != cobertura else [])
     if status == "publicable":
         try:
             _promote(current, salida / "publicado", revision)

@@ -2,6 +2,8 @@
 
 [Volver al plan integral y al orden de integración](../../PLAN_IMPLEMENTACION.md)
 
+[Planes detallados por modelo](modelos/README.md): mejora de compra a 30 días, riesgo de inactividad, próxima compra, venta cruzada, pronóstico de demanda y operaciones atípicas. Incluyen base común, tareas, pruebas, criterios de aceptación e integración sobre el código actual.
+
 Cada ticket se puede desarrollar con sus propias muestras. Las dependencias indicadas son las necesarias para **aceptarlo con datos integrados**. Mantener las transformaciones de entrenamiento e inferencia en el mismo código y guardar los resultados por cierre. En todas las comparaciones, indicar cuántos clientes o periodos sustentan la métrica.
 
 ### A01 · Importar, validar y actualizar datos mensualmente

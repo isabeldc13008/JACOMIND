@@ -4,6 +4,7 @@
     python -m api servir [--practica]       # API + app en http://127.0.0.1:8000/app/
     python -m api publicar RUTA             # directorio C2 o agenda.json C1
     python -m api cierre --corte 2026-10-31 --datos ../Green_Services_Recursos_de_Prueba
+    python -m api sombra RUTA               # importa una publicación EN SOMBRA (inactividad o próxima compra; sin agenda)
     python -m api respaldo [--salida F]     # copia consistente + manifiesto
     python -m api restaurar RESPALDO --db DESTINO
     python -m api exportar-eventos [--salida F]
@@ -34,6 +35,8 @@ def main(argv=None) -> int:
     s.add_argument("--practica", action="store_true", help="expone /salida/agenda.json para el modo práctica local")
     s.add_argument("--sin-login-demo", action="store_true", help="desactiva el inicio de sesión con identidades ficticias")
     pb = sub.add_parser("publicar"); pb.add_argument("ruta"); pb.add_argument("--actor", default="ops1")
+    sb = sub.add_parser("sombra", help="importa una publicación en sombra de inactividad_60d (no cambia la agenda)")
+    sb.add_argument("ruta"); sb.add_argument("--actor", default="ops1")
     c = sub.add_parser("cierre")
     c.add_argument("--corte", required=True); c.add_argument("--datos"); c.add_argument("--desde")
     c.add_argument("--reintentos", type=int, default=2); c.add_argument("--actor", default="programador")
@@ -67,6 +70,23 @@ def main(argv=None) -> int:
             from .demo import solo_permisos
             from .publicacion import publicar_ruta
             solo_permisos(db); imprimir(publicar_ruta(db, a.ruta, a.actor))
+        elif a.cmd == "sombra":
+            from pathlib import Path as _P
+            from .demo import solo_permisos
+            from .prevencion import importar_sombra
+            man = json.loads((_P(a.ruta) / "manifiesto.json").read_text(encoding="utf-8"))  # el modelo lo dice la publicación verificada
+            solo_permisos(db); db.migrar()
+            if man.get("modelo_id") == "venta_cruzada":
+                from .venta_cruzada import importar_sombra as importar_vc
+                imprimir(importar_vc(db, a.ruta, a.actor))
+            elif man.get("modelo_id") == "anomalias":
+                from .anomalias import importar_sombra as importar_an
+                imprimir(importar_an(db, a.ruta, a.actor))
+            elif man.get("modelo_id") == "demanda":
+                from .demanda import importar_sombra as importar_dm
+                imprimir(importar_dm(db, a.ruta, a.actor))
+            else:
+                imprimir(importar_sombra(db, a.ruta, a.actor, modelo_id=man.get("modelo_id", "inactividad_60d")))
         elif a.cmd == "cierre":
             from .demo import solo_permisos
             from .operacion import ejecutar_cierre

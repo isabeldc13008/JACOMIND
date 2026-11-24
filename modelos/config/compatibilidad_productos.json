@@ -1,0 +1,12 @@
+{
+ "version": "compat-v1",
+ "fecha": "2026-11-23",
+ "fuente": "Paquete sintético de práctica: no contiene reglas empresariales de compatibilidad ni requisitos entre productos.",
+ "tipos_de_regla": {
+  "incompatible": "{producto, con, evidencia}: excluye 'producto' si el cliente tiene 'con' (comprado o cubierto); simétrica",
+  "requiere": "{producto, requiere_alguno: [...], evidencia}: excluye 'producto' si el cliente no tiene ninguno de los requeridos",
+  "compatible_confirmado": "{producto, evidencia}: compatibilidad confirmada por la empresa para ese producto"
+ },
+ "politica": "Una incompatibilidad conocida o un requisito incumplido EXCLUYE. Sin reglas (o con información insuficiente) la compatibilidad queda 'pendiente_revision': nunca se convierte desconocido en compatible. Las propuestas pendientes permanecen en revisión interna.",
+ "reglas": []
+}

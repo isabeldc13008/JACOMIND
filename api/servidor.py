@@ -19,7 +19,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
 
 from . import (__version__, agente, atencion, auth, beneficios, consultas, documentos, finanzas, llm, operacion,
-               pqrs, publicacion, tareas)
+               pqrs, prevencion, proxima, publicacion, tareas, venta_cruzada, demanda, anomalias)
 from .base import DIR_SALIDA, DIR_VAR, RAIZ, BaseDatos, ErrorApi
 from .permisos import IDENTIDADES
 
@@ -168,7 +168,171 @@ def r_agenda_csv(c: Ctx):
 @ruta("GET", "/api/cierres/{cierre}/clientes/{cliente}", "cartera.ver")
 def r_ficha(c: Ctx):
     with c.db.conexion() as con:
-        return consultas.ficha(con, c.params["cierre"], unquote(c.params["cliente"]))
+        f = consultas.ficha(con, c.params["cierre"], unquote(c.params["cliente"]))
+        # M2 experimental: se añade aparte; la acción, los motivos y la estimación de compra no cambian.
+        f["inactividad_sombra"] = prevencion.para_ficha(con, unquote(c.params["cliente"])) if c.usuario.puede("prevencion.ver") else None
+        f["proxima_sombra"] = proxima.para_ficha(con, unquote(c.params["cliente"])) if c.usuario.puede("proxima.ver") else None
+        f["venta_cruzada_sombra"] = venta_cruzada.para_ficha(con, unquote(c.params["cliente"])) if c.usuario.puede("venta_cruzada.ver") else None
+        return f
+
+
+# ------------------------------------------------------------------ resultados de los modelos de IA (solo lectura)
+@ruta("GET", "/api/ia", "cartera.ver")
+def r_ia(c: Ctx):
+    ruta_resumen = DIR_SALIDA / "ia" / "resumen.json"
+    if not ruta_resumen.is_file():
+        return {"estado": "sin_resumen", "mensaje": "Aún no se ha generado el resumen de resultados de los modelos.",
+                "comando": "python -m modelos.cli resumen-ia"}
+    try:
+        doc = json.loads(ruta_resumen.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        raise ErrorApi(500, "resumen_ia_invalido", "El resumen de resultados de los modelos no se pudo leer")
+    if doc.get("version") != 1 or not isinstance(doc.get("modelos"), list):
+        raise ErrorApi(500, "resumen_ia_invalido", "El resumen de resultados de los modelos tiene un formato desconocido")
+    return {"estado": "ok", **doc}
+
+
+# ------------------------------------------------------------------ prevención de inactividad (M2, en sombra)
+@ruta("GET", "/api/prevencion", "prevencion.ver")
+def r_prevencion(c: Ctx):
+    with c.db.conexion() as con:
+        return prevencion.lista(con, k=int(c.q("k", prevencion.K_POLITICA)))
+
+
+@ruta("GET", "/api/prevencion/episodios", "prevencion.ver")
+def r_prevencion_episodios(c: Ctx):
+    with c.db.conexion() as con:
+        return {"episodios": prevencion.episodios(con, c.q("cliente"))}
+
+
+@ruta("POST", "/api/prevencion/sombra", "operacion.administrar")
+def r_prevencion_sombra(c: Ctx):
+    return prevencion.importar_sombra(c.db, _ruta_publicable(str(c.body.get("ruta", ""))), c.usuario.id)
+
+
+@ruta("POST", "/api/prevencion/sincronizar", "prevencion.sincronizar")
+def r_prevencion_sincronizar(c: Ctx):
+    return prevencion.sincronizar(c.db, c.usuario.id)
+
+
+# ------------------------------------------------------------------ operaciones atípicas (M6, en sombra)
+@ruta("GET", "/api/anomalias", "anomalias.ver")
+def r_anomalias(c: Ctx):
+    with c.db.conexion() as con:
+        return anomalias.lista(con, c.usuario, c.q("universo") or "venta", c.q("periodo") or None, c.q("producto") or None, c.q("moneda") or None,
+                               c.q("estado") or None, c.q("vista") or "cola")
+
+
+@ruta("GET", "/api/anomalias/caso", "anomalias.ver")
+def r_anomalias_caso(c: Ctx):
+    with c.db.conexion() as con:
+        return anomalias.detalle(con, c.usuario, str(c.q("tipo") or ""), str(c.q("id") or ""))
+
+
+@ruta("POST", "/api/anomalias/revision", "anomalias.revisar")
+def r_anomalias_revision(c: Ctx):
+    b = c.body
+    return anomalias.revisar(c.db, c.usuario, str(b.get("tipo_operacion", "")), str(b.get("operacion_id", "")), str(b.get("estado", "")),
+                             str(b.get("motivo", "")), b.get("evidencia"))
+
+
+@ruta("GET", "/api/anomalias/exportar.csv", "anomalias.exportar")
+def r_anomalias_csv(c: Ctx):
+    universo = c.q("universo") or "venta"
+    with c.db.conexion() as con:
+        texto = anomalias.exportar_csv(con, c.usuario, universo)
+    return Respuesta(200, ("\ufeff" + texto).encode("utf-8"), "text/csv; charset=utf-8",
+                     {"Content-Disposition": f'attachment; filename="anomalias-{universo}.csv"'})
+
+
+@ruta("GET", "/api/anomalias/monitoreo", "anomalias.ver")
+def r_anomalias_monitoreo(c: Ctx):
+    with c.db.conexion() as con:
+        return anomalias.panel_monitoreo(con)
+
+
+@ruta("POST", "/api/anomalias/sombra", "operacion.administrar")
+def r_anomalias_sombra(c: Ctx):
+    return anomalias.importar_sombra(c.db, _ruta_publicable(str(c.body.get("ruta", ""))), c.usuario.id)
+
+
+# ------------------------------------------------------------------ pronóstico de demanda (M5, en sombra)
+@ruta("GET", "/api/demanda", "*")
+def r_demanda(c: Ctx):
+    if not (c.usuario.puede("demanda.ver_cop") or c.usuario.puede("demanda.ver_unidades")):
+        raise ErrorApi(403, "sin_permiso", "Tu perfil no tiene acceso al pronóstico de demanda")
+    with c.db.conexion() as con:
+        return demanda.panel(con, c.usuario, c.q("serie"))
+
+
+@ruta("POST", "/api/demanda/sombra", "operacion.administrar")
+def r_demanda_sombra(c: Ctx):
+    return demanda.importar_sombra(c.db, _ruta_publicable(str(c.body.get("ruta", ""))), c.usuario.id)
+
+
+# ------------------------------------------------------------------ venta cruzada (M4, en sombra)
+@ruta("GET", "/api/venta-cruzada", "venta_cruzada.ver")
+def r_vc(c: Ctx):
+    with c.db.conexion() as con:
+        return venta_cruzada.lista(con, c.q("compatibilidad") or None)
+
+
+@ruta("POST", "/api/venta-cruzada/sombra", "operacion.administrar")
+def r_vc_sombra(c: Ctx):
+    return venta_cruzada.importar_sombra(c.db, _ruta_publicable(str(c.body.get("ruta", ""))), c.usuario.id)
+
+
+@ruta("POST", "/api/venta-cruzada/decision", "venta_cruzada.decidir")
+def r_vc_decision(c: Ctx):
+    b = c.body
+    return venta_cruzada.decidir(c.db, c.usuario, str(b.get("cliente_id", "")), str(b.get("producto_id", "")), str(b.get("accion", "")), str(b.get("motivo", "")))
+
+
+@ruta("GET", "/api/venta-cruzada/revision", "venta_cruzada.ver")
+def r_vc_revision(c: Ctx):
+    with c.db.conexion() as con:
+        return venta_cruzada.revision(con)
+
+
+@ruta("POST", "/api/venta-cruzada/revision", "venta_cruzada.revisar")
+def r_vc_revisar(c: Ctx):
+    b = c.body
+    return venta_cruzada.registrar_revision(c.db, c.usuario, str(b.get("cliente_id", "")), str(b.get("producto_id", "")), str(b.get("estado", "")),
+                                            str(b.get("motivo", "")), b.get("evidencia"))
+
+
+@ruta("GET", "/api/venta-cruzada/episodios", "venta_cruzada.ver")
+def r_vc_episodios(c: Ctx):
+    with c.db.conexion() as con:
+        return {"episodios": venta_cruzada.episodios(con, c.q("cliente"))}
+
+
+@ruta("POST", "/api/venta-cruzada/sincronizar", "venta_cruzada.sincronizar")
+def r_vc_sincronizar(c: Ctx):
+    return venta_cruzada.sincronizar(c.db, c.usuario.id)
+
+
+# ------------------------------------------------------------------ próxima compra (M3, en sombra)
+@ruta("GET", "/api/proxima", "proxima.ver")
+def r_proxima(c: Ctx):
+    with c.db.conexion() as con:
+        return proxima.lista(con, dias=int(c.q("dias", 30)))
+
+
+@ruta("GET", "/api/proxima/episodios", "proxima.ver")
+def r_proxima_episodios(c: Ctx):
+    with c.db.conexion() as con:
+        return {"episodios": proxima.episodios(con, c.q("cliente"))}
+
+
+@ruta("POST", "/api/proxima/sombra", "operacion.administrar")
+def r_proxima_sombra(c: Ctx):
+    return proxima.importar_sombra(c.db, _ruta_publicable(str(c.body.get("ruta", ""))), c.usuario.id)
+
+
+@ruta("POST", "/api/proxima/sincronizar", "proxima.sincronizar")
+def r_proxima_sincronizar(c: Ctx):
+    return proxima.sincronizar(c.db, c.usuario.id)
 
 
 @ruta("GET", "/api/cierres/{cierre}/tableros/{rol}", "*")

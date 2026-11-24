@@ -1,0 +1,14 @@
+# Opcional: solo para entrenar y evaluar modelos (python -m modelos.cli entrenar|evaluar).
+# El cierre (pipeline.generar), la puntuación (modelos.cli puntuar), la API y la aplicación
+# usan solo la biblioteca estándar y no importan estas dependencias.
+# Compatibilidad verificada para Python 3.10–3.13 (scikit-learn 1.7 exige Python >= 3.10).
+# Ejecución de referencia del experimento: Python 3.11.3, scikit-learn 1.7.1, numpy 1.26.4, scipy 1.10.1.
+scikit-learn>=1.7,<1.8
+numpy>=1.22
+scipy>=1.8
+# M3 (proxima_compra): Cox L2 y métricas con censura de referencia. 0.26.0 es compatible con las versiones
+# anteriores sin actualizarlas (pip install "scikit-survival==0.26.0" "scikit-learn==1.7.1" "numpy==1.26.4" "scipy==1.10.1").
+scikit-survival==0.26.0
+# M5 (demanda): suavizamiento exponencial (SES y Holt amortiguado). 0.15.0 no cambia las versiones anteriores
+# (pip install "statsmodels==0.15.0" "scikit-learn==1.7.1" "numpy==1.26.4" "scipy==1.10.1" "pandas==2.3.2").
+statsmodels==0.15.0

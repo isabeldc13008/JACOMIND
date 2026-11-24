@@ -54,15 +54,34 @@ def _umbral(cierre: dict) -> float | None:
     return ((cierre["manifiesto"].get("modelo") or {}).get("umbral"))
 
 
-def _preparar(c: dict, umbral, modelo_activo: bool, segmento=None) -> dict:
+NOTA_SENALES = "Señales observadas hasta el corte que acompañan la estimación; no son causas demostradas de compra."
+
+
+def predicciones_compra(con, cierre_id: str, cliente_id: str | None = None) -> dict[str, dict]:
+    """Predicciones persistidas de compra a 30 días del cierre (tabla C2 ``predicciones_clientes``)."""
+    return {p["cliente_id"]: p for p in filas(con, cierre_id, "predicciones_clientes", cliente_id)
+            if p.get("modelo_id") == "compra_30d"}
+
+
+def _prediccion_visible(p: dict | None) -> dict | None:
+    if not p:
+        return None
+    return {k: p.get(k) for k in ("probabilidad", "estado", "version_modelo", "corte", "datos_hasta", "horizonte_dias",
+                                  "umbral", "supera_umbral", "motivos")} | {"nota": NOTA_SENALES}
+
+
+def _preparar(c: dict, umbral, modelo_activo: bool, segmento=None, prediccion: dict | None = None) -> dict:
     c = dict(c)
     if segmento and not c.get("segmento"):
         c["segmento"] = segmento
     if not modelo_activo:
         c["prob_compra_30d"] = None
         c["estado_modelo"] = "Modelo no disponible"
+        c["prediccion"] = None
     else:
         c["estado_modelo"] = "Modelo no disponible" if c.get("prob_compra_30d") is None and c.get("ultima_compra") else None
+        # Agenda, ficha y asistente muestran la misma fila persistida; C2 garantiza que coincide con la agenda.
+        c["prediccion"] = _prediccion_visible(prediccion)
     c["sin_historial"] = c.get("ultima_compra") is None
     c["motivos"] = motivos(c, umbral if modelo_activo else None)
     if c["sin_historial"] and "Revisar primera compra" not in c["motivos"]:
@@ -117,7 +136,8 @@ def agenda(con, cierre_ref: str, accion=None, segmento=None, q=None, frio=None, 
     cur = con.execute(f"SELECT datos_json, segmento FROM an_agenda WHERE {w} ORDER BY {orden} LIMIT ? OFFSET ?",
                       args + [tam, (pagina - 1) * tam])
     umbral = _umbral(cierre)
-    items = [_preparar(loads(r[0]), umbral, modelo_activo, r[1]) for r in cur]
+    preds = predicciones_compra(con, cid) if modelo_activo else {}
+    items = [_preparar(c, umbral, modelo_activo, r[1], preds.get(c["cliente_id"])) for r in cur for c in [loads(r[0])]]
     segmentos = [r[0] for r in con.execute(
         "SELECT DISTINCT segmento FROM an_agenda WHERE cierre_id = ? AND segmento IS NOT NULL ORDER BY 1", (cid,))]
     return {"cierre_id": cid, "corte": cierre["corte"], "total": total, "ingreso_cop_filtrado": round(ingreso, 2),
@@ -134,7 +154,8 @@ def ficha(con, cierre_ref: str, cliente_id: str) -> dict:
     if not r:
         raise ErrorApi(404, "cliente_no_encontrado", f"Cliente {cliente_id} no encontrado en el cierre {cid}; no se inventa historial")
     modelo_activo = bandera(con, "modelo_compra")
-    c = _preparar(loads(r[0]), _umbral(cierre), modelo_activo, r[1])
+    pred = predicciones_compra(con, cid, cliente_id).get(cliente_id) if modelo_activo else None
+    c = _preparar(loads(r[0]), _umbral(cierre), modelo_activo, r[1], pred)
     historial = sorted(filas(con, cid, "historial_ventas", cliente_id), key=lambda v: (v["fecha"], v["venta_id"]), reverse=True)
     por_producto = defaultdict(lambda: {"operaciones": 0, "unidades": 0, "importe_cop": 0.0, "ultima": None})
     for v in historial:

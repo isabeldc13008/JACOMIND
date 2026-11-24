@@ -5,6 +5,9 @@ import {
   nuevoTurno, num, pct, plural, puede, relativoVencimiento, ruta, textoEstimacion, vigente,
 } from "../nucleo.js";
 import { barras, cronologia, detalleTecnico, fuenteCierre, respuesta, verDatos } from "../ui.js";
+import { inactividadFichaHtml } from "./prevencion.js";
+import { proximaFichaHtml } from "./proxima.js";
+import { activarVentaCruzada, ventaCruzadaFichaHtml } from "./venta_cruzada.js";
 
 export async function cargarLocal() {
   const url = URL_FUENTE[S.fuente];
@@ -52,12 +55,19 @@ export function porQue(c, umbral) {
     else if (m === "Revisar cobertura") {
       if (c.coberturas_vencidas) h.push(`${plural(c.coberturas_vencidas, "cobertura vencida", "coberturas vencidas")} al cierre`);
       if (c.renovaciones_proximas) h.push(`${plural(c.renovaciones_proximas, "cobertura vence", "coberturas vencen")} en los próximos 45 días`);
-    } else if (m === "Revisar oportunidad de recompra") h.push(`estimación de compra a 30 días de ${pct(c.prob_compra_30d)}${umbral != null ? `, umbral ${pct(umbral)}` : ""}`);
+    } else if (m === "Revisar oportunidad de recompra") h.push(`estimación de compra a 30 días de ${pct(c.prob_compra_30d)}${umbral != null ? `, umbral ${pct(umbral)}` : ""}${c.prediccion?.motivos?.[1] ? ` (señal observada: ${c.prediccion.motivos[1]})` : ""}`);
     else if (m === "Revisar primera compra") h.push("sin compras registradas");
   }
   if (!h.length) return c.dias_sin_compra != null ? `Sin alertas; última compra hace ${num(c.dias_sin_compra)} días` : "Sin alertas";
   const t = h.join(" · ");
   return t.charAt(0).toUpperCase() + t.slice(1);
+}
+
+/** Señales observadas que acompañan la predicción persistida (C2 predicciones_clientes); no son causas. */
+function senalesHtml(p) {
+  if (!p || !p.motivos?.length) return "";
+  if (p.estado !== "estimado") return `<p class="muted">${esc(p.motivos[0])}</p>`;
+  return `<p class="muted">Señales observadas al corte del ${esc(fechaLarga(p.corte))} (describen el historial, no causas de compra):</p><ul class="muted">${p.motivos.map(m => `<li>${esc(m)}</li>`).join("")}</ul>`;
 }
 
 function etiquetas(c) {
@@ -225,7 +235,8 @@ export async function vistaFicha(id, q) {
   $vista.innerHTML = `${volver}<h1>${esc(c.cliente_id)}${c.segmento || f.segmento?.segmento ? ` <span class="muted">· ${esc(f.segmento?.segmento || c.segmento)}</span>` : ""}</h1>
   ${respuesta(`<strong>${esc(recomendacion(c, f, corte))}</strong>`, `${esc(incluye(corte))}${c.motivos.length > 1 ? ` · otros motivos: ${esc(c.motivos.filter(m => m !== c.accion).join(", "))}` : ""}`)}
   <div class="grid2 ancho-desigual">
-    <section class="panel"><h2>Estimación de compra</h2><p>${estimacion}</p>
+    <section class="panel"><h2>Estimación de compra <span class="chip">IA</span></h2><p>${estimacion}</p>${senalesHtml(c.prediccion)}
+      ${enServidor() && puede("cartera.ver") ? '<p class="muted"><a href="#/ia">Cómo se mide este modelo y cómo se compara con las reglas</a></p>' : ""}
       ${f.tarea ? `<p><strong>Seguimiento:</strong> ${esc(f.tarea.estado)} · ${f.tarea.responsable_id ? `responsable ${esc(f.tarea.responsable_id)}` : "sin responsable"} · <a href="#/tareas/${f.tarea.id}">Abrir tarea</a></p>` : enServidor() ? '<p class="muted">No hay un seguimiento abierto para este cliente.</p>' : ""}
       ${f.oportunidades.length ? `<p><strong>Oportunidades del cierre:</strong></p><ul>${f.oportunidades.map(o => `<li>${esc(o.accion || o.tipo)}${o.fecha_sugerida ? ` · revisión sugerida el ${esc(fechaLarga(o.fecha_sugerida))}` : ""}</li>`).join("")}</ul>` : ""}
       <p>${etiquetas(c) || '<span class="muted">Sin etiquetas de frecuencia o pausa.</span>'}</p>
@@ -237,6 +248,9 @@ export async function vistaFicha(id, q) {
       <div><dt>Ingreso acumulado</dt><dd>${esc(millones(c.ingreso_cop))}</dd></div>
       <div><dt>Coberturas</dt><dd>${num(c.renovaciones_proximas)} vencen en 45 días · ${num(c.coberturas_vencidas)} vencidas</dd></div></dl></section>
   </div>
+  ${inactividadFichaHtml(f.inactividad_sombra)}
+  ${proximaFichaHtml(f.proxima_sombra)}
+  ${ventaCruzadaFichaHtml(f.venta_cruzada_sombra)}
   <section class="panel"><h2>Línea de tiempo</h2>
     <p class="muted">Distingue compras confirmadas (hechos), fechas contractuales de cobertura y revisiones sugeridas. Lo que aparece después de la marca del cierre era futuro en esa fecha.</p>
     ${local ? estadoHtml("", "La agenda local trae solo el resumen de compras (productos y totales). El historial, las coberturas y la fecha sugerida requieren el cierre publicado completo.") : cronologia(eventos, { corte, vacio: "Sin compras, coberturas ni revisiones sugeridas." })}</section>
@@ -246,5 +260,6 @@ export async function vistaFicha(id, q) {
   </div>
   ${recientes.length ? `<section class="panel"><h2>Operaciones recientes</h2><p class="muted">Se muestran las ${recientes.length} operaciones más recientes de ${num(f.historial_total ?? f.historial.length)} registradas.</p><div class="tabla"><table><tr><th>Fecha</th><th>Producto</th><th class="n">Cantidad</th><th>Moneda de origen</th><th class="n">Importe COP</th><th>Fuente</th></tr>${recientes.map(v => `<tr><td>${esc(fechaLarga(v.fecha))}</td><td>${esc(v.producto || v.producto_id)}</td><td class="n">${v.cantidad}</td><td>${esc(v.moneda)}${v.tasa ? ` · tasa ${num(v.tasa)}` : ""}</td><td class="n">${cop(v.importe_cop)}</td><td>${esc(v.venta_id)}</td></tr>`).join("")}</table></div></section>` : ""}
   ${detalleTecnico(`<pre>${esc(JSON.stringify(c, null, 2))}</pre>`, "Registro original del cliente")}`;
+  activarVentaCruzada($vista, () => vistaFicha(id, q));
   $vista.focus();
 }

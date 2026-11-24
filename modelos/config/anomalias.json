@@ -1,0 +1,147 @@
+{
+ "modelo_id": "anomalias",
+ "version_protocolo": "m6-protocolo-v1",
+ "fijado_en": "2026-11-23",
+ "origen_datos": "sintetico",
+ "nota": "Protocolo M6 fijado ANTES de ajustar, seleccionar y evaluar. Los datos sintéticos ya fueron inspeccionados en M1-M5: la comprobación histórica es exploratoria, no un piloto prospectivo. Una puntuación de rareza no es una probabilidad de fraude ni demuestra un error; la cola no modifica importes ni afecta al cliente.",
+ "objetivo": "Priorizar para revisión humana ventas confirmadas y compras a proveedores con precio, costo o cantidad inusuales respecto de operaciones comparables anteriores.",
+ "no_es": ["probabilidad de fraude", "porcentaje de error", "corrección contable", "anulación de operaciones", "señal para segmentación, beneficios o crédito del cliente"],
+ "universos": {
+  "venta": {"fuente": "ventas", "filtro": "estado = Confirmada (las anuladas se excluyen con motivo venta_anulada)", "valor_unitario": "precio_unitario", "contraparte": "cliente_id", "etiqueta_valor": "precio unitario"},
+  "compra": {"fuente": "compras", "filtro": "todas las compras aceptadas por A01 (el esquema no tiene estado)", "valor_unitario": "costo_unitario", "contraparte": "proveedor_id", "etiqueta_valor": "costo unitario"}
+ },
+ "unidades": {
+  "convencion": "El paquete no documenta la unidad de medida. CONVENCIÓN: la cantidad se expresa en la unidad de venta del catálogo de cada producto; cada producto es su propia unidad y nunca se comparan cantidades de productos distintos.",
+  "por_producto": {}
+ },
+ "cobertura": {
+  "venta": {"politica": "cobertura declarada del lote (modelos.datos.resolver_cobertura)"},
+  "compra": {"declarada": false, "motivo": "Sin cobertura temporal declarada para compras: la cobertura de ventas no la certifica. Se puntúan las compras observadas; las tasas son por operaciones observadas y no se afirma que un periodo esté completo."}
+ },
+ "particion": {
+  "entrenamiento": ["2025-01-01", "2025-12-31"],
+  "validacion": ["2026-01-01", "2026-06-30"],
+  "comprobacion_historica": ["2026-07-01", "2026-10-31"]
+ },
+ "contexto": {
+  "grupo": ["tipo_operacion", "producto_id", "moneda", "unidad"],
+  "min_antecedentes": 5,
+  "ventana_antecedentes": 60,
+  "temporalidad": "Sin hora fiable: las operaciones del mismo día forman un bloque; ninguna usa a otra del mismo día como antecedente (fecha estrictamente anterior). El bloque se incorpora al historial después de puntuarlo.",
+  "historial": "Solo operaciones originales válidas. Los casos sembrados y los controles construidos nunca entran al historial ni al entrenamiento.",
+  "transformacion": "logaritmo natural de cantidad, valor unitario e importe en moneda de origen (todos > 0)",
+  "referencia": "exp(mediana de los logaritmos de los antecedentes)",
+  "escala": "max(factor_mad · MAD(log), piso_escala_log)",
+  "factor_mad": 1.4826,
+  "piso_escala_log": 0.02,
+  "z_max": 50.0,
+  "tratamiento_numerico": "Valores no finitos o <= 0 se excluyen antes de puntuar (motivo fuera_de_dominio); la mediana de logaritmos siempre es finita; MAD = 0 (grupo constante) usa el piso de escala; z se recorta a ±z_max; la razón es exp(log x − mediana) y nunca divide por cero.",
+  "respaldos": {},
+  "respaldos_nota": "Ningún respaldo documentado: con menos de min_antecedentes la operación queda en historia_insuficiente (sin puntaje). Un respaldo solo se admite si su compatibilidad de producto, moneda y unidad está documentada aquí."
+ },
+ "variables": {
+  "definiciones": {
+   "z_log_valor_unitario": "desviación robusta del log del precio/costo unitario en moneda de origen frente a su contexto",
+   "z_log_cantidad": "desviación robusta del log de la cantidad frente a su contexto",
+   "z_log_importe": "desviación robusta del log del importe en moneda de origen (cantidad × valor unitario × (1 − descuento)) frente a su contexto"
+  },
+  "conjuntos": {"VC": ["z_log_valor_unitario", "z_log_cantidad"], "VCI": ["z_log_valor_unitario", "z_log_cantidad", "z_log_importe"]},
+  "excluidas": "importe COP y TRM (conversión cambiaria, no señal comercial), identificadores de cliente/proveedor/producto, precios absolutos y descuento (sin variación en el paquete: todos 0)",
+  "soporte": "número de antecedentes y dispersión (MAD) se publican como información, no como variables del detector"
+ },
+ "referencia": {
+  "id": "mediana_mad",
+  "puntaje": "max(|z_log_valor_unitario|, |z_log_cantidad|)",
+  "reglas": {"z_regla": 3.5, "razon_valor_max": 1.5, "razon_valor_min": 0.67, "razon_cantidad_max": 3.0, "razon_cantidad_min": 0.2},
+  "z_motivo": 2.0,
+  "nota": "Misma información temporal y mismos grupos que el candidato: es la comparación principal a igual cupo."
+ },
+ "control_a02": {
+  "fuente": "pipeline.operaciones.detectar_anomalias (min_history 3, threshold 3)",
+  "limitaciones": "Agrupa por familia y moneda (no por producto), compara el importe COP de cada venta (mezcla cantidad, precio y TRM), usa como historia las ventas anteriores en orden (periodo mensual, id), incluidas las del mismo mes y día, y no cubre compras. Se reproduce como control de compatibilidad; su comportamiento operativo no cambia."
+ },
+ "candidato": {
+  "id": "isolation_forest",
+  "biblioteca": "scikit-learn 1.7.1 (solo entrenamiento y evaluación)",
+  "n_estimadores": 200,
+  "semilla": 20261123,
+  "max_features": 1.0,
+  "bootstrap": false,
+  "contamination": "auto (no se usa: ni predict() ni offset_ deciden alertas)",
+  "min_entrenamiento": 50,
+  "configuraciones": [
+   {"id": "if_vc_64", "variables": "VC", "max_muestras": 64, "orden": 1},
+   {"id": "if_vc_128", "variables": "VC", "max_muestras": 128, "orden": 2},
+   {"id": "if_vci_64", "variables": "VCI", "max_muestras": 64, "orden": 3},
+   {"id": "if_vci_128", "variables": "VCI", "max_muestras": 128, "orden": 4}
+  ],
+  "max_muestras_limite": "min(max_muestras, filas de entrenamiento utilizables)",
+  "puntaje": "rareza = 2^(−E[h(x)]/c(max_muestras)) = −score_samples; mayor = más raro",
+  "equivalencia": {"tolerancia_absoluta": 1e-12, "exigir_ranking_y_alertas_identicos": true}
+ },
+ "politica_alertas": {
+  "tipo": "ranking_con_cupo",
+  "periodo": "mes",
+  "cupo_fraccion": 0.05,
+  "cupo_minimo": 1,
+  "convencion": "DEMOSTRACIÓN: 5 % de las operaciones puntuadas del universo y mes (mínimo 1). No es una capacidad empresarial acordada.",
+  "desempate": "puntaje descendente, luego fecha ascendente, luego operacion_id ascendente (estable)",
+  "empates_casos_sembrados": "pesimista: un original con puntaje igual al del caso sembrado se ordena delante",
+  "umbral": null,
+  "exceso": "operaciones señaladas por las reglas de la referencia que quedan fuera del cupo: se muestran como exceso pendiente, nunca se descartan"
+ },
+ "casos_sembrados": {
+  "semilla": 6061,
+  "bases_por_bloque": {"venta": 40, "compra": 20},
+  "politica_bases": "operaciones originales puntuadas del bloque (validación o comprobación), sin reemplazo; los bloques son disjuntos en el tiempo, así que ninguna base aparece en ambos",
+  "variantes_reservadas": "las intensidades de validación y de comprobación son distintas: ninguna variante casi idéntica aparece en ambos bloques",
+  "tipos": {
+   "venta": {
+    "precio_elevado": {"validacion": [1.5, 2.0], "comprobacion": [1.4, 2.5]},
+    "cantidad_extrema": {"validacion": [3.0, 5.0], "comprobacion": [4.0, 6.0]},
+    "combinacion_moderada": {"validacion": [[1.25, 1.8]], "comprobacion": [[1.3, 1.6]]}
+   },
+   "compra": {
+    "costo_alterado": {"validacion": [1.5, 2.0], "comprobacion": [1.4, 2.5]},
+    "cantidad_extrema": {"validacion": [3.0, 5.0], "comprobacion": [4.0, 6.0]},
+    "combinacion_moderada": {"validacion": [[1.25, 1.8]], "comprobacion": [[1.3, 1.6]]}
+   }
+  },
+  "relevancia": "todas las perturbaciones declaradas se consideran relevantes",
+  "controles_negativos": {
+   "cambio_trm": {"factor_trm": 1.3, "aplica": "bases en USD", "esperado": "puntaje comercial idéntico al de la base"},
+   "producto_mas_costoso": {"definicion": "la base pasa al producto del mismo universo con mayor valor unitario de referencia, con su valor unitario y cantidad de referencia en esa fecha", "esperado": "sin alerta"},
+   "volumen_alto_habitual": {"percentil": 0.9, "definicion": "cantidad = percentil 90 de los antecedentes del grupo", "esperado": "sin alerta"},
+   "cambio_mezcla": {"definicion": "la base pasa a otro producto (rotación determinista) con su valor unitario y cantidad de referencia", "esperado": "sin alerta"}
+  }
+ },
+ "seleccion": {
+  "metrica": "deteccion_cupo en validación (casos sembrados detectados a igual cupo / casos sembrados)",
+  "desempate": ["mayor deteccion_cupo en combinacion_moderada", "menor tasa de alerta en controles negativos", "orden declarado (más simple primero)"],
+  "por_universo": true
+ },
+ "evaluacion": {
+  "metrica_principal": "deteccion_cupo en la comprobación histórica, por universo",
+  "bootstrap": {"replicas": 2000, "semilla": 7, "agrupacion": "operacion_base (las variantes de una base no son independientes)", "nivel": 0.95}
+ },
+ "regla_decision": {
+  "id": "m6-decision-v1",
+  "meta_deteccion": 0.80,
+  "meta_falsas_alertas_por_100_normales_revisadas": 5,
+  "candidato_favorable": "deteccion_candidato >= meta, diferencia frente a la referencia > 0 con IC95 inferior > 0 (agrupado por base), alertas en controles negativos <= referencia y controles TRM sin cambio de puntaje",
+  "referencia_conservada": "el candidato no supera a la referencia a igual cupo (o empata)",
+  "inconcluso": "ni candidato ni referencia alcanzan la meta de detección",
+  "abstencion_candidato": "menos de min_entrenamiento filas utilizables: se conserva la referencia",
+  "estado_maximo": "favorable_demostracion_sombra (solo evidencia sintética): nunca habilita promoción operativa"
+ },
+ "muestra_revision": {
+  "semilla": 2026,
+  "por_universo": {"venta": {"alertada": 15, "no_alertada": 15}, "compra": {"alertada": 10, "no_alertada": 10}},
+  "metodo": "muestreo aleatorio estratificado sin reemplazo dentro de la publicación (estrato alertada / no_alertada puntuada) con probabilidad de inclusión registrada; las alertadas están sobrerrepresentadas: la muestra NO es representativa sin ponderar"
+ },
+ "publicacion": {"meses": 4, "nota": "La cola cubre los meses de la publicación que terminan en el corte."},
+ "monitoreo": {
+  "umbrales": {"caida_cobertura_pp": 10.0, "cambio_relativo_tasa_alertas": 0.5, "min_operaciones_comparacion": 30, "min_revisiones_precision": 30},
+  "nota": "Un cambio de distribución no prueba deterioro predictivo: la precisión exige revisiones suficientes y comparables. Ningún aviso promociona ni revierte modelos."
+ }
+}

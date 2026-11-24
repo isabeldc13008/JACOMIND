@@ -1,0 +1,182 @@
+{
+ "modelo_id": "venta_cruzada",
+ "version_protocolo": "m41-protocolo-v1",
+ "fijado_en": "2026-11-23",
+ "nota": "Protocolo M4.1 fijado ANTES de entrenar, tras conocer M4 en validación y comprobación (bloques ya vistos: comprobación exploratoria y REUTILIZADA). Añade antigüedad del cliente y secuencia reciente suavizada, e incluye como referencias fijas el azar reproducible y el techo por producto (diagnóstico que usa la comprobación, nunca para elegir). Candidatos, filtros, etiqueta, bloques, métricas, metas y regla de decisión iguales que M4.",
+ "objetivo": "Compra confirmada de un producto candidato elegible dentro de los 60 días siguientes al corte (C, C+60].",
+ "no_responde": [
+  "aceptación de una oferta",
+  "efecto causado por la recomendación",
+  "sensibilidad a descuentos",
+  "necesidad comercial confirmada"
+ ],
+ "horizonte_dias": 60,
+ "origen_datos": "sintetico",
+ "regla_decision": "m4-decision-v1",
+ "bloques": {
+  "ajuste": [
+   "2025-03-01",
+   "2026-02-28"
+  ],
+  "validacion": [
+   "2026-04-01",
+   "2026-05-31"
+  ],
+  "comprobacion_historica": [
+   "2026-07-01",
+   "2026-08-31"
+  ]
+ },
+ "separacion_temporal": {
+  "excluidos": [
+   "2026-03-31",
+   "2026-06-30"
+  ],
+  "motivo": "etiquetas de 60 días no se solapan con la inferencia del bloque siguiente; septiembre necesita cobertura hasta 2026-11-29"
+ },
+ "clientes": "alta <= C y al menos una compra confirmada <= C",
+ "candidatos": {
+  "orden": "se construyen ANTES de consultar compras futuras",
+  "disponibilidad": "producto con alguna venta confirmada de cualquier cliente <= C (PROXY sintético: la primera venta observada no demuestra la fecha de lanzamiento)",
+  "excluye": [
+   "ya_comprado (cualquier compra <= C, incluida la del día C)",
+   "cobertura_vigente (instalación con fecha_inicio <= C <= fecha_fin, aunque no haya factura)",
+   "incompatible o requisito_incumplido (reglas versionadas de compatibilidad_productos.json)",
+   "no_disponible_al_corte"
+  ],
+  "vigencia": "convención del proyecto (pipeline/ficha.py): vigente si fecha_fin >= corte; CONVENCIÓN SINTÉTICA de disponibilidad: la instalación se conoce desde fecha_inicio",
+  "compatibilidad_desconocida": "pendiente_revision (no se convierte en compatible)"
+ },
+ "etiqueta": "1 si hay compra confirmada del producto en (C, C+60]; 0 si no y C+60 <= cobertura; pendiente si no. Una compra de otro producto no cambia la etiqueta; varias compras = un positivo",
+ "estadisticas": {
+  "politica": "acumulada_hasta_corte",
+  "definicion": "popularidad(p, C) = clientes distintos con compra de p <= C; coocurrencia(q, p, C) = clientes distintos con q y p <= C; calculadas en cada fotografía solo con operaciones <= C, igual para el modelo y las referencias"
+ },
+ "variables": {
+  "cliente": [
+   "recencia_dias",
+   "dias_compra_distintos",
+   "dias_compra_90d",
+   "dias_compra_180d",
+   "importe_cop_90d",
+   "n_productos"
+  ],
+  "par": [
+   "popularidad_rel",
+   "afinidad_max",
+   "coocurrencia_rel"
+  ],
+  "producto": "identidad del producto (indicadora por producto del ajuste; producto desconocido = sin indicadora)",
+  "ampliada_extra": [
+   "familia_comprada",
+   "afinidad_x_recencia"
+  ],
+  "convencion_catalogo": "familia_comprada usa la familia del catálogo actual (CONVENCIÓN SINTÉTICA: se supone estable); solo en la combinación ampliada",
+  "no_usadas": [
+   "cliente_id",
+   "compras o familias futuras",
+   "precio de la transacción futura",
+   "instalaciones futuras",
+   "revisión humana",
+   "estadísticas de todo el paquete",
+   "precio de lista (sin fuente temporal)"
+  ],
+  "m41_extra": {
+   "antiguedad_dias": "corte - fecha_alta (log1p)",
+   "transicion_reciente": "máximo sobre productos q comprados en (C-60, C] de (compras de p tras q + 20·tasa base de p) / (eventos de q sin p + 20); eventos solo con t + 60 <= C y catálogo conocido al corte"
+  }
+ },
+ "combinaciones": {
+  "antiguedad": "basica de M4 + antiguedad_dias",
+  "completa": "basica de M4 + antiguedad_dias + transicion_reciente"
+ },
+ "candidato": {
+  "tipo": "regresion_logistica_l2",
+  "C": [
+   0.1,
+   1,
+   10
+  ],
+  "solver": "lbfgs",
+  "max_iter": 5000,
+  "tol": 1e-10,
+  "semilla": 20261123
+ },
+ "soporte": {
+  "minimo_positivos_ajuste_por_producto": 10,
+  "fallback": "popularidad: los candidatos sin soporte se ordenan por popularidad DESPUÉS de los puntuados por el modelo (orden lexicográfico, sin mezclar escalas); origen 'popularidad_sin_soporte'"
+ },
+ "k": [
+  1,
+  3
+ ],
+ "k_publicacion": 3,
+ "desempate": "producto_id ascendente",
+ "referencias": {
+  "popularidad": "candidatos ordenados por popularidad(p, C) descendente",
+  "coocurrencia": "candidatos ordenados por sum_q coocurrencia(q, p, C) sobre los productos q del cliente, descendente",
+  "control_familias_A07": "pipeline/oportunidades.py, corte 2026-09-01, horizonte hasta 2026-10-31, 4 familias, K=1, soporte mínimo 3",
+  "azar": "orden aleatorio reproducible entre los mismos candidatos (semilla 20261123 + cliente + corte)",
+  "techo_por_producto": "DIAGNÓSTICO: orden por la tasa real de compra de cada producto en el propio bloque evaluado; usa la respuesta, no es un método disponible",
+  "m4": "candidato congelado de M4 (contexto)"
+ },
+ "seleccion": {
+  "bloque": "validacion",
+  "criterio": [
+   "hitrate1_universo (mayor)",
+   "hitrate3_universo (mayor)",
+   "combinación más simple (antiguedad antes que completa)",
+   "C menor"
+  ],
+  "tolerancia": 1e-12
+ },
+ "metricas": {
+  "universo": "clientes con historial al corte y horizonte observado, fijado antes de puntuar; abstención = sin acierto",
+  "principal": "HitRate@1 sobre el universo",
+  "secundarias": [
+   "HitRate@1 y @3 sobre clientes con candidatos y con recomendación común",
+   "Precision@3 (denominador: productos sugeridos)",
+   "NDCG@3 binaria (clientes con algún candidato comprado)",
+   "cobertura de clientes y de catálogo",
+   "exclusiones por motivo",
+   "resultados por producto y familia"
+  ],
+  "bootstrap": {
+   "repeticiones": 2000,
+   "semilla": 20261123,
+   "unidad": "cliente completo (todos sus productos y cortes)"
+  }
+ },
+ "minimos_evidencia": {
+  "clientes_corte_universo": 150,
+  "aciertos_popularidad_o_modelo": 20,
+  "cortes": 2
+ },
+ "metas": {
+  "mejora_hitrate1_vs_popularidad": 0.05,
+  "ic95_diferencia_bajo_cero_excluido": true,
+  "reduccion_maxima_cobertura": 0.05,
+  "violaciones_restricciones": 0
+ },
+ "decision": {
+  "bloque": "comprobacion_historica",
+  "favorable": "mínimos cumplidos, mejora >= 5 pp en HitRate@1 frente a popularidad con IC 95 % por cliente > 0, cobertura no menor en más de 5 pp y cero violaciones; con datos sintéticos solo habilita sombra",
+  "rechazado": "IC 95 % de la diferencia de HitRate@1 entero por debajo de 0, o alguna violación de restricciones",
+  "inconcluso": "cualquier otro caso; si no supera a popularidad se conserva popularidad con los mismos filtros"
+ },
+ "revision_comercial": {
+  "muestra": 30,
+  "semilla": 20261123,
+  "estratos": "familia (convención de catálogo) x tercil de puntaje",
+  "meta_pertinencia": 0.8,
+  "estados": [
+   "pertinente",
+   "ya_cubierto",
+   "incompatible",
+   "sin_necesidad",
+   "informacion_insuficiente"
+  ]
+ },
+ "disponible_desde": "2026-10-31",
+ "antecedente": "m4-protocolo-v1: HitRate@1 modelo 13,3 % frente a popularidad 12,1 % (IC [-0,4; +3,3] pp), inconcluso; un diagnóstico posterior mostró que el azar entre candidatos alcanza 12,9 % y el techo por producto 16,3 %"
+}

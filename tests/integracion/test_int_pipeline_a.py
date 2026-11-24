@@ -33,13 +33,21 @@ class PruebasFusionConA(unittest.TestCase):
         cls.tmp = Path(tempfile.mkdtemp())
         cls.salida = cls.tmp / "octubre"
         cls.salida.mkdir()
+        # El cierre ya no entrena: se prepara de forma explícita la versión operativa de referencia.
+        entorno = dict(os.environ, JACOMIND_MODELOS=str(cls.tmp / "registro"))
+        if importlib.util.find_spec("modelos.cli") is not None:
+            for args in (["preparar", "--datos", str(PAQUETE), "--salida", str(cls.tmp / "a01")],
+                         ["inicializar-referencia", "--datos", str(cls.tmp / "a01"), "--version", "v1"]):
+                p = subprocess.run([sys.executable, "-m", "modelos.cli", *args], cwd=RAIZ, capture_output=True, text=True, encoding="utf-8", env=entorno)
+                if p.returncode != 0:
+                    raise AssertionError(f"No se pudo preparar el modelo de referencia: {p.stderr[-2000:]}")
 
         def generar(destino):
             # Generador propio de A si existe; si no, el adaptador de B sobre las funciones reales de pipeline/.
             cmd = (["-m", "pipeline.generar", "--datos", str(PAQUETE), "--corte", "2026-10-31", "--salida", str(destino / "agenda.json")]
                    if HAY_GENERAR else
                    ["-m", "api", "generar-desde-a", "--datos", str(PAQUETE), "--corte", "2026-10-31", "--salida", str(destino)])
-            p = subprocess.run([sys.executable, *cmd], cwd=RAIZ, capture_output=True, text=True, timeout=1800)
+            p = subprocess.run([sys.executable, *cmd], cwd=RAIZ, capture_output=True, text=True, timeout=1800, env=entorno)
             if p.returncode != 0:
                 raise AssertionError(f"La generación con el carril A falló: {p.stderr[-2000:]}")
         generar(cls.salida)

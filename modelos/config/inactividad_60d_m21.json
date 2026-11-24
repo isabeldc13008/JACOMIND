@@ -1,0 +1,91 @@
+{
+ "modelo_id": "inactividad_60d",
+ "version_protocolo": "m21-protocolo-v1",
+ "fijado_en": "2026-11-23",
+ "antecedente": "m2-protocolo-v1 (decisión inconclusa: mayor recencia 0,80 frente a 0,65 en la comprobación histórica)",
+ "nota": "Protocolo M2.1 fijado antes de entrenar. Se diseñó DESPUÉS de conocer los resultados de M2 en validación y comprobación: ambos bloques ya fueron vistos, así que la comprobación histórica es exploratoria y reutilizada. Solo una evaluación prospectiva (piloto) o con datos empresariales puede confirmar una mejora. Misma etiqueta, poblaciones, bloques, métricas, metas y regla de decisión que M2.",
+ "objetivo": "Probabilidad de que un cliente activo (recencia < 90 días) alcance 90 días sin compra confirmada en algún momento de los próximos 60 días.",
+ "horizonte_dias": 60,
+ "umbral_frio_dias": 90,
+ "etiqueta": "inactividad-60d-etiqueta-v1",
+ "convencion_cruce": "estado al final del día: una compra confirmada el mismo día del cruce (L + 90) lo evita",
+ "origen_datos": "sintetico",
+ "regla_decision": "m2-decision-v1",
+ "version_variables": "inactividad_60d-variables-v2",
+ "bloques": {
+  "ajuste": ["2025-03-01", "2026-02-28"],
+  "validacion": ["2026-04-01", "2026-05-31"],
+  "comprobacion_historica": ["2026-07-01", "2026-08-31"]
+ },
+ "separacion_temporal": {"excluidos": ["2026-03-31", "2026-06-30"], "motivo": "evitar que etiquetas de 60 días de un bloque se solapen con las inferencias del siguiente"},
+ "familias": {
+  "poisson": {
+   "formato": "jacomind.inactividad_poisson.v1",
+   "definicion": "p = exp(-lambda * w), w = 90 - recencia (días que faltan para el cruce); lambda = (dias_compra_180d + m * lambda0) / (exposicion_180d + m); exposicion_180d = min(180, corte - fecha_alta + 1); lambda0 = suma de días de compra / suma de exposición en las fotografías aprendibles del bloque de ajuste (sin etiquetas)",
+   "hiperparametro": "m", "valores": [30, 90, 180], "complejidad": 1
+  },
+  "supervivencia": {
+   "formato": "jacomind.inactividad_supervivencia.v1",
+   "definicion": "p = S(90) / S(recencia), S(t) = (n * S_cliente(t) + k * S_pob(t)) / (n + k); S_pob = Kaplan-Meier de intervalos entre días de compra distintos con información hasta el último corte de ajuste (2026-02-28), intervalos abiertos censurados y cola exponencial (modelos/supervivencia.py); S_cliente = fracción de intervalos completos del cliente mayores que t",
+   "hiperparametro": "k", "valores": [1, 3, 10], "complejidad": 2, "curva_hasta": "2026-02-28"
+  },
+  "logistica_reducida": {
+   "formato": "jacomind.regresion_logistica.v1",
+   "variables": ["ventana_restante_dias", "dias_compra_180d", "compras_esperadas_ventana", "ratio_recencia_ciclo", "historia_insuficiente"],
+   "hiperparametro": "C", "valores": [0.1, 1, 10], "complejidad": 6
+  },
+  "logistica_instalaciones": {
+   "formato": "jacomind.regresion_logistica.v1",
+   "variables": ["ventana_restante_dias", "dias_compra_180d", "compras_esperadas_ventana", "ratio_recencia_ciclo", "historia_insuficiente",
+                 "instalaciones_vigentes", "renovacion_antes_del_cruce"],
+   "hiperparametro": "C", "valores": [0.1, 1, 10], "complejidad": 8
+  }
+ },
+ "variables_nuevas": {
+  "ventana_restante_dias": "90 - recencia: días hasta el cruce si no compra (1-60 en la población aprendible)",
+  "exposicion_180d": "min(180, corte - fecha_alta + 1)",
+  "compras_esperadas_ventana": "dias_compra_180d / exposicion_180d * ventana_restante_dias",
+  "intervalos_dias": "intervalos entre días de compra distintos <= corte (solo para supervivencia)",
+  "instalaciones_vigentes": "instalaciones del cliente con fecha_inicio <= corte < fecha_fin",
+  "renovacion_antes_del_cruce": "1 si alguna instalación vigente tiene fecha_fin - 45 <= corte + ventana_restante_dias (la ventana de renovación de 45 días del paquete se abre antes del cruce)"
+ },
+ "supuesto_base_instalada": "SUPUESTO DECLARADO (no verificable con el paquete): cada instalación, con su fecha_fin, se conoce desde su fecha_inicio. Solo se usan instalaciones con fecha_inicio <= corte. Si el supuesto fuera falso habría fuga de información; por eso la familia con instalaciones se compara también por separado.",
+ "renovacion_dias": 45,
+ "transformaciones": "funciones fijas por variable (modelos/variables.py FUNCION); imputación por mediana y escalado ajustados solo con el bloque de ajuste",
+ "estimador": {"solver": "lbfgs", "max_iter": 5000, "tol": 1e-10, "class_weight": null, "penalty": "l2"},
+ "semilla": 20261123,
+ "k": [10, 20],
+ "k_principal": 10,
+ "desempate": "cliente_id ascendente",
+ "seleccion": {
+  "bloque": "validacion",
+  "criterio": ["precision_media_top10 (mayor)", "sensibilidad_agregada_top10 (mayor)", "brier (menor)", "complejidad de la familia (menor)", "hiperparámetro (menor)"],
+  "tolerancia_empate": 1e-12
+ },
+ "minimos_clases": {"ajuste": {"positivos": 1, "negativos": 1}, "validacion": {"positivos": 1, "negativos": 1}},
+ "referencias": {
+  "regla_existente": "recencia + 60 >= 90: booleano, marca a toda la población aprendible",
+  "mayor_recencia": "orden por recencia descendente, desempate por cliente_id: comparador principal del cupo",
+  "constante": "tasa de eventos de la población aprendible del bloque de ajuste",
+  "m2": "candidato congelado de M2 (salida/experimentos/inactividad_60d/ejecucion-001), solo como contexto; no se reentrena"
+ },
+ "metricas": {
+  "principal": "precisión media mensual entre los primeros min(10, n) clientes aprendibles de cada corte",
+  "bootstrap": {"repeticiones": 2000, "semilla": 20261123, "unidad": "cliente completo (todas sus observaciones mensuales juntas)"}
+ },
+ "minimos_evidencia": {"eventos_bloque": 20, "eventos_por_mes": 5, "meses": 2},
+ "metas": {
+  "mejora_minima_precision_top10_vs_mayor_recencia": 0.05,
+  "ic95_diferencia_principal_excluye_cero": true,
+  "sensibilidad_agregada_top10_no_menor_que_mayor_recencia": true,
+  "brier_no_peor_que_constante": true
+ },
+ "decision": {
+  "bloque": "comprobacion_historica",
+  "favorable": "igual que M2; además, por ser un bloque ya visto, solo habilita sombra y el piloto prospectivo, nunca la operación",
+  "rechazado": "IC 95 % de la diferencia principal entero por debajo de 0, o IC 95 % de (Brier candidato − Brier constante) entero por encima de 0",
+  "inconcluso": "cualquier otro caso"
+ },
+ "disponible_desde": "2026-10-31",
+ "tolerancia_probabilidad": 1e-9
+}

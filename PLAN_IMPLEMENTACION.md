@@ -1,5 +1,7 @@
 # JOCAMIND | Plan de implementación para dos personas
 
+La ampliación del 23 de noviembre de 2026 está en los [seis planes detallados de modelos](docs/plan/modelos/README.md). Esos planes parten de la implementación actual con Python, SQLite y contratos C1/C2 y especifican la mejora del modelo de compra y cinco capacidades adicionales.
+
 **Primera entrega:** Operaciones abre un cierre mensual, elige a quién dar seguimiento y puede explicar su decisión con hechos y una predicción evaluada. **Entrega completa:** Ventas gestiona oportunidades y retención, Gerencia evalúa tendencias y escenarios, y cada cliente empresarial autorizado puede consultar beneficios y sus propias PQRS. El mismo cierre alimenta la ficha, el tablero, el informe y el asistente.
 
 La [especificación de la agenda](PLAN_HACKATON.md) detalla la primera integración. Este plan abarca el producto completo y avanza por criterios de aceptación. Las instrucciones de construcción, los casos de prueba y el criterio de aceptación de cada tarea están en los [once tickets de datos y modelos](docs/plan/datos-y-modelos.md) y los [once tickets de aplicación y operación](docs/plan/aplicacion-y-operacion.md). Son trabajos propuestos. En el clon hay documentación y, en la carpeta hermana, datos y código didáctico de referencia.

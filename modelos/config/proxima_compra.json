@@ -1,0 +1,76 @@
+{
+ "modelo_id": "proxima_compra",
+ "version_protocolo": "m3-protocolo-v1",
+ "fijado_en": "2026-11-23",
+ "nota": "Protocolo M3 fijado antes de entrenar y evaluar. Datos sintéticos ya inspeccionados en M1/M2: la comprobación histórica es exploratoria. La rejilla de penalización se fijó tras verificar en el código de scikit-survival 0.26 que la penalización es alpha·||w||²/2 sobre la log-verosimilitud parcial TOTAL (pérdida media + sum(alpha·w²)/(2n)); con ~1.300 filas, alpha < 1 es casi nula, por eso la rejilla cubre de 0,1 a 100.",
+ "objetivo": "Tiempo residual desde el corte C hasta la primera compra confirmada estrictamente posterior a C, con horizonte de 60 días y censura administrativa.",
+ "no_responde": ["abandono definitivo", "vencimiento de coberturas contractuales", "probabilidad de compra a 30 días", "duración media de un intervalo completo"],
+ "horizonte_dias": 60,
+ "origen_datos": "sintetico",
+ "regla_decision": "m3-decision-v1",
+ "version_variables": "proxima_compra-variables-v1",
+ "bloques": {
+  "ajuste": {"cortes": ["2025-03-01", "2026-02-28"], "seguimiento_hasta": "2026-04-29"},
+  "validacion": {"cortes": ["2026-04-01", "2026-05-31"], "seguimiento_hasta": "2026-07-30"},
+  "comprobacion_historica": {"cortes": ["2026-07-01", "2026-08-31"], "seguimiento_hasta": "2026-10-30"}
+ },
+ "fronteras": "por código: todo fin de seguimiento de un bloque <= su seguimiento_hasta < primer corte del bloque siguiente; el último seguimiento_hasta <= cobertura declarada de ventas",
+ "seleccion_fecha": "2026-07-30",
+ "elegibles": "alta <= C y al menos una compra confirmada <= C (incluye recientes, ocasionales y fríos); sin compras -> sin_historial; seguimiento de cero días -> excluido",
+ "grupos": {
+  "frio": "recencia >= 90",
+  "ocasional": "recencia < 90 y menos de 3 días de compra distintos",
+  "reciente": "recencia < 30 y al menos 3 días de compra",
+  "habitual": "recencia 30-89 y al menos 3 días de compra"
+ },
+ "variables": ["recencia_dias", "dias_compra_90d", "dias_compra_180d", "dias_compra_distintos", "intervalo_mediano_dias",
+               "intervalo_dispersion_dias", "historia_insuficiente", "importe_cop_90d"],
+ "excluidas": {"catalogo": "solo su estado actual", "instalaciones_y_coberturas": "disponibilidad histórica no demostrada; el supuesto de M2.1 no la demuestra",
+               "informacion_futura": "cualquier venta posterior a C"},
+ "transformaciones": "funciones fijas por variable (modelos/variables.py FUNCION); imputación por mediana y escalado ajustados solo con el bloque de ajuste",
+ "referencias": {
+  "personal": "mediana de >= 2 intervalos positivos entre días de compra distintos menos la recencia; <= 0 -> estimacion_vencida (sin desplazar); mínimo y máximo no son un intervalo",
+  "km_global": "Kaplan-Meier de tiempos RESIDUALES del bloque de ajuste con censura (referencia principal); sin subgrupos"
+ },
+ "candidato": {"tipo": "cox_l2", "biblioteca": "scikit-survival CoxPHSurvivalAnalysis", "alpha": [0.1, 1, 10, 100], "ties": "breslow",
+               "n_iter": 100, "tol": 1e-9, "estabilidad_bootstrap": 100, "semilla": 20261123},
+ "cuantiles": [0.1, 0.5, 0.9],
+ "cuantil_definicion": "primer día entero t dentro del soporte con 1 - S(t) >= q; si no se alcanza, nulo",
+ "soporte": "días 0..T con T = mayor duración observada en el ajuste (<= horizonte); sin extrapolación",
+ "ventana": {"limites": ["p10", "p90"], "ancho_maximo_dias": 30, "utilizable": "p10 y p90 existen, fechas coherentes y p90 - p10 <= 30"},
+ "rejilla_metrica": {
+  "regla": "días enteros t con max(1, menor duración de prueba) <= t <= min(horizonte - 1, mayor duración de prueba - 1, mayor duración de ajuste - 1) y G_ajuste(t) > 0; misma rejilla para candidato y referencia; se publica el intervalo real",
+  "minimo_puntos": 30
+ },
+ "seleccion": {
+  "bloque": "validacion",
+  "criterio": "Brier integrado (IPCW con censura del ajuste) menor en la rejilla común; Cox solo si mejora a Kaplan-Meier",
+  "desempate": "Kaplan-Meier antes que Cox; entre Cox, mayor alpha (más regularizado)",
+  "tolerancia": 1e-9
+ },
+ "metricas": {
+  "principal": "Brier integrado IPCW frente a Kaplan-Meier global",
+  "secundarias": ["concordancia IPCW (tau = final de la rejilla)", "proporción censurada", "cobertura de predicciones y cuantiles",
+                  "error absoluto mediano de p50 entre eventos observados, frente a la referencia personal en el subconjunto común",
+                  "ancho de ventanas", "cobertura p10-p90 con denominadores (los censurados después de p90 están fuera; censurados antes de p90 son indeterminados)",
+                  "resultados por corte y grupo"],
+  "bootstrap": {"repeticiones": 1000, "semilla": 20261123, "unidad": "cliente completo (todas sus fotografías juntas)"}
+ },
+ "minimos_evidencia": {"filas": 150, "eventos": 50, "eventos_por_corte": 20, "puntos_rejilla": 30, "eventos_comunes_personal": 20, "ventanas_determinadas": 30},
+ "metas": {
+  "reduccion_relativa_ibs_vs_km": 0.05,
+  "ic95_diferencia_ibs_bajo_cero": true,
+  "error_mediano_no_peor_que_personal": true,
+  "proporcion_ventanas_utilizables_elegibles": 0.5,
+  "cobertura_nominal": 0.8,
+  "cobertura_ic95_compatible": "el IC 95 % de la cobertura p10-p90 contiene 0,80 o está por encima"
+ },
+ "decision": {
+  "bloque": "comprobacion_historica",
+  "favorable": "mínimos cumplidos y todas las metas; con datos sintéticos solo habilita sombra",
+  "rechazado": "IC 95 % de (IBS candidato − IBS Kaplan-Meier) entero por encima de 0, o cobertura con IC 95 % entero por debajo de 0,80 con mínimos cumplidos",
+  "inconcluso": "cualquier otro caso (incluye: Cox no mejoró en validación y se conserva Kaplan-Meier, métrica no estimable o evidencia insuficiente)"
+ },
+ "disponible_desde": "2026-10-31",
+ "tolerancia_equivalencia": 1e-9
+}

@@ -11,6 +11,12 @@ import { olvidarConversaciones, vistaAsistente } from "./vistas/asistente.js";
 import { vistaFinanzas } from "./vistas/finanzas.js";
 import { vistaDocumentos } from "./vistas/documentos.js";
 import { vistaOperacion } from "./vistas/operacion.js";
+import { vistaPrevencion } from "./vistas/prevencion.js";
+import { vistaIA } from "./vistas/ia.js";
+import { vistaProxima } from "./vistas/proxima.js";
+import { vistaVentaCruzada } from "./vistas/venta_cruzada.js";
+import { vistaDemanda } from "./vistas/demanda.js";
+import { vistaAnomalias } from "./vistas/anomalias.js";
 
 const ROLES = { operaciones: "Operaciones", ventas: "Ventas", finanzas: "Finanzas", atencion: "Atención", gerencia: "Gerencia", empresa: "Empresa" };
 
@@ -25,6 +31,12 @@ function pintarCabecera() {
     if (puede("tablero.ventas") || puede("tablero.operaciones") || puede("tablero.gerencia")) add("tableros", "Tableros");
     if (puede("cartera.ver")) add("agenda", "Agenda");
     if (puede("tareas.ver")) add("tareas", "Seguimientos");
+    if (puede("prevencion.ver")) add("prevencion", "Prevención (IA)");
+    if (puede("proxima.ver")) add("proxima", "Próxima compra (IA)");
+    if (puede("venta_cruzada.ver")) add("venta-cruzada", "Venta cruzada (IA)");
+    if (puede("demanda.ver_cop") || puede("demanda.ver_unidades")) add("demanda", "Pronóstico (IA)");
+    if (puede("anomalias.ver")) add("anomalias", "Operaciones atípicas (IA)");
+    if (puede("cartera.ver")) add("ia", "Modelos de IA");
     if (puede("pqrs.ver_propias") || puede("pqrs.gestionar") || puede("pqrs.indicadores")) add("pqrs", S.usuario.externo ? "Solicitudes" : "Solicitudes (PQRS)");
     if (puede("beneficios.portal") || puede("beneficios.ver_interno")) add("beneficios", "Beneficios");
     if (puede("agente.datos") || puede("agente.portal")) add("asistente", "Asistente");
@@ -106,6 +118,7 @@ function vistaBienvenida() {
     <a class="opcion-origen" href="#/tableros/operaciones"><strong>Revisar vencimientos</strong><span>Coberturas vencidas y las que vencen en los próximos 45 días, con su cliente.</span></a>
     <a class="opcion-origen" href="#/operacion"><strong>Preparar el cierre</strong><span>Cargar y validar archivos, ejecutar y publicar el cierre mensual, revisar la actividad.</span></a>
     <a class="opcion-origen" href="#/finanzas"><strong>Informes mensuales</strong><span>Abrir o generar el informe del mes.</span></a>
+    <a class="opcion-origen" href="#/ia"><strong>Resultados de la IA</strong><span>Qué estiman los modelos de compra e inactividad y cómo se comparan con las reglas.</span></a>
   </div>`;
 }
 
@@ -129,6 +142,12 @@ async function render() {
       case "finanzas": return await vistaFinanzas();
       case "documentos": return await vistaDocumentos();
       case "operacion": return await vistaOperacion();
+      case "anomalias": return puede("anomalias.ver") ? await vistaAnomalias() : ir(inicioDePerfil());
+      case "demanda": return puede("demanda.ver_cop") || puede("demanda.ver_unidades") ? await vistaDemanda() : ir(inicioDePerfil());
+      case "venta-cruzada": return puede("venta_cruzada.ver") ? await vistaVentaCruzada() : ir(inicioDePerfil());
+      case "proxima": return puede("proxima.ver") ? await vistaProxima() : ir(inicioDePerfil());
+      case "ia": return puede("cartera.ver") ? await vistaIA() : ir(inicioDePerfil());
+      case "prevencion": return puede("prevencion.ver") ? await vistaPrevencion() : ir(inicioDePerfil());
       case "agenda": return puede("cartera.ver") || !enServidor() ? await vistaAgenda() : ir(inicioDePerfil());
       default: return ir(enServidor() ? inicioDePerfil() : "#/agenda");
     }

@@ -45,7 +45,7 @@ class PruebasBeneficios(CasoBase):
 
     def test_portal_no_expone_puntuaciones_internas(self):
         for b in self.portal("cli_a").values():
-            self.assertFalse({"prob_compra_30d", "criterio", "politica", "riesgo"} & set(b))
+            self.assertFalse({"prob_compra_30d", "prediccion", "criterio", "politica", "riesgo"} & set(b))
 
     def test_cambio_de_elegibilidad_tras_publicar_revision(self):
         u = self.usuario("aten1")

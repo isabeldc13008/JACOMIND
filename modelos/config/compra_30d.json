@@ -1,0 +1,58 @@
+{
+ "modelo_id": "compra_30d",
+ "version_protocolo": "m1-protocolo-v1",
+ "fijado_en": "2026-11-23",
+ "nota": "Protocolo fijado antes de ajustar candidatos. Cualquier cambio de objetivo, variables, rejilla, umbral, metas o bloques crea una versión nueva del protocolo y exige otra comprobación independiente.",
+ "objetivo": "Probabilidad de al menos una venta confirmada en (corte, corte + 30 días] para clientes dados de alta al corte con al menos una venta confirmada hasta el corte (recompra).",
+ "horizonte_dias": 30,
+ "origen_datos": "sintetico",
+ "cobertura": {
+  "datos_observados_hasta": "2026-10-31",
+  "fuente": "Paquete sintético Green Services: 02_Documentacion/parametros_prueba.json (fecha_corte = 2026-10-31) y LEEME (enero de 2025 a octubre de 2026). Datos reales: declarar datos_observados_hasta en el manifiesto A01.",
+  "convencion_disponibilidad": "fecha_evento"
+ },
+ "cortes": {"desde": "2025-03-31", "hasta": "2026-09-30"},
+ "bloques": {
+  "ajuste": ["2025-03-01", "2026-04-30"],
+  "validacion": ["2026-05-01", "2026-06-30"],
+  "comprobacion_historica": ["2026-07-01", "2026-09-30"]
+ },
+ "combinaciones": {
+  "A": ["recencia_dias", "frecuencia_30d", "frecuencia_90d", "historial_n"],
+  "AB": ["recencia_dias", "frecuencia_30d", "frecuencia_90d", "historial_n", "frecuencia_180d", "dias_compra_distintos", "cambio_frecuencia_30d", "intervalo_mediano_dias", "intervalo_dispersion_dias", "historia_insuficiente"],
+  "ABC": ["recencia_dias", "frecuencia_30d", "frecuencia_90d", "historial_n", "frecuencia_180d", "dias_compra_distintos", "cambio_frecuencia_30d", "intervalo_mediano_dias", "intervalo_dispersion_dias", "historia_insuficiente", "importe_cop_90d", "ticket_medio_cop", "participacion_recurrentes"]
+ },
+ "regularizacion_C": [0.1, 1, 10],
+ "estimador": {"tipo": "sklearn.linear_model.LogisticRegression", "penalizacion": "l2", "solver": "lbfgs", "max_iter": 5000, "tol": 1e-10, "class_weight": null, "semilla": 20261123},
+ "seleccion": {
+  "bloque": "validacion",
+  "criterio": ["precision_media_top10 desc", "average_precision_media_mensual desc", "brier asc", "n_variables asc", "C asc"]
+ },
+ "umbral": {"politica": "max_f1_validacion", "rejilla": [0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95], "desempate": "umbral mayor (menos seleccionados)", "nota": "No hay costo ni cupo acordados con Ventas; el F1 de validación es una política provisional de ingeniería."},
+ "k": [10, 20],
+ "k_principal": 10,
+ "referencias": ["original_congelado", "regla_30d", "recencia", "constante"],
+ "metas": {
+  "mejora_minima_precision_top10": 0.05,
+  "compradores_perdidos_mes_revisar": 2,
+  "brier_no_peor_que_constante": true,
+  "margen_rechazo_precision_top10": 0.05
+ },
+ "decision": {
+  "favorable": "Cumple las tres metas en la comprobación histórica.",
+  "rechazado": "Precisión media a 10 inferior a la de recencia en el margen de rechazo o más, o Brier peor que la tasa constante.",
+  "inconcluso": "Cualquier otro caso. Con datos sintéticos el estado máximo es sombra; operativo requiere datos empresariales y aprobación registrada."
+ },
+ "controles_referencia": {
+  "fotografias": {"entrenamiento": 1382, "validacion": 240, "prueba": 360},
+  "umbral": 0.4,
+  "matriz_prueba": {"TP": 120, "TN": 51, "FP": 177, "FN": 12},
+  "precision": 0.404, "recall": 0.9091, "F1": 0.5594,
+  "top10_probabilidad": {"2026-07-31": 5, "2026-08-31": 4, "2026-09-30": 4},
+  "top10_recencia": {"2026-07-31": 5, "2026-08-31": 7, "2026-09-30": 5}
+ },
+ "referencia_version": "A04-logistica-reglas-v1",
+ "disponible_desde": "2026-10-30",
+ "tolerancia_probabilidad": 1e-9,
+ "bootstrap": {"repeticiones": 1000, "semilla": 20261123}
+}

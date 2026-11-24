@@ -1,18 +1,28 @@
 """Generador del cierre (A → B): publicación C2 con la agenda C1.
 
-Encadena A01 (validación del lote), A02 (importes), A03 (ficha), A04 (modelo de
-compra), A05 (segmentos), A07 (oportunidades y venta cruzada), A08 (series y
-pronóstico evaluado) y A09 (escenarios de TRM). La salida cumple los contratos
-de ``contratos/`` y se valida con ``python -m contratos.validar --publicacion``.
+Encadena A01 (validación del lote), A02 (importes), A03 (ficha), A04/M1 (inferencia
+del modelo de compra registrado), A05 (segmentos), A07 (oportunidades y venta cruzada),
+A08 (series y pronóstico evaluado) y A09 (escenarios de TRM). La salida cumple los
+contratos de ``contratos/`` y se valida con ``python -m contratos.validar --publicacion``.
+
+Todas las etapas leen la revisión aceptada por A01 (``<salida>/a01/publicado``), nunca
+los archivos originales. Un lote fallido aborta; uno pendiente de revisión también, salvo
+aceptación parcial explícita (``--aceptar-parcial``), que usa solo las filas aceptadas.
+
+El cierre no entrena: carga la versión operativa de ``compra_30d`` del registro
+(``--registro``, ``JACOMIND_MODELOS`` o ``var/modelos``). Sin versión válida, o con un corte
+anterior a su disponibilidad, la probabilidad es nula, el motivo queda en
+``predicciones_clientes`` y la agenda sigue por reglas.
 
     python -m pipeline.generar --datos ../Green_Services_Recursos_de_Prueba --corte 2026-10-31 --salida salida/agenda.json
-    python -m pipeline.generar --datos ... --corte 2026-10-31 --salida salida/cierres/oct   # directorio
+    python -m pipeline.generar --datos ... --corte 2026-10-31 --salida salida/cierres/oct --registro var/modelos
 """
 from __future__ import annotations
 
 import hashlib
 import importlib.util
 import json
+import os
 from collections import defaultdict
 from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
@@ -20,9 +30,6 @@ from pathlib import Path
 
 from contratos.agenda import ORDEN_ACCION, motivos
 
-# Último día cuya etiqueta a 30 días quedó observada en la evaluación de A04
-# (prueba julio–septiembre de 2026). Antes de esta fecha no hay modelo validado.
-MODELO_DISPONIBLE_DESDE = date(2026, 10, 30)
 SOPORTE_MINIMO_CRUZADA = 3
 TIPO_POR_ACCION = {"Revisar reactivación": "reactivacion", "Revisar cobertura": "renovacion",
                    "Revisar oportunidad de recompra": "recompra", "Revisar primera compra": "primera_compra"}
@@ -30,7 +37,7 @@ TIPO_POR_ACCION = {"Revisar reactivación": "reactivacion", "Revisar cobertura":
 
 def disponible() -> bool:
     return all(importlib.util.find_spec(m) is not None for m in
-               ("pipeline", "pipeline.operaciones", "pipeline.ficha", "pipeline.modelo_compra", "pipeline.segmentacion"))
+               ("pipeline", "pipeline.operaciones", "pipeline.ficha", "pipeline.segmentacion", "modelos.inferencia"))
 
 
 def _f(x) -> float:
@@ -53,9 +60,23 @@ def _sha(p: Path) -> str:
     return h.hexdigest()
 
 
-def generar(datos: str | Path, corte: str, salida: str | Path) -> dict:
-    """Genera ``salida/`` con manifiesto.json, agenda.json y tablas C2. Devuelve el manifiesto."""
-    from pipeline import modelo_compra as mc
+def generar(datos: str | Path, corte: str, salida: str | Path, *, registro: str | Path | None = None,
+            aceptar_parcial: bool = False, observado_hasta: str | None = None, sin_cobertura_verificada: bool = False,
+            config_a01: str | Path | None = None) -> dict:
+    """Genera ``salida/`` con manifiesto.json, agenda.json y tablas C2. Devuelve el manifiesto.
+
+    Cobertura temporal (política compartida con ``modelos.datos``): el lote debe estar completo hasta
+    el corte. Si la cobertura declarada no alcanza el corte, se lanza ``CoberturaInsuficiente`` antes de
+    calcular nada y no se escribe ninguna tabla de publicación. Si la cobertura es desconocida, también
+    se rechaza, salvo ``sin_cobertura_verificada=True``: entonces se publica marcando
+    ``cobertura.estado = no_verificada`` y el modelo se abstiene (sin probabilidades).
+    """
+    from modelos import registro as registro_modelos
+    from modelos.datos import (CoberturaInsuficiente, LoteNoAceptado, resolver_cobertura, resolver_lote,
+                               verificar_cobertura_corte, verificar_coherencia)
+    from modelos.inferencia import predicciones_corte
+    from modelos.variables import historial_compras
+    from pipeline.carga import cargar_lote
     from pipeline.ficha import construir_ficha
     from pipeline.operaciones import _load, _rates, calcular_cierre
     from pipeline.segmentacion import segmentar_clientes
@@ -66,26 +87,51 @@ def generar(datos: str | Path, corte: str, salida: str | Path) -> dict:
     salida = Path(salida)
     salida.mkdir(parents=True, exist_ok=True)
 
-    # A01: validación del lote (si falla de forma bloqueante, no se publica).
+    # A01: validación del lote. Las etapas siguientes leen solo la revisión aceptada.
     calidad: dict = {"notas": []}
-    if importlib.util.find_spec("pipeline.carga") is not None:
-        from pipeline.carga import cargar_lote
-        lote = cargar_lote(raiz, salida / "a01")
-        calidad["a01_estado"] = lote.status
-        calidad["a01_tablas"] = lote.inventory
-        if lote.status == "fallido":
-            raise RuntimeError(f"A01 rechazó el lote ({len(lote.issues)} incidencias); ver {salida / 'a01' / 'incidencias.jsonl'}")
+    lote = cargar_lote(raiz, salida / "a01", Path(config_a01) if config_a01 else None)
+    calidad["a01_estado"] = lote.status
+    calidad["a01_tablas"] = lote.inventory
+    if lote.status == "fallido":
+        raise RuntimeError(f"A01 rechazó el lote ({len(lote.issues)} incidencias); ver {salida / 'a01' / 'incidencias.jsonl'}")
+    try:
+        dir_lote, manifiesto_a01 = resolver_lote(salida / "a01", aceptar_parcial=aceptar_parcial)
+    except LoteNoAceptado as e:
+        raise RuntimeError(f"{e} Incidencias en {salida / 'a01' / 'incidencias.jsonl'}") from e
+    if dir_lote.name == "lote_actual":
+        calidad["notas"].append("Aceptación parcial explícita: se publican solo las filas aceptadas por A01; ver a01/incidencias.jsonl.")
+    huellas_lote = {p.name: _sha(p) for p in sorted(dir_lote.glob("*.csv"))}
+    calidad["datos_aceptados"] = {"revision": manifiesto_a01.get("revision"), "estado": manifiesto_a01.get("status"),
+                                  "aceptacion_parcial": dir_lote.name == "lote_actual",
+                                  "huella_datos": hashlib.sha256(json.dumps(huellas_lote, sort_keys=True).encode()).hexdigest()}
 
-    clientes = _load(raiz, "clientes.csv", "clientes")
-    ventas = _load(raiz, "ventas.csv", "ventas")
-    compras = _load(raiz, "compras.csv", "compras")
-    productos = {str(p["producto_id"]): p for p in _load(raiz, "productos.csv", "productos")}
-    instalaciones = _load(raiz, "base_instalada.csv", "instalaciones")
-    nombres_proveedor = {str(p["proveedor_id"]): p.get("nombre_prueba") for p in _load(raiz, "proveedores.csv", "proveedores")}
-    tasas = _rates(raiz)
+    clientes = _load(dir_lote, "clientes.csv", "clientes")
+    ventas = _load(dir_lote, "ventas.csv", "ventas")
+    compras = _load(dir_lote, "compras.csv", "compras")
+    productos = {str(p["producto_id"]): p for p in _load(dir_lote, "productos.csv", "productos")}
+    instalaciones = _load(dir_lote, "base_instalada.csv", "instalaciones")
+    nombres_proveedor = {str(p["proveedor_id"]): p.get("nombre_prueba") for p in _load(dir_lote, "proveedores.csv", "proveedores")}
+    tasas = _rates(dir_lote)
+
+    # Cobertura temporal: datos completos hasta el corte antes de calcular variables o publicar.
+    cobertura = resolver_cobertura(manifiesto_a01, explicito=observado_hasta)
+    verificar_coherencia(ventas, cobertura)
+    abstencion_cobertura = None
+    try:
+        verificar_cobertura_corte(cut, cobertura)
+    except CoberturaInsuficiente as e:
+        if cobertura.conocida or not sin_cobertura_verificada:
+            raise
+        abstencion_cobertura = (f"Cobertura temporal no verificada: el modelo se abstiene en este cierre ({cobertura.fuente}). "
+                                "Declara datos_observados_hasta para publicar estimaciones.")
+        calidad["notas"].append("Publicación sin cobertura verificada (modo explícito): hechos hasta el corte no garantizados como completos.")
+    estado_cobertura = {"corte": corte, **cobertura.como_dict(),
+                        "estado": "verificada" if abstencion_cobertura is None else "no_verificada",
+                        "publicacion": "completa" if abstencion_cobertura is None else "sin_cobertura_verificada"}
+    calidad["cobertura"] = estado_cobertura
 
     # A02: importes por operación con la política de redondeo de A.
-    cierre = calcular_cierre(raiz, cut)
+    cierre = calcular_cierre(dir_lote, cut)
     venta_por_id = {str(v["venta_id"]): v for v in ventas}
     compra_por_id = {str(c["compra_id"]): c for c in compras}
     historial = []
@@ -117,18 +163,64 @@ def generar(datos: str | Path, corte: str, salida: str | Path) -> dict:
     ficha = construir_ficha(clientes, [dict(v, importe_cop=Decimal(str(h["importe_cop"])))
                                        for h in historial for v in [venta_por_id[h["venta_id"]]]], instalaciones, cut)
 
-    # A04: modelo de compra a 30 días; inferencia en el corte con la transformación guardada.
+    # A04/M1: inferencia con la versión operativa registrada (sin entrenar en el cierre).
     modelo_info, probs = None, {}
-    if cut >= MODELO_DISPONIBLE_DESDE:
-        ev = mc.entrenar_y_evaluar_desde_paquete(raiz)
-        fotos = mc.construir_fotografias(clientes, ventas, cut)
-        for fila in fotos:
-            if fila["historial_n"] > 0:
-                probs[fila["cliente_id"]] = round(mc._probability(fila, ev["medias"], ev["desviaciones"], ev["pesos"]), 6)
-        modelo_info = {"version": "A04-logistica-reglas-v1", "umbral": ev["umbral"], "evaluacion": {
-            k: ev[k] for k in ("validacion", "prueba_modelo", "prueba_linea_base", "observaciones")}}
+    try:
+        artefacto, puntero = registro_modelos.artefacto_registrado(registro, "compra_30d", "operativo")
+        motivo_ausencia = None
+    except registro_modelos.ModeloNoDisponible as e:
+        artefacto, puntero, motivo_ausencia = None, None, str(e)
+    if abstencion_cobertura is not None:
+        artefacto, puntero, motivo_ausencia = None, None, abstencion_cobertura
+    predicciones = predicciones_corte(artefacto, motivo_ausencia, clientes, historial_compras(ventas, productos, tasas), cut)
+    if artefacto is not None and cut >= artefacto.disponible_desde:
+        probs = {p["cliente_id"]: p["probabilidad"] for p in predicciones if p["estado"] == "estimado"}
+        modelo_info = {"version": artefacto.version, "umbral": artefacto.umbral, "registro": puntero,
+                       "evaluacion": artefacto.datos.get("evaluacion") or {}}
+        calidad["modelo_compra"] = {"estado": "operativo", "version_registro": puntero["version"], "artefacto_huella": artefacto.huella}
     else:
-        calidad["notas"].append("Sin modelo validado para este corte: probabilidad nula y agenda por reglas.")
+        motivo = next((p["motivos"][0] for p in predicciones if p["estado"] == "modelo_no_disponible"),
+                      motivo_ausencia or "Sin modelo operativo")
+        calidad["modelo_compra"] = {"estado": "no_disponible", "motivo": motivo}
+        calidad["notas"].append(f"Sin modelo validado para este corte: probabilidad nula y agenda por reglas. {motivo}")
+
+    # M2: inactividad_60d SOLO con una versión OPERATIVA registrada y autorizada. Las variantes experimentales se
+    # puntúan en una publicación de sombra separada (modelos.cli puntuar --modelo inactividad_60d), nunca aquí.
+    from modelos.inactividad import predicciones_inactividad
+    modelo_inactividad = None
+    try:
+        art_i, puntero_i = registro_modelos.artefacto_registrado(registro, "inactividad_60d", "operativo")
+    except registro_modelos.ModeloNoDisponible as e:
+        art_i, puntero_i = None, None
+        calidad["modelo_inactividad"] = {"estado": "sin_version_operativa", "motivo": str(e),
+                                         "nota": "No se publican filas inactividad_60d en el cierre; la regla de recencia sigue en la agenda."}
+    if art_i is not None and abstencion_cobertura is not None:
+        calidad["modelo_inactividad"] = {"estado": "abstencion", "motivo": abstencion_cobertura}
+    elif art_i is not None:
+        predicciones = predicciones + predicciones_inactividad(art_i, None, clientes, historial_compras(ventas, productos, tasas), cut)
+        modelo_inactividad = {"nombre": "inactividad_60d", "version": art_i.version, "estado_registro": "operativo",
+                              "version_registro": puntero_i["version"], "artefacto_huella": art_i.huella, "horizonte_dias": 60,
+                              "umbral_frio_dias": 90, "limitaciones": "Riesgo de llegar a 90 días sin compra en 60 días; no es abandono "
+                              "ni efecto del seguimiento. No cambia la precedencia de la agenda C1."}
+        calidad["modelo_inactividad"] = {"estado": "operativo", "version_registro": puntero_i["version"], "artefacto_huella": art_i.huella}
+
+    # M3: proxima_compra SOLO con una versión OPERATIVA registrada (hoy no existe: se puntúa en sombra aparte).
+    from modelos.proxima_compra import predicciones_proxima
+    modelo_proxima = None
+    try:
+        art_p, puntero_p = registro_modelos.artefacto_registrado(registro, "proxima_compra", "operativo")
+    except registro_modelos.ModeloNoDisponible as e:
+        art_p, puntero_p = None, None
+        calidad["modelo_proxima_compra"] = {"estado": "sin_version_operativa", "motivo": str(e),
+                                            "nota": "No se publican filas proxima_compra en el cierre; la ventana estimada solo existe en sombra."}
+    if art_p is not None and abstencion_cobertura is not None:
+        calidad["modelo_proxima_compra"] = {"estado": "abstencion", "motivo": abstencion_cobertura}
+    elif art_p is not None:
+        predicciones = predicciones + predicciones_proxima(art_p, None, clientes, historial_compras(ventas, productos, tasas), cut)
+        modelo_proxima = {"nombre": "proxima_compra", "version": art_p.version, "estado_registro": "operativo", "version_registro": puntero_p["version"],
+                          "artefacto_huella": art_p.huella, "horizonte_dias": 60, "limitaciones": "Ventana estimada de próxima compra por "
+                          "comportamiento; no es una fecha contractual ni cambia la agenda C1."}
+        calidad["modelo_proxima_compra"] = {"estado": "operativo", "version_registro": puntero_p["version"], "artefacto_huella": art_p.huella}
 
     # A05: segmentación RFM.
     segs = segmentar_clientes([{"cliente_id": f["cliente_id"], "recencia_dias": f["recencia_dias"],
@@ -214,10 +306,10 @@ def generar(datos: str | Path, corte: str, salida: str | Path) -> dict:
     escenarios = _escenarios(compras_prov)
 
     tablas = {"agenda": agenda, "historial_ventas": historial, "coberturas": coberturas, "compras_proveedor": compras_prov,
-              "series_mensuales": tablas_series, "escenarios_trm": escenarios, "oportunidades": oportunidades, "segmentos": segmentos}
+              "series_mensuales": tablas_series, "escenarios_trm": escenarios, "oportunidades": oportunidades, "segmentos": segmentos,
+              "predicciones_clientes": predicciones}
     declaradas = {}
     for nombre, contenido in tablas.items():
-        _escribir(salida / f"{nombre}.json", contenido)
         declaradas[nombre] = {"archivo": f"{nombre}.json", "filas": len(contenido["clientes"]) if nombre == "agenda" else len(contenido)}
     declaradas["historial_ventas"]["sumas"] = {"importe_cop": _f(sum(Decimal(str(h["importe_cop"])) for h in historial))}
     huellas = {p.name: _sha(p) for p in sorted(dir_datos.glob("*.csv")) if "OPCIONAL" not in p.name}
@@ -225,13 +317,100 @@ def generar(datos: str | Path, corte: str, salida: str | Path) -> dict:
                   "corte": corte, "origen": "sintetico", "generado_en": agenda["generado_en"], "huellas_entrada": huellas,
                   "versiones": {"reglas": "agenda-c1-v1", "modelo_compra": modelo_info["version"] if modelo_info else None,
                                 "segmentacion": "rfm-v1", "pronostico": "media_movil_3"},
-                  "tablas": declaradas, "calidad": calidad,
+                  "tablas": declaradas, "calidad": calidad, "cobertura": estado_cobertura,
                   "modelos": [{"nombre": "compra_30d", "version": modelo_info["version"], "umbral": umbral,
-                               "metricas_prueba": modelo_info["evaluacion"]["prueba_modelo"],
-                               "referencia": {"nombre": "compra en últimos 30 días", **modelo_info["evaluacion"]["prueba_linea_base"]},
+                               "estado_registro": "operativo", "version_registro": modelo_info["registro"]["version"],
+                               "artefacto_huella": modelo_info["registro"]["huella"],
+                               "metricas_prueba": modelo_info["evaluacion"].get("prueba_modelo"),
+                               "referencia": ({"nombre": "compra en últimos 30 días", **modelo_info["evaluacion"]["prueba_linea_base"]}
+                                              if modelo_info["evaluacion"].get("prueba_linea_base") else None),
                                "limitaciones": "Datos sintéticos. Mide propensión de compra, no efecto causal del contacto."}] if modelo_info else []}
-    _escribir(salida / "manifiesto.json", manifiesto)
+    if modelo_inactividad:
+        manifiesto["modelos"].append(modelo_inactividad)
+    if modelo_proxima:
+        manifiesto["modelos"].append(modelo_proxima)
+    _publicar_archivos(salida, {**{f"{n}.json": c for n, c in tablas.items()}, "manifiesto.json": manifiesto})
     return manifiesto
+
+
+MARCA_PUBLICACION = ".publicacion_en_curso.json"
+
+
+def recuperar_publicacion(salida: str | Path) -> dict | None:
+    """Restituye la publicación anterior si una activación quedó interrumpida.
+
+    Lee el diario ``.publicacion_en_curso.json``: cada archivo listado vuelve a su copia del
+    respaldo (o se elimina si antes no existía). Devuelve el diario recuperado o ``None``.
+    """
+    import shutil
+    salida = Path(salida)
+    marca = salida / MARCA_PUBLICACION
+    if not marca.exists():
+        return None
+    diario = json.loads(marca.read_text(encoding="utf-8"))
+    respaldo = salida / diario["respaldo"]
+    for nombre in diario["archivos"]:
+        origen, destino = respaldo / nombre, salida / nombre
+        if origen.exists():
+            os.replace(origen, destino)
+        elif nombre in diario.get("nuevos", []) and destino.exists():
+            destino.unlink()
+    marca.unlink()
+    shutil.rmtree(respaldo, ignore_errors=True)
+    for resto in salida.glob(".publicando-*"):
+        shutil.rmtree(resto, ignore_errors=True)
+    return diario
+
+
+def _publicar_archivos(salida: Path, archivos: dict) -> None:
+    """Activa una publicación completa con recuperación verificable (no es una operación atómica).
+
+    1. Recupera cualquier activación interrumpida anterior.
+    2. Serializa todos los archivos en ``.publicando-*``; si falla, ``salida`` no se toca.
+    3. Añade al manifiesto la huella SHA-256 de cada tabla.
+    4. Copia la versión visible a ``.respaldo-*`` y escribe el diario ``.publicacion_en_curso.json``.
+    5. Sustituye las tablas y, al final, el manifiesto. Ante cualquier fallo se restituye la versión
+       anterior desde el respaldo. Si el proceso muere a mitad, el diario permanece: el validador C2
+       rechaza el directorio y la siguiente ejecución lo recupera antes de publicar.
+    """
+    import shutil
+    import tempfile
+    salida = Path(salida)
+    recuperar_publicacion(salida)
+    tmp = Path(tempfile.mkdtemp(prefix=".publicando-", dir=salida))
+    respaldo = None
+    try:
+        tablas = [n for n in archivos if n != "manifiesto.json"]
+        for nombre in tablas:
+            _escribir(tmp / nombre, archivos[nombre])
+        manifiesto = archivos["manifiesto.json"]
+        por_archivo = {d["archivo"]: d for d in manifiesto["tablas"].values()}
+        for nombre in tablas:
+            if nombre in por_archivo:
+                por_archivo[nombre]["sha256"] = _sha(tmp / nombre)
+        _escribir(tmp / "manifiesto.json", manifiesto)
+        respaldo = Path(tempfile.mkdtemp(prefix=".respaldo-", dir=salida))
+        orden = tablas + ["manifiesto.json"]
+        nuevos = [n for n in orden if not (salida / n).exists()]
+        for nombre in orden:
+            if (salida / nombre).exists():
+                shutil.copy2(salida / nombre, respaldo / nombre)
+        diario = {"respaldo": respaldo.name, "archivos": orden, "nuevos": nuevos,
+                  "iniciado_en": datetime.now(timezone.utc).isoformat(timespec="seconds")}
+        _escribir(tmp / MARCA_PUBLICACION, diario)
+        os.replace(tmp / MARCA_PUBLICACION, salida / MARCA_PUBLICACION)
+        try:
+            for nombre in orden:  # el manifiesto se activa el último
+                os.replace(tmp / nombre, salida / nombre)
+        except BaseException:
+            recuperar_publicacion(salida)
+            raise
+        (salida / MARCA_PUBLICACION).unlink()
+        shutil.rmtree(respaldo, ignore_errors=True)
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+        if respaldo is not None and respaldo.exists() and not (salida / MARCA_PUBLICACION).exists():
+            shutil.rmtree(respaldo, ignore_errors=True)
 
 
 def _series(historial: list[dict], compras: list[dict], cut: date) -> list[dict]:
@@ -303,14 +482,29 @@ def main(argv=None) -> int:
     import argparse
     import sys
     p = argparse.ArgumentParser(prog="python -m pipeline.generar", description="Genera la publicación C2 (con agenda C1) de un cierre")
-    p.add_argument("--datos", required=True, help="carpeta del paquete o de 01_Datos")
-    p.add_argument("--corte", required=True, help="AAAA-MM-DD")
+    p.add_argument("--datos", help="carpeta del paquete o de 01_Datos")
+    p.add_argument("--corte", help="AAAA-MM-DD")
     p.add_argument("--salida", required=True, help="ruta de agenda.json o directorio de publicación")
+    p.add_argument("--registro", default=None, help="registro de modelos (por defecto JACOMIND_MODELOS o var/modelos)")
+    p.add_argument("--aceptar-parcial", action="store_true", help="publicar un lote pendiente de revisión con sus filas aceptadas")
+    p.add_argument("--observado-hasta", default=None, help="cobertura completa declarada para este lote (AAAA-MM-DD)")
+    p.add_argument("--sin-cobertura-verificada", action="store_true",
+                   help="publicar aunque la cobertura sea desconocida; el modelo se abstiene y la publicación queda marcada")
+    p.add_argument("--config-a01", default=None, help="configuración de la carga A01 (mapeo y datos_observados_hasta del lote)")
+    p.add_argument("--recuperar", action="store_true", help="solo restituir una publicación interrumpida en --salida")
     a = p.parse_args(argv)
     destino = Path(a.salida)
     directorio = destino.parent if destino.suffix == ".json" else destino
+    if a.recuperar:
+        diario = recuperar_publicacion(directorio)
+        print(json.dumps({"recuperada": diario is not None, "diario": diario}, ensure_ascii=False))
+        return 0
+    if not a.datos or not a.corte:
+        p.error("--datos y --corte son obligatorios salvo con --recuperar")
     try:
-        m = generar(a.datos, a.corte, directorio)
+        m = generar(a.datos, a.corte, directorio, registro=a.registro, aceptar_parcial=a.aceptar_parcial,
+                    observado_hasta=a.observado_hasta, sin_cobertura_verificada=a.sin_cobertura_verificada,
+                    config_a01=a.config_a01)
     except Exception as e:  # código ≠ 0 para el cierre programado
         print(f"ERROR: {e}", file=sys.stderr)
         return 1

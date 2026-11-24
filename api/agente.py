@@ -180,7 +180,7 @@ def herramienta_historial(con, cierre, p) -> dict:
                      texto=f"Cliente {p['cliente_id']} no encontrado en el cierre {cierre['corte']}; no se inventa historial.")
     c = f["cliente"]
     res = {k: c.get(k) for k in ("cliente_id", "ultima_compra", "dias_sin_compra", "ventas_confirmadas", "ingreso_cop",
-                                 "frecuente", "frio", "prob_compra_30d", "accion", "motivos")}
+                                 "frecuente", "frio", "prob_compra_30d", "accion", "motivos", "prediccion")}
     if c["sin_historial"]:
         texto = f"{c['cliente_id']} existe en el cierre {cierre['corte']} pero no tiene compras confirmadas (sin historial)."
     else:

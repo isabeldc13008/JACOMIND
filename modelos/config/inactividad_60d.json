@@ -1,0 +1,83 @@
+{
+ "modelo_id": "inactividad_60d",
+ "version_protocolo": "m2-protocolo-v1",
+ "fijado_en": "2026-11-23",
+ "nota": "Protocolo M2 fijado antes de entrenar y evaluar. Datos sintéticos ya inspeccionados: la comprobación histórica es exploratoria. No se incluye septiembre de 2026 (su horizonte necesita datos hasta 2026-11-29).",
+ "objetivo": "Probabilidad de que un cliente activo (recencia < 90 días) alcance 90 días sin compra confirmada en algún momento de los próximos 60 días. No es abandono definitivo, cancelación ni probabilidad de recompra.",
+ "horizonte_dias": 60,
+ "umbral_frio_dias": 90,
+ "etiqueta": "inactividad-60d-etiqueta-v1",
+ "convencion_cruce": "estado al final del día: una compra confirmada el mismo día del cruce (L + 90) lo evita",
+ "origen_datos": "sintetico",
+ "regla_decision": "m2-decision-v1",
+ "formatos_artefacto": ["jacomind.regresion_logistica.v1"],
+ "version_variables": "inactividad_60d-variables-v1",
+ "bloques": {
+  "ajuste": ["2025-03-01", "2026-02-28"],
+  "validacion": ["2026-04-01", "2026-05-31"],
+  "comprobacion_historica": ["2026-07-01", "2026-08-31"]
+ },
+ "separacion_temporal": {"excluidos": ["2026-03-31", "2026-06-30"], "motivo": "evitar que etiquetas de 60 días de un bloque se solapen con las inferencias del siguiente"},
+ "poblaciones": {
+  "aprendible": "recencia 30–89: se aprende, se prioriza y se compara",
+  "estructural": "recencia 0–29: probabilidad 0 exacta; cuenta en la cobertura, fuera del aprendizaje y del ranking principal",
+  "ya_frio": "recencia >= 90: no_elegible, probabilidad nula",
+  "sin_historial": "sin compras confirmadas: probabilidad nula",
+  "alta_posterior": "alta posterior al corte: no_elegible"
+ },
+ "combinaciones": {
+  "basica": ["recencia_dias", "dias_compra_30d", "dias_compra_90d", "dias_compra_180d", "dias_compra_distintos"],
+  "ampliada": ["recencia_dias", "dias_compra_30d", "dias_compra_90d", "dias_compra_180d", "dias_compra_distintos",
+               "cambio_dias_90d", "intervalo_mediano_dias", "intervalo_dispersion_dias", "ratio_recencia_ciclo",
+               "historia_insuficiente", "importe_cop_90d"]
+ },
+ "excluidas_del_experimento": {
+  "informacion_futura": "próxima compra, frío futuro y cualquier venta posterior al corte",
+  "coberturas_e_instalaciones": "su disponibilidad histórica no puede reconstruirse con el paquete",
+  "catalogo": "recurrencia de familias, tipo y vigencia de producto: solo se conoce su estado actual",
+  "incidencias_a01": "las filas aisladas por A01 no son datos adicionales de entrenamiento"
+ },
+ "transformaciones": "funciones fijas por variable (modelos/variables.py FUNCION); imputación por mediana y escalado (media, desviación poblacional) ajustados solo con el bloque de ajuste",
+ "candidatos": {"tipo": "regresion_logistica_l2", "C": [0.1, 1, 10], "combinaciones": ["basica", "ampliada"]},
+ "arbol_profundidad_3": {"incluido": false, "motivo": "no se predeclaró su inclusión ni sus mínimos de eventos; no se evalúa en este protocolo"},
+ "estimador": {"solver": "lbfgs", "max_iter": 5000, "tol": 1e-10, "class_weight": null, "penalty": "l2"},
+ "semilla": 20261123,
+ "k": [10, 20],
+ "k_principal": 10,
+ "desempate": "cliente_id ascendente",
+ "seleccion": {
+  "bloque": "validacion",
+  "criterio": ["precision_media_top10 (mayor)", "sensibilidad_agregada_top10 (mayor)", "brier (menor)", "simplicidad: menos variables y después menor C"],
+  "tolerancia_empate": 1e-12
+ },
+ "minimos_clases": {"ajuste": {"positivos": 1, "negativos": 1}, "validacion": {"positivos": 1, "negativos": 1},
+                    "nota": "si un bloque necesario carece de alguna clase en la población aprendible, no se entrena ningún candidato y se conserva la referencia"},
+ "referencias": {
+  "regla_existente": "recencia + 60 >= 90 (pipeline/riesgo.py): booleano, no probabilidad; marca a toda la población aprendible",
+  "mayor_recencia": "orden por recencia descendente, desempate por cliente_id: comparador principal del cupo",
+  "constante": "tasa de eventos de la población aprendible del bloque de ajuste"
+ },
+ "metricas": {
+  "principal": "precisión media mensual entre los primeros min(10, n) clientes aprendibles de cada corte",
+  "secundarias": ["eventos detectados y falsos positivos al cupo", "sensibilidad al mismo cupo (agregada y por mes)", "precisión y sensibilidad a 20",
+                  "average precision (suma por escalones, mensual y conjunta)", "Brier y calibración por bandas", "distribución de probabilidades",
+                  "cobertura y motivos de exclusión"],
+  "bootstrap": {"repeticiones": 2000, "semilla": 20261123, "unidad": "cliente completo (todas sus observaciones mensuales juntas)"}
+ },
+ "minimos_evidencia": {"eventos_bloque": 20, "eventos_por_mes": 5, "meses": 2},
+ "metas": {
+  "mejora_minima_precision_top10_vs_mayor_recencia": 0.05,
+  "ic95_diferencia_principal_excluye_cero": true,
+  "sensibilidad_agregada_top10_no_menor_que_mayor_recencia": true,
+  "brier_no_peor_que_constante": true
+ },
+ "decision": {
+  "bloque": "comprobacion_historica",
+  "favorable": "mínimos de evidencia cumplidos, mejora >= 5 puntos en precisión media a 10 frente a mayor recencia con IC 95 % por cliente cuyo límite inferior > 0, sensibilidad agregada a 10 no menor y Brier no peor que la constante",
+  "rechazado": "evidencia de deterioro: IC 95 % de la diferencia principal entera por debajo de 0, o IC 95 % de (Brier candidato − Brier constante) entero por encima de 0",
+  "inconcluso": "cualquier otro caso: pocos eventos, intervalos que incluyen 0, mejora menor que la meta o resultados contradictorios",
+  "alcance": "datos sintéticos ya inspeccionados: un resultado favorable solo habilita experimentación en sombra"
+ },
+ "disponible_desde": "2026-10-31",
+ "tolerancia_probabilidad": 1e-9
+}

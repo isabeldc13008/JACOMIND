@@ -34,8 +34,21 @@ A produce un directorio por ejecución con `manifiesto.json`, `agenda.json` (C1)
 | `escenarios_trm` | `escenario_id, familia, proveedor_id` | simulador cuando no hay compras detalladas |
 | `oportunidades` | `oportunidad_id` (+ `episodio_id` estable entre cierres) | agenda operativa de Ventas (una tarea por episodio) |
 | `segmentos` | `cliente_id` | filtros y tableros |
+| `predicciones_clientes` | `cliente_id, modelo_id` | ficha, agenda y asistente (la misma fila persistida). Para `modelo_id = compra_30d`: `probabilidad` (0–1 o `null`), `estado` (`estimado`, `sin_historial`, `no_elegible`, `modelo_no_disponible`…), `horizonte_dias = 30`, `version_modelo`, `corte`, `datos_hasta` y `motivos` (señales observadas, no causas). Para `modelo_id = inactividad_60d` (M2), además: `horizonte_dias = 60`, `umbral_frio_dias = 90`, `recencia_dias`, `poblacion` y `posicion`; estado `estructural` con probabilidad 0 exacta para recencia 0–29 |
 
-Los tipos exactos están en `tablas_conocidas` del esquema. Muestra completa: [`ejemplos/publicacion/demo-2026-10/`](ejemplos/publicacion/demo-2026-10/). Si A solo entrega `agenda.json`, B lo envuelve en un manifiesto mínimo y lo publica igual.
+Los tipos exactos están en `tablas_conocidas` del esquema. Para `predicciones_clientes`, `contratos/validar.py` añade reglas semánticas y rechaza el lote si no se cumplen: probabilidad finita en [0, 1]; solo `estimado` lleva probabilidad; horizonte 30 para `compra_30d`; `corte` igual al del manifiesto y `datos_hasta` no posterior; al menos un motivo; cliente presente en la agenda; `probabilidad` igual a `agenda.prob_compra_30d`; y `version_modelo` igual a `agenda.modelo.version`. Así agenda, ficha y asistente no pueden divergir. Para `inactividad_60d` se rechaza:
+
+- `estructural` fuera de la recencia 0–29 o con probabilidad distinta de 0;
+- `estimado` o `modelo_no_disponible` fuera de la recencia 30–89;
+- un cliente ya frío (recencia ≥ 90) que no sea `no_elegible`;
+- `sin_historial` con recencia;
+- `umbral_frio_dias` distinto de 90.
+
+Las filas de los dos modelos coexisten por la clave `cliente_id, modelo_id`. El cierre solo publica `inactividad_60d` con una versión operativa registrada. Las variantes experimentales van en un directorio aparte `publicacion_sombra` (`operativa: false`, sin agenda), que se valida con `validar_publicacion_sombra` y `leer_publicacion_sombra`. El portal de clientes no recibe esta tabla ni la sombra.
+
+Integridad de la publicación: el manifiesto declara `tablas[*].sha256`, una propiedad aditiva que el generador incluye desde el 23-11-2026. El validador rechaza una tabla cuyo contenido no coincide con su huella. También rechaza un directorio con `.publicacion_en_curso.json`, es decir, una publicación interrumpida: se restituye con `python -m pipeline.generar --recuperar --salida <dir>` o en la siguiente ejecución. Los manifiestos sin `sha256` siguen siendo válidos.
+
+`manifiesto.cobertura` (aditivo) declara `corte`, `datos_observados_hasta`, `fuente` y `estado` (`verificada` o `no_verificada`). Es obligatorio si hay predicciones `estimado`. El validador rechaza estas contradicciones: estimaciones sin cobertura declarada; cobertura `verificada` con `datos_observados_hasta` anterior al corte; estimaciones con cobertura `no_verificada`; `cobertura.corte` distinto del corte del manifiesto; falta de `fuente`; y `datos_hasta` posterior a la cobertura. Las publicaciones anteriores sin predicciones siguen siendo válidas. Muestra completa: [`ejemplos/publicacion/demo-2026-10/`](ejemplos/publicacion/demo-2026-10/). Si A solo entrega `agenda.json`, B lo envuelve en un manifiesto mínimo y lo publica igual.
 
 ## Puntos de enganche en código (opcionales)
 
@@ -43,7 +56,7 @@ B los busca por nombre y, si no existen o no cumplen el contrato, sigue funciona
 
 | Pieza de A | Ruta por defecto | Firma esperada |
 |---|---|---|
-| Generador del cierre | `python -m pipeline.generar --datos D --corte AAAA-MM-DD --salida salida/.../agenda.json` | escribe C1 (y opcionalmente `manifiesto.json` y tablas C2 en el mismo directorio); código ≠ 0 si falla. **Mientras A no lo publique**, B usa `api/integracion_a.py` (`python -m api generar-desde-a`), que construye C1/C2 con las funciones reales de `pipeline/`: `cargar_lote` (A01), `calcular_cierre` (A02), `construir_ficha` (A03), `entrenar_y_evaluar_desde_paquete` y `construir_fotografias` (A04), `segmentar_clientes` (A05), `pronosticar_media_movil` (A08) y `simular_exposicion` (A09) |
+| Generador del cierre | `python -m pipeline.generar --datos D --corte AAAA-MM-DD --salida salida/.../agenda.json` | escribe C1, `manifiesto.json` y tablas C2 en el mismo directorio; código ≠ 0 si falla (se conserva el cierre anterior). Lee solo la revisión aceptada por A01 (un lote pendiente exige `--aceptar-parcial`) y **no entrena**: carga la versión operativa de `compra_30d` desde `--registro`, `JACOMIND_MODELOS` o `var/modelos` (ver la [ficha del modelo de compra](../docs/modelo-compra.md)). Sin versión válida publica `prob_compra_30d: null` y `predicciones_clientes.estado = modelo_no_disponible`. `api/integracion_a.py` (`python -m api generar-desde-a`) delega en este generador |
 | Importador A01 | `JACOMIND_IMPORTADOR=pipeline.importar:importar_archivo` | `importar_archivo(ruta, tabla, hoja=None, mapeo=None) -> {"leidas", "aceptadas", "duplicadas", "aisladas", "bloqueante", "incidencias": [{"fila", "campo", "motivo", "accion"}]}` |
 | Clasificador A10 | `JACOMIND_CLASIFICADOR=modelos.clasificador_pqrs:clasificar,pipeline.pqrs:clasificar_pqrs` (se usa el primero que exista) | `clasificar(texto) -> {"categoria": peticion\|queja\|reclamo\|sugerencia, "confianza": 0–1, "version", "revisar": bool, "motivo"?, "responsable"?}` |
 

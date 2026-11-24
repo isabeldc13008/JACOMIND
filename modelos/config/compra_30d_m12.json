@@ -1,0 +1,51 @@
+{
+ "modelo_id": "compra_30d",
+ "version_protocolo": "m1.2-protocolo-v1",
+ "fijado_en": "2026-11-23",
+ "nota": "Protocolo M1.2 fijado antes de calcular cualquier resultado de la fusión. Un único cambio frente a M1: el ORDEN del cupo del piloto combina recencia y modelo. No cambia prob_compra_30d ni el orden contractual de C1, y no convierte un ranking en probabilidad. Conserva M1 y M1.1 con sus ejecuciones.",
+ "objetivo": "Ordenar, dentro de cada corte, a los clientes de recompra para un cupo fijo de seguimiento, de modo que el cupo contenga más compradores confirmados en (corte, corte + 30 días].",
+ "horizonte_dias": 30,
+ "origen_datos": "sintetico",
+ "version_variables": "compra_30d-variables-v1",
+ "regla_decision": "m1.2-decision-v1",
+ "formatos_artefacto": "jacomind.regresion_logistica.v1",
+ "cortes": {"desde": "2025-03-31", "hasta": "2026-09-30"},
+ "bloques": {"desarrollo": ["2025-03-01", "2026-06-30"], "comprobacion_historica": ["2026-07-01", "2026-09-30"]},
+ "validacion_temporal": {
+  "tipo": "origen_creciente_por_corte",
+  "origenes": ["2025-09-30", "2026-06-30"],
+  "regla_entrenamiento": "para el origen d se entrena con los cortes t del desarrollo con t + horizonte <= d; los clientes de un corte van juntos; transformaciones reajustadas en cada partición",
+  "entrenamiento_final": "cortes del desarrollo con t + horizonte <= 2026-07-31"
+ },
+ "modelo": {"familia": "logistica", "variables": ["recencia_dias", "frecuencia_30d", "frecuencia_90d", "historial_n"], "C": 10,
+            "solver": "lbfgs", "max_iter": 5000, "tol": 1e-10, "class_weight": null, "nota": "Especificación de M1 sin cambios; no hay búsqueda de hiperparámetros."},
+ "politica_orden": {
+  "id": "fusion_rangos_recencia_v1",
+  "definicion": "Dentro de cada corte: rR = posición por menor recencia (desempate cliente_id); rM = posición por mayor probabilidad del modelo (desempate cliente_id); orden por rR + rM ascendente, desempate por rR y después cliente_id.",
+  "parametros": "ninguno",
+  "alcance": "solo el orden del cupo del piloto en sombra; C1 conserva acción → probabilidad → ID"
+ },
+ "semilla": 20261123,
+ "comparadores": ["fusion", "recencia", "modelo_solo", "regla_30d"],
+ "referencias_comprobacion": ["v1_congelada", "m1_v2_congelado", "recencia", "regla_30d", "constante"],
+ "k": [10, 20],
+ "k_principal": 10,
+ "poblaciones_informe": ["elegible", "atendible_tras_prioridades_c1"],
+ "metas": {
+  "criterio_principal": "validacion_temporal_desarrollo",
+  "poblacion": "elegible",
+  "mejora_minima_precision_top10": 0.05,
+  "ic95_bootstrap_excluye_cero": true,
+  "comprobacion_sin_meses_con_perdida": 2,
+  "margen_rechazo_precision_top10": 0.05
+ },
+ "decision": {
+  "favorable": "En desarrollo: fusión ≥ recencia + 5 puntos de precisión media a 10 y el IC 95 % por remuestreo de clientes de esa diferencia excluye 0; y en la comprobación exploratoria ningún mes pierde 2 o más compradores frente a recencia.",
+  "rechazado": "En desarrollo: fusión ≤ recencia − 5 puntos.",
+  "inconcluso": "Cualquier otro caso. Con datos sintéticos el estado máximo es sombra; nada se promueve automáticamente."
+ },
+ "umbral": {"valor": 0.4, "politica": "umbral comercial vigente sin cambios"},
+ "disponible_desde": "2026-10-30",
+ "tolerancia_probabilidad": 1e-9,
+ "bootstrap": {"repeticiones": 1000, "semilla": 20261123}
+}

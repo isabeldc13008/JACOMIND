@@ -1,0 +1,59 @@
+{
+ "modelo_id": "compra_30d",
+ "version_protocolo": "m1.3-protocolo-v1",
+ "fijado_en": "2026-11-23",
+ "nota": "Protocolo M1.3 fijado antes de calcular resultados. Dos candidatos independientes, sin búsqueda de hiperparámetros: S (tiempo hasta la próxima compra) y P (ponderación temporal + ajuste de nivel). Cada uno tiene su propia regla de decisión. Conserva M1, M1.1 y M1.2.",
+ "objetivo": "Probabilidad de al menos una venta confirmada en (corte, corte + 30 días] para clientes de recompra; mismo objetivo, población y horizonte que M1.",
+ "horizonte_dias": 30,
+ "origen_datos": "sintetico",
+ "regla_decision": "m1.3-decision-v1",
+ "formatos_artefacto": ["jacomind.supervivencia.v1", "jacomind.regresion_logistica.v1"],
+ "cortes": {"desde": "2025-03-31", "hasta": "2026-09-30"},
+ "bloques": {"desarrollo": ["2025-03-01", "2026-06-30"], "comprobacion_historica": ["2026-07-01", "2026-09-30"]},
+ "validacion_temporal": {"tipo": "origen_creciente_por_corte", "origenes": ["2025-09-30", "2026-06-30"],
+  "regla": "en el origen d, S usa solo ventas con fecha <= d (no necesita etiquetas); P y el control entrenan con cortes t tales que t + horizonte <= d"},
+ "candidatos": {
+  "S": {
+   "nombre": "supervivencia_intervalos",
+   "hipotesis": "La probabilidad de recompra depende de cuánto dura ya el intervalo abierto frente a la distribución de intervalos del cliente y de la cartera.",
+   "version_variables": "compra_30d-intervalos-v1",
+   "metodo": "p = 1 - S(r+30)/S(r); S = (n S_cliente + k S_poblacion)/(n + k); S_poblacion de Kaplan–Meier con intervalos abiertos censurados; cola exponencial con la tasa media de los últimos 180 días",
+   "k_contraccion": 5,
+   "curva_final": "ventas con fecha <= primer corte de la comprobación (2026-07-31)",
+   "objetivo_principal": "ranking (cupo K=10)"
+  },
+  "P": {
+   "nombre": "ponderacion_temporal_y_nivel",
+   "hipotesis": "La tasa de compra cambia con el tiempo; dar más peso a los cortes recientes y alinear el nivel con el último corte maduro mejora la calidad de la probabilidad.",
+   "version_variables": "compra_30d-variables-v1",
+   "variables": ["recencia_dias", "frecuencia_30d", "frecuencia_90d", "historial_n"],
+   "C": 10,
+   "semivida_dias": 180,
+   "pesos": "w = 0,5^((t_max - t)/semivida) por corte t, con t_max el último corte de entrenamiento; transformaciones ajustadas sin pesos",
+   "ajuste_nivel": "b = logit(tasa observada en el último corte maduro) - logit(probabilidad media predicha en ese corte); se guarda como calibracion {a: 1, b}; conserva el orden",
+   "objetivo_principal": "calidad de la probabilidad"
+  }
+ },
+ "control": {"nombre": "control_m1_reentrenado", "variables": ["recencia_dias", "frecuencia_30d", "frecuencia_90d", "historial_n"], "C": 10,
+             "nota": "Especificación M1 sin pesos ni ajuste de nivel, reentrenada en cada origen"},
+ "descomposicion_informativa": ["P_solo_pesos", "P_solo_nivel"],
+ "estimador_logistica": {"solver": "lbfgs", "max_iter": 5000, "tol": 1e-10, "class_weight": null},
+ "semilla": 20261123,
+ "k": [10, 20],
+ "referencias_comprobacion": ["v1_congelada", "m1_v2_congelado", "recencia", "regla_30d", "constante"],
+ "poblaciones_informe": ["elegible", "atendible_tras_prioridades_c1"],
+ "metas": {
+  "S": {"criterio": "validación temporal de desarrollo, población elegible", "mejora_minima_precision_top10_vs_recencia": 0.05,
+        "ic95_bootstrap_excluye_cero": true, "margen_rechazo": 0.05, "comprobacion_sin_meses_con_perdida": 2},
+  "P": {"criterio": "validación temporal de desarrollo, población elegible", "log_loss_menor_que_control": true,
+        "brier_no_peor_que_control": true, "ic95_bootstrap_log_loss_excluye_cero": true}
+ },
+ "decision": {
+  "S": "favorable si mejora >= 5 puntos de precisión media a 10 frente a recencia con IC 95 % que excluye 0 y sin meses con pérdida de 2+ compradores en la comprobación; rechazado si <= -5 puntos; inconcluso en otro caso",
+  "P": "favorable si reduce el log loss frente al control con IC 95 % que excluye 0 y no empeora el Brier; rechazado si empeora el log loss con IC 95 % que excluye 0; inconcluso en otro caso"
+ },
+ "umbral": {"valor": 0.4, "politica": "umbral comercial vigente sin cambios"},
+ "disponible_desde": "2026-10-30",
+ "tolerancia_probabilidad": 1e-9,
+ "bootstrap": {"repeticiones": 1000, "semilla": 20261123}
+}

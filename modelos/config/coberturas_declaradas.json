@@ -1,0 +1,21 @@
+{
+ "nota": "Coberturas temporales declaradas para lotes concretos, identificados por las huellas SHA-256 de TODAS sus tablas de origen (manifiesto A01, source_hashes). Solo se aplican si las siete huellas coinciden; un lote distinto (p. ej. empresarial) debe declarar datos_observados_hasta en su manifiesto A01 o mediante --observado-hasta.",
+ "lotes": [
+  {
+   "nombre": "Green Services · paquete sintético de prueba",
+   "datos_observados_hasta": {"ventas": "2026-10-31"},
+   "fuente": "02_Documentacion/parametros_prueba.json (fecha_corte = 2026-10-31) y LEEME del paquete (enero de 2025 a octubre de 2026)",
+   "convencion_disponibilidad": "fecha_evento",
+   "origen_datos": "sintetico",
+   "huellas_origen": {
+    "clientes": "987405a5962165509ddf4204bc7802c411203ed075e922e3a3098b4abd904aec",
+    "productos": "22cd566d9da0fb16e35147f8ec278a3ee85f74de4952f9aa37f9bc03d9965938",
+    "proveedores": "2c95d0b27210d5d621340e8f49ad81b7597f6609630946e672e6dde4b8b67f76",
+    "trm": "d09d52e0377da76d4e76ba8f82c6b712f88861fd564ed3c12a6ce83688ca71d1",
+    "instalaciones": "789d4d8b259ad8a6d128b6998e46d0325909f8b39f07d137c131ce0285c6ca4a",
+    "ventas": "8f3ef3446c8419db69f178cb7ea870cd59743906e5a182b095a1258f5cccb67e",
+    "compras": "4d9a8d7b3c55b3ba95213d03157d303e488a8e08d249eef7c779e7d7ce825b93"
+   }
+  }
+ ]
+}

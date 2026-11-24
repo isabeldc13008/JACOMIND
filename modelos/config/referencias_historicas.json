@@ -1,0 +1,13 @@
+{
+ "nota": "Artefactos históricos verificados que pueden registrarse como operativos sin una aprobación empresarial nueva (excepción 'referencia_vigente'). La excepción se concede por HUELLA SHA-256 exacta del artefacto, no por el texto de la decisión ni por el nombre de versión. Añadir una entrada exige reproducir los controles de la referencia con 'python -m modelos.cli inicializar-referencia' y revisar el cambio en el repositorio.",
+ "referencias": [
+  {
+   "modelo_id": "compra_30d",
+   "artefacto_version": "A04-logistica-reglas-v1",
+   "artefacto_huella": "b6c3d4a83ad8d1fd26c820282d4b2aa4aa1295edbceebf72cce649c7aca81cfe",
+   "procedimiento": "inicializar-referencia",
+   "verificacion": "pipeline/modelo_compra.py sobre la revisión A01 aceptada del paquete sintético (huella de datos 6d338a2d42ea…): 1.382/240/360 fotografías, umbral 0,4, TP 120, TN 51, FP 177, FN 12, top 10 5/4/4; diferencia 0,0 entre artefacto JSON y fórmula original",
+   "verificada_en": "2026-11-23"
+  }
+ ]
+}

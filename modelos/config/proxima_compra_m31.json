@@ -1,0 +1,60 @@
+{
+ "modelo_id": "proxima_compra",
+ "version_protocolo": "m31-protocolo-v1",
+ "fijado_en": "2026-11-23",
+ "antecedente": "m3-protocolo-v1: Cox redujo el Brier integrado un 10,3 % frente a Kaplan-Meier, pero ninguna ventana p10-p90 fue utilizable (el 90 % no se alcanza en 60 días); decisión inconclusa",
+ "nota": "Protocolo M3.1 fijado ANTES de entrenar, tras conocer los resultados de M3 en validación y comprobación: ambos bloques ya fueron vistos, así que la comprobación es exploratoria y reutilizada. Cambia el producto (ventana de inicio probable p10-p50 y probabilidad acumulada a 15/30/60 días, decisión del responsable del proyecto) y afina Cox (curva base por grupo y ritmo relativo). Mismos datos, bloques, fronteras, horizonte, rejilla y referencias que M3.",
+ "objetivo": "Tiempo residual desde el corte C hasta la primera compra confirmada estrictamente posterior a C, con horizonte de 60 días y censura administrativa.",
+ "horizonte_dias": 60,
+ "origen_datos": "sintetico",
+ "regla_decision": "m31-decision-v1",
+ "version_variables": "proxima_compra-variables-v1",
+ "bloques": {
+  "ajuste": {"cortes": ["2025-03-01", "2026-02-28"], "seguimiento_hasta": "2026-04-29"},
+  "validacion": {"cortes": ["2026-04-01", "2026-05-31"], "seguimiento_hasta": "2026-07-30"},
+  "comprobacion_historica": {"cortes": ["2026-07-01", "2026-08-31"], "seguimiento_hasta": "2026-10-30"}
+ },
+ "seleccion_fecha": "2026-07-30",
+ "grupos": {"frio": "recencia >= 90", "ocasional": "recencia < 90 y menos de 3 días de compra distintos",
+            "reciente": "recencia < 30 y al menos 3 días de compra", "habitual": "recencia 30-89 y al menos 3 días de compra"},
+ "variables": ["recencia_dias", "dias_compra_90d", "dias_compra_180d", "dias_compra_distintos", "intervalo_mediano_dias",
+               "intervalo_dispersion_dias", "historia_insuficiente", "importe_cop_90d"],
+ "variables_m31": ["recencia_dias", "dias_compra_90d", "dias_compra_180d", "dias_compra_distintos", "intervalo_mediano_dias",
+                   "intervalo_dispersion_dias", "historia_insuficiente", "importe_cop_90d", "ratio_recencia_ciclo"],
+ "candidatos": {
+  "cox": {"variables": "variables", "alpha": [0.1, 1, 10, 100], "complejidad": 2, "descripcion": "Cox L2 sin estratos (como M3)"},
+  "cox_estratificado": {"variables": "variables_m31", "alpha": [0.1, 1, 10, 100], "complejidad": 3, "estrato": "grupo",
+                        "minimo_eventos_estrato": 30,
+                        "descripcion": "Cox L2 con coeficientes comunes y curva base de Breslow por grupo (reciente, habitual, ocasional, frío); verosimilitud parcial estratificada con empates de Breslow; penalización alpha·||w||²/2 sobre la log-verosimilitud total (misma semántica que scikit-survival 0.26)"}
+ },
+ "ajuste_numerico": {"metodo": "L-BFGS-B (scipy) con gradiente analítico", "gtol": 1e-10, "max_iter": 5000,
+                     "contraste": "con un único estrato debe reproducir CoxPHSurvivalAnalysis de scikit-survival"},
+ "candidato": {"ties": "breslow", "n_iter": 100, "tol": 1e-9, "estabilidad_bootstrap": 100, "semilla": 20261123},
+ "cuantiles": [0.1, 0.5, 0.9],
+ "ventana": {"limites": ["p10", "p50"], "ancho_maximo_dias": 30, "cobertura_nominal": 0.4,
+             "utilizable": "p10 y p50 existen dentro del soporte y p50 - p10 <= 30 (ventana de inicio probable)"},
+ "probabilidades_acumuladas_dias": [15, 30, 60],
+ "rejilla_metrica": {"regla": "igual que M3", "minimo_puntos": 30},
+ "seleccion": {"bloque": "validacion", "criterio": "Brier integrado IPCW menor en la rejilla común; Cox solo si mejora a Kaplan-Meier",
+               "desempate": "Kaplan-Meier, después cox, después cox_estratificado; dentro de cada familia, mayor alpha", "tolerancia": 1e-9},
+ "metricas": {"principal": "Brier integrado IPCW frente a Kaplan-Meier global",
+              "bootstrap": {"repeticiones": 1000, "semilla": 20261123, "unidad": "cliente completo"}},
+ "minimos_evidencia": {"filas": 150, "eventos": 50, "eventos_por_corte": 20, "puntos_rejilla": 30, "eventos_comunes_personal": 20, "ventanas_determinadas": 30},
+ "metas": {
+  "reduccion_relativa_ibs_vs_km": 0.05,
+  "ic95_diferencia_ibs_bajo_cero": true,
+  "error_mediano_no_peor_que_personal": true,
+  "proporcion_ventanas_utilizables_elegibles": 0.5,
+  "cobertura_nominal_ventana": 0.4,
+  "cobertura_ic95_compatible": "el IC 95 % de la cobertura p10-p50 contiene 0,40",
+  "calibracion_acumulada_max_error": 0.05
+ },
+ "decision": {
+  "bloque": "comprobacion_historica",
+  "favorable": "mínimos cumplidos y todas las metas; con datos sintéticos ya vistos solo habilita sombra y el piloto prospectivo",
+  "rechazado": "IC 95 % de (IBS candidato − IBS Kaplan-Meier) entero por encima de 0, o IC 95 % de la cobertura p10-p50 entero fuera de 0,40 con mínimos cumplidos",
+  "inconcluso": "cualquier otro caso"
+ },
+ "disponible_desde": "2026-10-31",
+ "tolerancia_equivalencia": 1e-9
+}

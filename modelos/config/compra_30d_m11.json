@@ -1,0 +1,81 @@
+{
+ "modelo_id": "compra_30d",
+ "version_protocolo": "m1.1-protocolo-v1",
+ "fijado_en": "2026-11-23",
+ "nota": "Protocolo M1.1 fijado antes de ajustar cualquier candidato. No sustituye al protocolo M1 (m1-protocolo-v1), que se conserva con sus ejecuciones. Cualquier cambio crea una versión nueva y exige otra comprobación.",
+ "objetivo": "Probabilidad de al menos una venta confirmada en (corte, corte + 30 días] para clientes dados de alta al corte con al menos una venta confirmada hasta el corte (recompra). Mismo objetivo, población y horizonte que M1.",
+ "horizonte_dias": 30,
+ "origen_datos": "sintetico",
+ "version_variables": "compra_30d-variables-v2",
+ "regla_decision": "m1.1-decision-v1",
+ "formatos_artefacto": ["jacomind.regresion_logistica.v1", "jacomind.gradient_boosting.v1"],
+ "cobertura": {"datos_observados_hasta": "2026-10-31", "fuente": "declaración registrada del paquete sintético (coberturas_declaradas.json)", "convencion_disponibilidad": "fecha_evento"},
+ "cortes": {"desde": "2025-03-31", "hasta": "2026-09-30"},
+ "bloques": {
+  "desarrollo": ["2025-03-01", "2026-06-30"],
+  "comprobacion_historica": ["2026-07-01", "2026-09-30"]
+ },
+ "validacion_temporal": {
+  "tipo": "origen_creciente_por_corte",
+  "origenes": ["2025-09-30", "2026-06-30"],
+  "regla_entrenamiento": "para el origen d se entrena con los cortes t del desarrollo tales que t + horizonte <= d (etiquetas maduras antes de predecir); todas las filas de un mismo corte van juntas",
+  "entrenamiento_final": "cortes del desarrollo con t + horizonte <= primer corte de la comprobación histórica (2026-07-31)"
+ },
+ "variables": {
+  "base_m1": ["recencia_dias", "frecuencia_30d", "frecuencia_90d", "historial_n"],
+  "ciclo": ["ratio_recencia_ciclo", "desfase_ciclo_dias", "cv_intervalos", "ciclo_insuficiente"],
+  "cambio": ["ritmo_90_vs_previo", "cambio_intervalo_rel", "operaciones_por_dia", "cambio_insuficiente"],
+  "excluidas": {
+   "producto": ["dias_desde_recurrente", "margen_vigencia_dias", "sin_recurrente", "ciclo_x_recurrente"],
+   "motivo_producto": "Dependen de tipo y vigencia del catálogo; productos.csv no tiene fechas de validez y no puede demostrarse qué atributos se conocían en cada corte.",
+   "coberturas_base_instalada": "base_instalada.csv es una tabla de estado actual (fecha_fin puede reflejar renovaciones posteriores); su disponibilidad histórica no es reconstruible.",
+   "senales_comerciales": "No existen fuentes de cotizaciones, renovaciones gestionadas, oportunidades ni solicitudes con historial (ver docs/plan/modelos/m1.1-senales-comerciales.md)."
+  }
+ },
+ "combinaciones": {
+  "base_ciclo": ["recencia_dias", "frecuencia_30d", "frecuencia_90d", "historial_n", "ratio_recencia_ciclo", "desfase_ciclo_dias", "cv_intervalos", "ciclo_insuficiente"],
+  "base_cambio": ["recencia_dias", "frecuencia_30d", "frecuencia_90d", "historial_n", "ritmo_90_vs_previo", "cambio_intervalo_rel", "operaciones_por_dia", "cambio_insuficiente"],
+  "base_ciclo_cambio": ["recencia_dias", "frecuencia_30d", "frecuencia_90d", "historial_n", "ratio_recencia_ciclo", "desfase_ciclo_dias", "cv_intervalos", "ciclo_insuficiente", "ritmo_90_vs_previo", "cambio_intervalo_rel", "operaciones_por_dia", "cambio_insuficiente"]
+ },
+ "control": {"nombre": "control_m1_reentrenado", "familia": "logistica", "combinacion_variables": ["recencia_dias", "frecuencia_30d", "frecuencia_90d", "historial_n"], "C": 10, "nota": "Misma especificación que M1 v2, reentrenada con el esquema M1.1: separa el efecto de más datos del de las variables nuevas."},
+ "familias": {
+  "logistica": {"estimador": "sklearn.linear_model.LogisticRegression", "penalizacion": "l2", "solver": "lbfgs", "max_iter": 5000, "tol": 1e-10, "class_weight": null, "C": [0.1, 1, 10]},
+  "boosting": {"estimador": "sklearn.ensemble.GradientBoostingClassifier", "loss": "log_loss", "max_depth": [2], "n_estimators": [50, 150], "learning_rate": [0.05], "min_samples_leaf": [20, 60], "subsample": 1.0, "parada_temprana": "ninguna (n_estimators fijo de la rejilla; no se usa partición interna aleatoria)"}
+ },
+ "semilla": 20261123,
+ "seleccion": {
+  "poblacion": "toda la población elegible (recompra)",
+  "metrica": "precision_media_top10 sobre los orígenes de la validación temporal",
+  "desempates": ["average_precision_media desc", "log_loss asc", "n_variables asc", "familia (logistica antes que boosting)", "complejidad asc (C menor; menos árboles; hojas mayores)"],
+  "alcance": "se elige un candidato por familia y un candidato global; solo el global se somete a las metas"
+ },
+ "calibracion": {
+  "metodo": "sigmoide (Platt) sobre el puntaje bruto z: p = sigmoide(a z + b), con a > 0",
+  "datos": "predicciones fuera de muestra de la validación temporal (cada fila predicha por un modelo entrenado sin ella y con etiquetas maduras antes de su corte)",
+  "evaluacion_en_desarrollo": "para cada origen d de los seis últimos, calibrador ajustado con predicciones de orígenes o tales que o + horizonte <= d",
+  "soporte_minimo": {"filas": 300, "positivos": 50, "negativos": 50, "cortes": 4},
+  "decision": "se calibra el candidato si, en desarrollo, la calibración reduce el log loss conjunto y hay soporte; si no, se conserva la probabilidad sin calibrar",
+  "nunca": "no se calibra con la comprobación histórica"
+ },
+ "umbral": {"valor": 0.4, "politica": "umbral comercial vigente sin cambios (no se reajusta en M1.1)", "experimento_cupo": "la política por cupo K se informa por separado como reducción de carga, no como mejora predictiva"},
+ "k": [10, 20],
+ "k_principal": 10,
+ "referencias": ["v1_congelada", "m1_v2_congelado", "recencia", "regla_30d", "constante"],
+ "poblaciones_informe": ["elegible", "atendible_tras_prioridades_c1"],
+ "metas": {
+  "poblacion": "elegible",
+  "mejora_minima_precision_top10": 0.05,
+  "compradores_perdidos_mes_revisar": 2,
+  "brier_no_peor_que_constante": true,
+  "log_loss_no_peor_que_m1_v2": true,
+  "margen_rechazo_precision_top10": 0.05
+ },
+ "decision": {
+  "favorable": "Cumple todas las metas en la comprobación histórica (exploratoria).",
+  "rechazado": "Precisión media a 10 inferior a la de recencia en el margen de rechazo o más, o Brier peor que la tasa constante.",
+  "inconcluso": "Cualquier otro caso. Con datos sintéticos el estado máximo es sombra y ningún candidato se promueve automáticamente."
+ },
+ "disponible_desde": "2026-10-30",
+ "tolerancia_probabilidad": 1e-9,
+ "bootstrap": {"repeticiones": 1000, "semilla": 20261123}
+}

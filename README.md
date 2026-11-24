@@ -6,6 +6,8 @@
 
 [Plan de mejora de las vistas por perfil](docs/plan/mejora-de-vistas.md)
 
+[Planes detallados del modelo de compra y cinco modelos adicionales](docs/plan/modelos/README.md)
+
 ## Arranque rápido
 
 Requiere Python 3.10 o superior. La aplicación y la API usan solo la biblioteca estándar.
@@ -31,6 +33,38 @@ Cierre mensual completo (A01→A09 → C2 → validación → publicación):
 
 ```bash
 python -m api cierre --corte 2026-10-31 --datos ../Green_Services_Recursos_de_Prueba
+```
+
+## Demostración de los modelos de IA
+
+Con el paquete de práctica junto al clon (o con `JACOMIND_DATOS`) y los modelos ya entrenados y evaluados:
+
+```
+python -m modelos.cli resumen-ia                       # resultados de los modelos para la página «Modelos de IA»
+python -m api demo --sin-cierre                        # base con identidades ficticias
+python -m api cierre --corte 2026-10-31 --datos ../Green_Services_Recursos_de_Prueba   # agenda con el modelo de compra operativo (M1.3 «P»)
+python -m api sombra salida/sombra/inactividad_60d_m21/2026-10-31-con-resumen          # lista de prevención (M2.1, experimental)
+python -m api sombra salida/sombra/proxima_compra_m31/2026-10-31                       # ventana de próxima compra (M3.1, experimental)
+python -m api sombra salida/sombra/venta_cruzada/2026-10-31                            # venta cruzada (M4: popularidad filtrada, experimental)
+python -m api sombra salida/sombra/demanda/2026-10                                     # pronóstico de demanda a 1-3 meses (M5, experimental)
+python -m api sombra salida/sombra/anomalias_m61/2026-10-31                            # cola de operaciones atípicas (M6.1, experimental)
+python -m api servir
+```
+
+Con un perfil interno, la aplicación muestra:
+
+- **Modelos de IA** (`#/ia`): qué estima cada modelo y cómo se compara con las reglas.
+- **Prevención (IA)** (`#/prevencion`): la lista de riesgo de inactividad.
+- **Próxima compra (IA)** (`#/proxima`): ventanas de inicio probable y probabilidad de compra a 15, 30 y 60 días.
+- **Venta cruzada (IA)** (`#/venta-cruzada`): hasta tres productos complementarios por cliente, con evidencia, compatibilidad por revisar, decisiones de Ventas (aceptar, aplazar o descartar con motivo) y la muestra de revisión comercial.
+- **Pronóstico (IA)** (`#/demanda`): proyección a 1, 2 y 3 meses por familia (COP, Finanzas y Gerencia) y por producto (unidades, también Operaciones), con su error histórico y bandas cuando hay soporte.
+- **Operaciones atípicas (IA)** (`#/anomalias`): cola de revisión de ventas y compras con valor observado frente a referencia, motivos, soporte, cupo y exceso, historial y decisiones humanas (Operaciones y Finanzas; importe COP solo para Finanzas y Gerencia).
+- **Ficha del cliente**: todas las estimaciones juntas (compra a 30 días, riesgo de inactividad, ventana de próxima compra y venta cruzada).
+
+Los resultados vienen de datos sintéticos y son orientativos (ver `docs/modelo-compra.md`, `docs/modelo-inactividad.md`, `docs/modelo-proxima-compra.md`, `docs/modelo-venta-cruzada.md`, `docs/modelo-demanda.md` y `docs/modelo-anomalias.md`). El modelo de compra está operativo en **modo demostración**. Para volver a la versión original:
+
+```
+python -m modelos.cli revertir --estado operativo --a v1
 ```
 
 ## Despliegue
