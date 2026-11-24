@@ -1,20 +1,35 @@
 <!doctype html>
-<html lang="es">
+<html lang="es" data-theme="light" data-tamano="normal">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>JACOMIND</title>
+  <script src="preferencias.js"></script>
   <link rel="stylesheet" href="estilos.css">
 </head>
 <body>
+  <a class="saltar" href="#vista" id="saltar">Saltar al contenido</a>
   <header class="barra">
-    <a class="marca" href="#/agenda">JACOMIND</a>
-    <nav id="menu" aria-label="Secciones"></nav>
+    <button type="button" class="boton-menu" id="boton-menu" aria-expanded="false" aria-controls="menu">
+      <svg class="icono" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>Menú</button>
+    <a class="marca" href="#/inicio">
+      <svg class="icono" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 18 9.5 11l4 4L20 6"/><path d="M15 6h5v5"/></svg>JACOMIND</a>
     <div class="origen" id="origen" aria-live="polite"></div>
-    <div id="sesion"></div>
+    <div class="cabecera-acciones">
+      <a class="boton-sec oculto" id="ir-asistente" href="#/asistente">
+        <svg class="icono" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 6h14v9.5H10l-4 3.5v-3.5H5z"/><path d="M9 10.5h.01M12 10.5h.01M15 10.5h.01"/></svg>Asistente</a>
+      <details class="preferencias" id="preferencias">
+        <summary><svg class="icono" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 19 9 5l5 14M6 14h6M15 19l3-8 3 8M16 16.5h4"/></svg>Letra y colores</summary>
+        <div class="panel-preferencias" id="panel-preferencias"></div>
+      </details>
+      <div id="sesion" class="fila"></div>
+    </div>
   </header>
-  <main id="vista" tabindex="-1"></main>
-  <footer class="pie">Datos y resultados de prueba sintéticos. Las recomendaciones requieren decisión humana.</footer>
+  <div class="marco">
+    <nav id="menu" class="lateral" aria-label="Áreas de trabajo"></nav>
+    <main id="vista" tabindex="-1"></main>
+    <footer class="pie">Datos y resultados de prueba sintéticos: no corresponden a clientes reales. Las sugerencias de los modelos requieren decisión humana.</footer>
+  </div>
   <script type="module" src="app.js"></script>
 </body>
 </html>

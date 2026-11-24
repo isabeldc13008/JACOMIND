@@ -1,105 +1,145 @@
-// Venta cruzada (M4): recomendaciones EXPERIMENTALES para revisión de Ventas. No son ofertas, no cambian la agenda y
-// no muestran porcentajes: el modelo publica un puntaje de ranking sin calibrar.
-import { $vista, api, errorHtml, esc, estadoHtml, fechaLarga, nuevoTurno, num, plural, puede, ruta, ir, vigente } from "../nucleo.js";
-import { detalleTecnico, respuesta } from "../ui.js";
+// V09 Productos que podrías ofrecer (M4, en prueba): sugerencias para revisión de Ventas. No son ofertas ni mensajes, no
+// cambian la cartera y no muestran porcentajes: el modelo publica un orden sin calibrar.
+import { $vista, S, api, clave, errorHtml, esc, estadoHtml, fechaLarga, ir, nuevoTurno, num, plural, puede, ruta, vigente } from "../nucleo.js";
+import { avisoPrueba, ctxDatos, detalleTecnico, encabezado, enPrueba, hallazgo, pestanas, vacio } from "../ui.js";
 
 const COMPAT = { confirmada: "Compatibilidad confirmada", pendiente_revision: "Compatibilidad por revisar" };
 const EPISODIO = { en_revision: "En revisión", aceptada: "Aceptada", aplazada: "Aplazada", descartada: "Descartada (no se reabre)", cerrada_compra: "Cerrada: compra posterior observada" };
 const ESTADOS_REV = { pertinente: "Pertinente", ya_cubierto: "Ya cubierto", incompatible: "Incompatible", sin_necesidad: "Sin necesidad identificada", informacion_insuficiente: "Información insuficiente" };
 const COBERTURA = { sin_candidatos: "Sin candidatos", sin_historial: "Sin historial", no_elegible: "No elegible" };
+const ACCIONES = [["revisar", "Marcar en revisión"], ["aceptar", "Aceptar la sugerencia"], ["aplazar", "Aplazar"], ["descartar", "Descartar"]];
+const TITULO = "Productos que podrías ofrecer";
 
-function accionesHtml(i) {
+function decisionHtml(i) {
   const cerrado = i.episodio && ["descartada", "cerrada_compra"].includes(i.episodio.estado);
-  if (!puede("venta_cruzada.decidir") || cerrado) return "";
-  const id = `${i.cliente_id}-${i.producto_id}`;
-  return `<form class="vc-decision filtros" data-cliente="${esc(i.cliente_id)}" data-producto="${esc(i.producto_id)}" aria-label="Decisión sobre ${esc(i.producto_nombre)} para ${esc(i.cliente_id)}">
-    <label>Acción <select name="accion" id="acc-${esc(id)}"><option value="revisar">Marcar en revisión</option><option value="aceptar">Aceptar</option>
-      <option value="aplazar">Aplazar</option><option value="descartar">Descartar</option></select></label>
-    <label>Motivo <input name="motivo" required maxlength="300" placeholder="Por qué"></label><button>Guardar</button></form>`;
+  const estado = i.episodio ? `<p><strong>Decisión registrada:</strong> ${esc(EPISODIO[i.episodio.estado] || i.episodio.estado)}${i.episodio.motivo ? ` · ${esc(i.episodio.motivo)}` : ""}</p>` : '<p class="muted">Sin decisión registrada.</p>';
+  if (!puede("venta_cruzada.decidir") || cerrado) return estado + (!puede("venta_cruzada.decidir") ? '<p class="muted">Tu perfil puede consultar, no decidir.</p>' : "");
+  const id = `${i.cliente_id}-${i.producto_id}`.replace(/[^\w-]/g, "");
+  return `${estado}<form class="vc-decision filtros" data-cliente="${esc(i.cliente_id)}" data-producto="${esc(i.producto_id)}" aria-label="Decisión sobre ${esc(i.producto_nombre)} para ${esc(i.cliente_id)}" novalidate>
+    <label for="acc-${id}">Decisión <select name="accion" id="acc-${id}">${ACCIONES.map(([k, t]) => `<option value="${k}">${t}</option>`).join("")}</select></label>
+    <label for="mot-${id}">Motivo <span class="ayuda">Obligatorio. Por ejemplo: ya lo usa otro proveedor.</span><input name="motivo" id="mot-${id}" required maxlength="300" aria-describedby="err-mot-${id}"><span class="error-campo" id="err-mot-${id}"></span></label>
+    <button>Guardar la decisión</button></form>
+    <p class="muted">Aceptar registra tu decisión; no envía una oferta ni un mensaje al cliente, y no cuenta como venta.</p>`;
 }
 
-function itemHtml(i, conCliente = true) {
-  return `<tr>${conCliente ? `<td>${puede("cartera.ver") ? `<a href="#/clientes/${encodeURIComponent(i.cliente_id)}">${esc(i.cliente_id)}</a>` : esc(i.cliente_id)}</td>` : ""}
-    <td class="n">${num(i.posicion)}</td><td><strong>${esc(i.producto_nombre)}</strong><div class="muted">${esc(i.producto_id)}</div></td>
-    <td>${esc(i.origen_texto)}</td>
-    <td><span class="chip${i.estado_compatibilidad === "confirmada" ? " fuerte" : ""}">${esc(COMPAT[i.estado_compatibilidad] || i.estado_compatibilidad)}</span></td>
-    <td class="muted">${(i.motivos || []).map(esc).join("<br>")}</td>
-    <td>${i.episodio ? esc(EPISODIO[i.episodio.estado] || i.episodio.estado) + (i.episodio.motivo ? `<div class="muted">${esc(i.episodio.motivo)}</div>` : "") : '<span class="muted">Sin decisión</span>'}
-      ${accionesHtml(i)}</td></tr>`;
+function tarjeta(i) {
+  return `<article class="tarjeta-caso"><h3>${num(i.posicion)}. ${esc(i.producto_nombre)} <span class="muted">${esc(i.producto_id)}</span></h3>
+    <p><span class="sello ${i.estado_compatibilidad === "confirmada" ? "sello-ok" : "sello-prueba"}">${esc(COMPAT[i.estado_compatibilidad] || i.estado_compatibilidad)}</span></p>
+    <dl class="comparacion"><div><dt>Por qué se sugiere</dt><dd>${esc(i.origen_texto)}</dd></div><div><dt>Clientes que lo compraron</dt><dd>${num(i.soporte)}</dd></div></dl>
+    <ul>${(i.motivos || []).map(m => `<li>${esc(m)}</li>`).join("")}</ul>
+    <div class="decision" data-msg>${decisionHtml(i)}</div></article>`;
 }
 
 /** Bloque para la ficha: productos sugeridos con evidencia y compatibilidad; separado de recompra y renovación. */
 export function ventaCruzadaFichaHtml(s) {
   if (!s) return "";
-  const vacio = s.cobertura && s.cobertura.estado !== "con_recomendaciones"
-    ? `<p>${esc(COBERTURA[s.cobertura.estado] || s.cobertura.estado)}: ${esc(s.cobertura.motivo || "")}</p>` : "";
-  return `<section class="panel"><h2>Venta cruzada <span class="chip">IA · experimental</span></h2><div id="msg-vc" role="status"></div>
-    ${s.items.length ? `<div class="tabla"><table><tr><th class="n">#</th><th>Producto sugerido</th><th>Origen</th><th>Compatibilidad</th><th>Evidencia</th><th>Decisión</th></tr>
-      ${s.items.map(i => itemHtml(i, false)).join("")}</table></div>` : vacio || '<p class="muted">Sin recomendaciones para este cliente.</p>'}
-    <p class="muted">Corte del ${esc(fechaLarga(s.corte))} · ${esc(s.estado_experimento)}. ${esc(s.nota)} Los productos ya adquiridos se atienden como recompra o renovación en la agenda.</p></section>`;
+  const vacioTxt = s.cobertura && s.cobertura.estado !== "con_recomendaciones" ? `${esc(COBERTURA[s.cobertura.estado] || s.cobertura.estado)}: ${esc(s.cobertura.motivo || "")}` : "Sin sugerencias para este cliente.";
+  return `<section class="panel"><h2>Productos que podrías ofrecer ${enPrueba()}</h2><div id="msg-vc" role="status"></div>
+    ${s.items.length ? s.items.map(tarjeta).join("") : vacio(vacioTxt)}
+    <p class="muted">Datos hasta el ${esc(fechaLarga(s.corte))} · ${esc(s.estado_experimento)}. ${esc(s.nota)} Los productos que ya tiene se atienden como recompra o renovación en la cartera.</p></section>`;
 }
 
 function revisionHtml(r) {
-  if (!r || r.estado !== "ok") return "";
+  if (!r || r.estado !== "ok") return vacio("La publicación no incluye una muestra para la evaluación comercial.");
   const res = r.resumen;
-  const pct = x => x == null ? "—" : `${Math.round(x * 100)} %`;
+  const pc = x => x == null ? "no estimable" : `${Math.round(x * 100)} %`;
   const puedeRevisar = puede("venta_cruzada.revisar");
-  return `<section class="panel"><h2>Revisión comercial de la muestra</h2>
-    <p>${num(res.revisados)} de ${num(res.total_muestra)} pares revisados (${num(res.pendientes)} pendientes). Pertinencia entre casos evaluables: <strong>${pct(res.pertinencia_entre_evaluables)}</strong>
-      (${num(res.por_estado.pertinente)} de ${num(res.evaluables)}; meta 80 %). Información insuficiente: ${num(res.por_estado.informacion_insuficiente)}.</p>
+  return `<p>${num(res.revisados)} de ${num(res.total_muestra)} sugerencias revisadas (${num(res.pendientes)} pendientes). Pertinentes entre las que se pudieron evaluar: <strong>${pc(res.pertinencia_entre_evaluables)}</strong>
+      (${num(res.por_estado.pertinente)} de ${num(res.evaluables)}; la meta acordada es 80 %). Información insuficiente: ${num(res.por_estado.informacion_insuficiente)}.</p>
     <p class="muted">${esc(res.nota)} Muestra: ${esc(r.criterio.criterio || "")} · semilla ${esc(String(r.criterio.semilla))} · ${esc(r.criterio.universo || "")}.</p>
-    <div class="tabla"><table><tr><th>Cliente</th><th>Producto</th><th>Familia</th><th class="n">Tercil</th><th>Revisión</th></tr>
-    ${r.pares.map(p => `<tr><td>${esc(p.cliente_id)}</td><td>${esc(p.producto_id)}</td><td>${esc(p.familia)}</td><td class="n">${num(p.tercil_puntaje)}</td>
-      <td>${p.revision ? `${esc(ESTADOS_REV[p.revision.estado_revision])} · ${esc(p.revision.revisor)} · ${esc(fechaLarga(p.revision.fecha.slice(0, 10)))}<div class="muted">${esc(p.revision.motivo)}</div>` : '<span class="muted">Pendiente</span>'}
-      ${puedeRevisar ? `<form class="vc-revision filtros" data-cliente="${esc(p.cliente_id)}" data-producto="${esc(p.producto_id)}" aria-label="Revisar ${esc(p.producto_id)} para ${esc(p.cliente_id)}">
-        <label>Estado <select name="estado">${Object.entries(ESTADOS_REV).map(([k, v]) => `<option value="${k}">${esc(v)}</option>`).join("")}</select></label>
-        <label>Motivo <input name="motivo" required maxlength="300"></label><label>Evidencia <input name="evidencia" maxlength="300"></label><button>Registrar</button></form>` : ""}</td></tr>`).join("")
-      || '<tr><td colspan=5 class="muted">La publicación no incluye muestra de revisión.</td></tr>'}</table></div></section>`;
+    <div class="tabla"><table class="apilable"><thead><tr><th scope="col">Cliente</th><th scope="col">Producto</th><th scope="col">Familia</th><th scope="col" class="n">Grupo de puntaje</th><th scope="col">Revisión</th></tr></thead><tbody>
+    ${r.pares.map(p => `<tr><td data-et="Cliente">${esc(p.cliente_id)}</td><td data-et="Producto">${esc(p.producto_id)}</td><td data-et="Familia">${esc(p.familia)}</td><td class="n" data-et="Grupo de puntaje">${num(p.tercil_puntaje)} de 3</td>
+      <td data-et="Revisión">${p.revision ? `${esc(ESTADOS_REV[p.revision.estado_revision])} · ${esc(p.revision.revisor)} · ${esc(fechaLarga(p.revision.fecha.slice(0, 10)))}<span class="muted">${esc(p.revision.motivo)}</span>` : '<span class="muted">Pendiente</span>'}
+      ${puedeRevisar ? `<form class="vc-revision filtros" data-cliente="${esc(p.cliente_id)}" data-producto="${esc(p.producto_id)}" aria-label="Revisar ${esc(p.producto_id)} para ${esc(p.cliente_id)}" novalidate>
+        <label>Resultado <select name="estado">${Object.entries(ESTADOS_REV).map(([k, v]) => `<option value="${k}">${esc(v)}</option>`).join("")}</select></label>
+        <label>Motivo <input name="motivo" required maxlength="300"><span class="error-campo"></span></label><label>Evidencia (opcional) <input name="evidencia" maxlength="300"></label><button>Registrar revisión</button></form>` : ""}</td></tr>`).join("")
+      || '<tr><td colspan=5 class="muted">La publicación no incluye muestra de revisión.</td></tr>'}</tbody></table></div>`;
 }
 
-/** Activa los formularios de decisión y revisión dentro de ``raiz``; ``alTerminar`` vuelve a pintar la vista. */
+/** Activa los formularios de decisión y revisión dentro de ``raiz``; ``alTerminar`` vuelve a pintar con el estado confirmado. */
 export function activarVentaCruzada(raiz, alTerminar) {
-  const msg = () => raiz.querySelector("#msg-vc");
-  const enviar = (fm, ruta, cuerpo) => fm.addEventListener("submit", async e => {
+  const enviar = (fm, ruta, cuerpo, ok) => fm.addEventListener("submit", async e => {
     e.preventDefault();
-    try { await api("POST", ruta, cuerpo(new FormData(fm))); alTerminar(); }
-    catch (err) { const m = msg(); if (m) m.innerHTML = errorHtml(err); }
+    const motivo = fm.querySelector("[name=motivo]"), err = fm.querySelector(".error-campo");
+    if (!motivo.value.trim()) { motivo.setAttribute("aria-invalid", "true"); if (err) err.textContent = "Escribe el motivo."; motivo.focus(); return; }
+    motivo.setAttribute("aria-invalid", "false"); if (err) err.textContent = "";
+    const btn = fm.querySelector("button"); btn.disabled = true; btn.textContent = "Guardando…";
+    const msg = fm.closest("[data-msg]") || raiz.querySelector("#msg-vc");
+    try {
+      await api("POST", ruta, { ...cuerpo(new FormData(fm)), __clave: fm.dataset.clave ||= clave() });
+      await alTerminar();
+      const m = raiz.querySelector("#msg-vc"); if (m) { m.innerHTML = `<div class="estado ok"><strong>${esc(ok)}</strong> Queda registrada con tu nombre y la hora.</div>`; m.scrollIntoView({ block: "nearest" }); }
+    } catch (er) {
+      msg?.insertAdjacentHTML("afterbegin", errorHtml(er));
+      btn.disabled = false; btn.textContent = "Volver a intentar";
+    }
   });
   raiz.querySelectorAll("form.vc-decision").forEach(fm => enviar(fm, "/api/venta-cruzada/decision",
-    fd => ({ cliente_id: fm.dataset.cliente, producto_id: fm.dataset.producto, accion: fd.get("accion"), motivo: fd.get("motivo") })));
+    fd => ({ cliente_id: fm.dataset.cliente, producto_id: fm.dataset.producto, accion: fd.get("accion"), motivo: fd.get("motivo").trim() }), "Decisión guardada."));
   raiz.querySelectorAll("form.vc-revision").forEach(fm => enviar(fm, "/api/venta-cruzada/revision",
-    fd => ({ cliente_id: fm.dataset.cliente, producto_id: fm.dataset.producto, estado: fd.get("estado"), motivo: fd.get("motivo"), evidencia: fd.get("evidencia") || null })));
+    fd => ({ cliente_id: fm.dataset.cliente, producto_id: fm.dataset.producto, estado: fd.get("estado"), motivo: fd.get("motivo").trim(), evidencia: fd.get("evidencia") || null }), "Revisión registrada."));
 }
 
 export async function vistaVentaCruzada() {
   const { q } = ruta();
-  const filtro = q.get("compatibilidad") || "";
+  const filtro = q.get("compatibilidad") || "", seccion = q.get("seccion") === "evaluacion" ? "evaluacion" : "propuestas";
+  const busca = (q.get("buscar") || "").toUpperCase();
   const turno = nuevoTurno();
-  $vista.innerHTML = estadoHtml("", "Cargando recomendaciones…");
+  if (!$vista.querySelector("#lista-clientes-vc")) $vista.innerHTML = `${encabezado({ titulo: TITULO, estado: enPrueba() })}${estadoHtml("", "Cargando sugerencias…")}`;
   let d, r;
   try {
-    [d, r] = await Promise.all([api("GET", `/api/venta-cruzada${filtro ? `?compatibilidad=${encodeURIComponent(filtro)}` : ""}`), api("GET", "/api/venta-cruzada/revision")]);
-  } catch (e) { if (vigente(turno)) $vista.innerHTML = errorHtml(e); return; }
+    [d, r] = await Promise.all([api("GET", `/api/venta-cruzada${filtro ? `?compatibilidad=${encodeURIComponent(filtro)}` : ""}`), api("GET", "/api/venta-cruzada/revision").catch(() => null)]);
+  } catch (e) { if (vigente(turno)) $vista.innerHTML = `${encabezado({ titulo: TITULO, estado: enPrueba() })}${errorHtml(e, { reintentar: true })}`; return; }
   if (!vigente(turno)) return;
   if (d.estado === "sin_sombra") {
-    $vista.innerHTML = `<h1>Venta cruzada <span class="chip">IA · experimental</span></h1>${estadoHtml("", d.mensaje)}<p class="muted">${esc(d.nota)}</p>`;
+    $vista.innerHTML = `${encabezado({ titulo: TITULO, estado: enPrueba() })}${vacio("Sugerencias no disponibles: no hay una publicación en prueba de este modelo.", esc(d.mensaje))}<p class="muted">${esc(d.nota)}</p>`;
     return;
   }
   const s = d.sombra, c = d.conteos || {};
-  $vista.innerHTML = `<h1>Venta cruzada <span class="chip">IA · experimental</span></h1>
-  ${respuesta(`<strong>${plural(d.items.length, "propuesta", "propuestas")} de producto complementario</strong> para revisión de Ventas, al corte del ${esc(fechaLarga(s.corte))}.`,
-    `${esc(s.estado_experimento)} · ${plural(d.compatibilidad_pendiente, "propuesta", "propuestas")} con compatibilidad por revisar.`)}
-  <p class="muted">${esc(d.nota)} ${esc(d.separacion)} Seguimientos automáticos: ${d.tareas_automaticas ? "activados" : "desactivados"}.</p>
-  <form class="filtros" id="f"><label>Compatibilidad <select name="compatibilidad"><option value="">Todas</option>
-    <option value="pendiente_revision"${filtro === "pendiente_revision" ? " selected" : ""}>Por revisar</option><option value="confirmada"${filtro === "confirmada" ? " selected" : ""}>Confirmada</option></select></label><button>Filtrar</button></form>
-  <div id="msg-vc" role="status"></div>
-  <div class="tabla"><table><caption class="muted">Hasta tres productos por cliente, en orden de posición</caption>
-  <tr><th>Cliente</th><th class="n">#</th><th>Producto sugerido</th><th>Origen</th><th>Compatibilidad</th><th>Evidencia</th><th>Decisión</th></tr>
-  ${d.items.map(i => itemHtml(i)).join("") || '<tr><td colspan=7 class="muted">No hay propuestas con este filtro.</td></tr>'}</table></div>
-  <section class="panel"><h2>Clientes sin recomendación</h2><p>${num(c.con_recomendaciones || 0)} con propuestas, ${num(c.sin_candidatos || 0)} sin candidatos, ${num(c.sin_historial || 0)} sin historial, ${num(c.no_elegible || 0)} no elegibles. No se inventan productos para completar tres posiciones.</p>
-    ${d.sin_recomendacion.length ? `<ul>${d.sin_recomendacion.map(x => `<li>${esc(x.cliente_id)}: ${esc(COBERTURA[x.estado] || x.estado)} — ${esc(x.motivo || "")}</li>`).join("")}</ul>` : ""}</section>
-  ${revisionHtml(r)}
-  ${detalleTecnico(`<pre>${esc(JSON.stringify(s, null, 2))}</pre>`, "Publicación en sombra")}`;
-  document.getElementById("f").addEventListener("submit", e => { e.preventDefault(); const v = new FormData(e.target).get("compatibilidad"); ir(`#/venta-cruzada${v ? `?compatibilidad=${v}` : ""}`); });
+  const porCliente = new Map();
+  for (const i of d.items) { if (!porCliente.has(i.cliente_id)) porCliente.set(i.cliente_id, []); porCliente.get(i.cliente_id).push(i); }
+  const clientes = [...porCliente.keys()].filter(id => !busca || id.toUpperCase().includes(busca));
+  const sel = porCliente.has(q.get("cliente")) ? q.get("cliente") : clientes[0];
+  const enlace = cambio => { const n = new URLSearchParams(q); for (const [a, b] of Object.entries(cambio)) b ? n.set(a, b) : n.delete(a); return `#/venta-cruzada${n.toString() ? `?${n}` : ""}`; };
+  let ficha = null;
+  if (sel && puede("cartera.ver") && seccion === "propuestas") ficha = await api("GET", `/api/cierres/${S.cierre}/clientes/${encodeURIComponent(sel)}`).catch(() => null);
+  if (!vigente(turno)) return;
+  const items = sel ? porCliente.get(sel) || [] : [];
+  const yaTiene = ficha?.productos?.length ? ficha.productos.map(p => p.producto).join(", ") : null;
+  $vista.innerHTML = `${encabezado({ titulo: TITULO, estado: enPrueba(),
+    descripcion: "Hasta tres productos que el cliente aún no tiene y que podrías proponerle, con el motivo de cada uno. Tú decides si tiene sentido.",
+    contexto: [ctxDatos(s.corte, "Sugerencias con datos hasta"), { etiqueta: "Compatibilidad por revisar", valor: plural(d.compatibilidad_pendiente, "sugerencia", "sugerencias") }] })}
+  ${avisoPrueba("No crea seguimientos ni envía ofertas.")}
+  ${pestanas([["propuestas", "Sugerencias por cliente", enlace({ seccion: "" })], ["evaluacion", "Evaluación comercial de la muestra", enlace({ seccion: "evaluacion" })]], seccion, "Secciones de productos sugeridos")}
+  <div id="msg-vc" role="status" tabindex="-1"></div>
+  ${seccion === "evaluacion" ? `<section class="panel"><h2>Evaluación comercial de la muestra</h2>${revisionHtml(r)}</section>` : `
+  ${hallazgo({
+    que: `<strong>${plural(porCliente.size, "cliente tiene", "clientes tienen")} sugerencias</strong> (${plural(d.items.length, "producto sugerido", "productos sugeridos")} en total).`,
+    porque: `${plural(d.compatibilidad_pendiente, "sugerencia tiene", "sugerencias tienen")} la compatibilidad por revisar: no hay reglas de la empresa para confirmarla. Revísala antes de proponer el producto.`,
+    accion: "",
+  })}
+  <div class="grid-maestro">
+    <section class="panel" id="lista-clientes-vc" aria-labelledby="t-clientes-vc"><h2 id="t-clientes-vc">Elige un cliente</h2>
+      <form class="filtros" id="f-vc" role="search"><label>Buscar cliente <input name="buscar" value="${esc(q.get("buscar") || "")}" autocomplete="off"></label>
+        <label>Compatibilidad <select name="compatibilidad"><option value="">Todas</option><option value="pendiente_revision"${filtro === "pendiente_revision" ? " selected" : ""}>Por revisar</option><option value="confirmada"${filtro === "confirmada" ? " selected" : ""}>Confirmada</option></select></label>
+        <button>Buscar</button>${busca || filtro ? '<a class="boton-sec" href="#/venta-cruzada">Quitar filtros</a>' : ""}</form>
+      <p class="muted">${plural(clientes.length, "cliente", "clientes")} en la lista.</p>
+      ${clientes.length ? `<ul class="lista-simple" style="max-height:28rem;overflow:auto">${clientes.map(id => `<li><a class="${id === sel ? "boton" : "boton-sec"}" style="width:100%;justify-content:space-between" href="${esc(enlace({ cliente: id }))}" ${id === sel ? 'aria-current="true"' : ""}>${esc(id)} <span>${plural(porCliente.get(id).length, "producto", "productos")}</span></a></li>`).join("")}</ul>` : vacio("Ningún cliente coincide.")}
+    </section>
+    <section class="panel" aria-labelledby="t-sel-vc">${sel ? `<h2 id="t-sel-vc">Cliente ${esc(sel)}</h2>
+      <dl class="comparacion"><div><dt>Ya tiene</dt><dd>${yaTiene ? esc(yaTiene) : puede("cartera.ver") ? "Sin compras registradas" : "Dato no disponible para tu perfil"}</dd></div><div><dt>Se sugiere</dt><dd>${esc(items.map(i => i.producto_nombre).join(", "))}</dd></div></dl>
+      <p class="muted">El número indica el orden de la sugerencia, no una probabilidad. ${puede("cartera.ver") ? `<a href="#/clientes/${encodeURIComponent(sel)}">Ver la ficha del cliente</a>` : ""}</p>
+      ${items.map(tarjeta).join("")}` : vacio("Elige un cliente de la lista para ver sus sugerencias.")}
+    </section>
+  </div>
+  <section class="panel"><h2>Clientes sin sugerencias</h2><p>${plural(c.con_recomendaciones || 0, "cliente tiene", "clientes tienen")} sugerencias; ${num(c.sin_candidatos || 0)} sin candidatos, ${num(c.sin_historial || 0)} sin historial, ${num(c.no_elegible || 0)} no elegibles. No se inventan productos para completar tres.</p>
+    ${d.sin_recomendacion.length ? `<ul>${d.sin_recomendacion.map(x => `<li>${esc(x.cliente_id)}: ${esc(COBERTURA[x.estado] || x.estado)}. ${esc(x.motivo || "")}</li>`).join("")}</ul>` : ""}</section>`}
+  <details class="panel"><summary>Cómo se obtuvieron las sugerencias</summary><p>${esc(s.estado_experimento)}. ${esc(d.nota)} ${esc(d.separacion)} Seguimientos automáticos: ${d.tareas_automaticas ? "activados" : "desactivados"}.</p>
+    ${detalleTecnico(`<pre>${esc(JSON.stringify(s, null, 2))}</pre>`, "Publicación en prueba (datos originales)")}</details>`;
+  document.getElementById("f-vc")?.addEventListener("submit", e => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    ir(enlace({ buscar: fd.get("buscar").trim(), compatibilidad: fd.get("compatibilidad"), cliente: "" }));
+  });
   activarVentaCruzada($vista, vistaVentaCruzada);
 }

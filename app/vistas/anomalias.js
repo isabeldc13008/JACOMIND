@@ -1,154 +1,195 @@
-// Operaciones atípicas (M6): cola EXPERIMENTAL en sombra para revisión humana de ventas y compras. Muestra valor observado
-// frente a referencia, motivos, soporte, método, cobertura, exceso sobre el cupo, historial y acciones de revisión.
-// El puntaje es rareza: no es probabilidad de fraude ni porcentaje de error; la cola no modifica importes.
-import { $vista, api, cop, errorHtml, esc, estadoHtml, fechaHora, ir, mesLargo, nuevoTurno, num, ruta, vigente } from "../nucleo.js";
-import { detalleTecnico, respuesta } from "../ui.js";
+// V11 Operaciones por revisar (M6, en prueba) y V12 Detalle del caso. Compara el valor observado con su referencia;
+// el puntaje es rareza: no es probabilidad de fraude ni porcentaje de error, y revisar un caso no cambia importes.
+import { $vista, api, clave, cop, errorHtml, esc, estadoHtml, fechaHora, fechaLarga, ir, mesLargo, nuevoTurno, num, plural, ruta, vigente } from "../nucleo.js";
+import { avisoPrueba, barras, ctxDatos, detalleTecnico, encabezado, enPrueba, filtrosActivos, hallazgo, indicadores, pestanas, tablaHtml, vacio } from "../ui.js";
 
 const UNIVERSO = { venta: "Ventas confirmadas", compra: "Compras a proveedores" };
-const ESTADO = { pendiente: "Pendiente", error_confirmado: "Error confirmado", cambio_legitimo: "Cambio legítimo",
+const ESTADO = { pendiente: "Pendiente de revisar", error_confirmado: "Error confirmado", cambio_legitimo: "Cambio legítimo",
   informacion_insuficiente: "Información insuficiente", sin_caso: "Sin caso" };
-const DECISION = { favorable_demostracion_sombra: "Favorable para demostración en sombra", referencia_conservada: "Referencia conservada", inconcluso: "Inconcluso" };
-const METODO = { isolation_forest: "Isolation Forest (IA)", mediana_mad: "Mediana/MAD contextual (referencia)" };
-const EVENTO = { apertura: "Apertura", correccion_datos: "Corrección de datos", revision: "Revisión", evidencia_actualizada: "Nueva publicación" };
+const DECISION = { favorable_demostracion_sombra: "Favorable solo para demostración en prueba", referencia_conservada: "Se mantiene el método de referencia", inconcluso: "Inconclusa" };
+const METODO = { isolation_forest: "Isolation Forest (IA)", mediana_mad: "Mediana y desviación habitual del producto (referencia)" };
+const EVENTO = { apertura: "Se abrió el caso", correccion_datos: "Corrección de datos", revision: "Revisión registrada", evidencia_actualizada: "Nueva publicación" };
+const TITULO = "Operaciones por revisar";
 const valor = (x, moneda) => x == null ? "—" : moneda === "COP" ? cop(x) : `${num(Math.round(x * 100) / 100)} ${esc(moneda)}`;
-const raz = x => x == null ? "" : ` <span class="muted">(×${num(Math.round(x * 100) / 100)})</span>`;
-const titulo = `<h1>Operaciones atípicas <span class="chip">IA · experimental</span></h1>`;
+const veces = x => x == null ? "" : `${num(Math.round(x * 100) / 100)} veces la referencia`;
 
-const pp = x => `${x >= 0 ? "+" : "−"}${num(Math.round(Math.abs(x) * 1000) / 10)} pp`;
+const pp = x => `${x >= 0 ? "+" : "−"}${num(Math.round(Math.abs(x) * 1000) / 10)} puntos`;
 function motivoDecision(dc) {
   const c = dc.cumple || {}, v = dc.valores || {};
-  if (!dc.valores) return dc.motivos?.length ? ` · ${esc(dc.motivos.join(" "))}` : "";
+  if (!dc.valores) return dc.motivos?.length ? ` ${esc(dc.motivos.join(" "))}` : "";
   const por = [];
-  if (!c.supera_referencia_ic && v.diferencia != null) por.push(`la mejora de la IA en casos sembrados (${pp(v.diferencia)}, IC95 ${pp(v.ic95[0])} a ${pp(v.ic95[1])}) no es concluyente`);
-  if (c.controles_negativos_no_peores === false) por.push(`la IA alertó en más controles negativos que la referencia (${num(Math.round(v.alertas_controles_candidato * 1000) / 10)} % frente a ${num(Math.round(v.alertas_controles_referencia * 1000) / 10)} %)`);
+  if (!c.supera_referencia_ic && v.diferencia != null) por.push(`la mejora de la IA en casos de prueba (${pp(v.diferencia)}, intervalo del 95 % de ${pp(v.ic95[0])} a ${pp(v.ic95[1])}) no es concluyente`);
+  if (c.controles_negativos_no_peores === false) por.push(`la IA alertó en más casos normales de control que la referencia (${num(Math.round(v.alertas_controles_candidato * 1000) / 10)} % frente a ${num(Math.round(v.alertas_controles_referencia * 1000) / 10)} %)`);
   if (c.meta_deteccion_candidato === false) por.push("la IA no alcanza la meta de detección del 80 %");
   if (c.trm_sin_cambio === false) por.push("un cambio solo de TRM alteró el puntaje");
   return por.length ? `, porque ${esc(por.join(" y "))}` : "";
 }
 
-function cabecera(d) {
-  const u = d.universo, r = d.resumen;
-  const pest = Object.entries(UNIVERSO).map(([k, v]) => `<a href="#/anomalias?universo=${k}"${k === u ? ' aria-current="page"' : ""}>${esc(v)}</a>`).join("");
-  const dec = d.decision ? `${esc(DECISION[d.decision.decision] || d.decision.decision)}${motivoDecision(d.decision)}` : "Sin decisión registrada";
-  return `${titulo}
-  <nav class="pestanas" aria-label="Universo">${pest}</nav>
-  ${respuesta(`<strong>${num(r.alertas)} alertas</strong> dentro de la capacidad de revisión (${num(r.capacidad_revision)}) y <strong>${num(r.exceso_sobre_cupo)}</strong> señaladas por reglas fuera del cupo, sobre ${num(r.validas)} ${u === "venta" ? "ventas" : "compras"} válidas (${esc(mesLargo(d.desde?.slice(0, 7)))} a ${esc(mesLargo(d.corte.slice(0, 7)))}).`,
-    `Método publicado: ${esc(METODO[d.metodo] || d.metodo)} · candidato IA: ${esc(d.candidato === "isolation_forest" ? "Isolation Forest" : "en abstención")} · modelo ${esc(d.version)} · ${esc(d.emision?.tipo === "reconstruccion_historica" ? "reconstrucción histórica" : d.emision?.tipo || "")}.`)}
-  <p class="muted">${esc(d.nota)}</p>
-  <div class="aviso-cifras" role="status">Decisión experimental: ${dec}. Capacidad de demostración: ${esc(d.politica_alertas?.convencion || "")}</div>
-  ${r.cobertura_temporal === "no_declarada" ? `<div class="aviso-cifras" role="status">Cobertura incompleta: ${esc(r.nota_cobertura || "compras sin cobertura temporal declarada")}</div>` : ""}
-  <dl class="cifras">
-    <div><dt>Puntuadas</dt><dd>${num(r.puntuadas)} de ${num(r.validas)}</dd></div>
-    <div><dt>Sin historia suficiente</dt><dd>${num(r.abstenciones)}</dd></div>
-    <div><dt>Excluidas del universo</dt><dd>${Object.entries(r.excluidas || {}).map(([k, v]) => `${num(v)} ${esc(k.replace(/_/g, " "))}`).join(", ") || "0"}</dd></div>
-    <div><dt>Casos pendientes</dt><dd>${num(r.casos_pendientes)}</dd></div>
-    <div><dt>Casos revisados</dt><dd>${num(r.casos_revisados)}</dd></div>
-    <div><dt>Alertas por 100 válidas</dt><dd>${num(r.alertas_por_100_validas)}</dd></div>
-  </dl>`;
-}
-
-function filtros(d) {
+function filtros(d, q) {
   const f = d.filtros, o = d.opciones;
   const sel = (n, etiqueta, ops, actual, txt = x => x) => `<label>${etiqueta} <select name="${n}"><option value="">Todos</option>${ops.map(x => `<option value="${esc(x)}"${x === actual ? " selected" : ""}>${esc(txt(x))}</option>`).join("")}</select></label>`;
-  return `<form class="filtros" id="f-an"><input type="hidden" name="universo" value="${esc(d.universo)}">
-    ${sel("periodo", "Periodo", o.periodos, f.periodo, mesLargo)}${sel("producto", "Producto", o.productos, f.producto)}${sel("moneda", "Moneda", o.monedas, f.moneda)}
-    ${sel("estado", "Estado", Object.keys(ESTADO), f.estado, x => ESTADO[x])}
-    <label>Vista <select name="vista">${[["cola", "Cola priorizada"], ["todas", "Todas las operaciones"], ["sin_historia", "Sin historia suficiente"]].map(([k, v]) => `<option value="${k}"${k === f.vista ? " selected" : ""}>${v}</option>`).join("")}</select></label>
-    <button>Filtrar</button>${d.puede_exportar ? ` <a href="/api/anomalias/exportar.csv?universo=${esc(d.universo)}" download>Exportar CSV</a>` : ""}</form>`;
+  const enlace = cambio => { const n = new URLSearchParams(q); n.delete("caso"); for (const [a, b] of Object.entries(cambio)) b ? n.set(a, b) : n.delete(a); return `#/anomalias?${n}`; };
+  const activos = [f.periodo && { texto: `Mes: ${mesLargo(f.periodo)}`, quitar: enlace({ periodo: "" }) }, f.producto && { texto: `Producto: ${f.producto}`, quitar: enlace({ producto: "" }) },
+    f.moneda && { texto: `Moneda: ${f.moneda}`, quitar: enlace({ moneda: "" }) }, f.estado && { texto: `Estado: ${ESTADO[f.estado] || f.estado}`, quitar: enlace({ estado: "" }) },
+    f.vista && f.vista !== "cola" && { texto: f.vista === "todas" ? "Todas las operaciones" : "Sin historia suficiente", quitar: enlace({ vista: "" }) }].filter(Boolean);
+  return `<section class="panel"><h2>Filtrar la cola</h2><form class="filtros" id="f-an"><input type="hidden" name="universo" value="${esc(d.universo)}">
+    ${sel("periodo", "Mes", o.periodos, f.periodo, mesLargo)}${sel("producto", "Producto", o.productos, f.producto)}${sel("moneda", "Moneda", o.monedas, f.moneda)}
+    ${sel("estado", "Estado de revisión", Object.keys(ESTADO), f.estado, x => ESTADO[x])}
+    <label>Qué mostrar <select name="vista">${[["cola", "Cola para revisar"], ["todas", "Todas las operaciones"], ["sin_historia", "Sin historia suficiente"]].map(([k, v]) => `<option value="${k}"${k === f.vista ? " selected" : ""}>${v}</option>`).join("")}</select></label>
+    <button>Aplicar filtros</button></form>
+    ${filtrosActivos(activos, `#/anomalias?universo=${esc(d.universo)}`)}
+    ${d.puede_exportar ? `<p><a class="boton-sec" href="/api/anomalias/exportar.csv?universo=${esc(d.universo)}" download>Descargar la cola (CSV)</a> <span class="muted">Descarga todas las operaciones publicadas de ${esc(UNIVERSO[d.universo].toLowerCase())}; no aplica los filtros de pantalla.</span></p>` : ""}</section>`;
 }
 
-function fila(i) {
-  const tipo = i.estado_puntuacion !== "puntuada" ? '<span class="chip">Sin historia suficiente</span>'
-    : i.alerta ? `<span class="chip fuerte">Alerta · prioridad ${num(i.prioridad)} de cupo ${num(i.cupo_periodo)}</span>`
-      : i.fuera_de_cupo ? '<span class="chip fuerte">Fuera de cupo (pendiente)</span>' : `<span class="chip">Prioridad ${num(i.prioridad)}</span>`;
+function senal(i) {
+  return i.estado_puntuacion !== "puntuada" ? '<span class="sello sello-practica">Sin historia suficiente</span>'
+    : i.alerta ? `<span class="sello sello-alerta">Para revisar · prioridad ${num(i.prioridad)} de ${num(i.cupo_periodo)}</span>`
+      : i.fuera_de_cupo ? '<span class="sello sello-prueba">Señalada fuera del cupo</span>' : `<span class="chip">Prioridad ${num(i.prioridad)}</span>`;
+}
+
+function fila(i, q) {
+  const n = new URLSearchParams(q); n.delete("guardado"); n.set("universo", i.tipo_operacion); n.set("caso", i.operacion_id);
   const contraparte = i.tipo_operacion === "venta" ? `Cliente ${esc(i.cliente_id)}` : `Proveedor ${esc(i.proveedor_id)}`;
-  return `<tr><td><a href="#/anomalias?universo=${esc(i.tipo_operacion)}&caso=${encodeURIComponent(i.operacion_id)}">${esc(i.operacion_id)}</a><div class="muted">${esc(i.fecha)} · ${contraparte}</div></td>
-    <td>${esc(i.producto_id)}<div class="muted">${esc(i.moneda)} · ${esc(i.unidad)}</div></td>
-    <td class="n">${valor(i.valor_unitario, i.moneda)}<div class="muted">ref. ${valor(i.referencia_valor_unitario, i.moneda)}${raz(i.razon_valor_unitario)}</div></td>
-    <td class="n">${num(i.cantidad)}<div class="muted">ref. ${num(i.referencia_cantidad == null ? null : Math.round(i.referencia_cantidad * 100) / 100)}${raz(i.razon_cantidad)}</div></td>
-    <td>${tipo}<div class="muted">${i.puntaje == null ? "sin puntaje" : `puntaje ${num(Math.round(i.puntaje * 1000) / 1000)} · ${esc(METODO[i.metodo] || i.metodo)}`}</div></td>
-    <td>${(i.motivos || []).map(m => `<div>${esc(m)}</div>`).join("")}<div class="muted">Soporte: ${num(i.soporte)} antecedentes${i.muestra ? ` · muestra de revisión (${esc(i.muestra.estrato.replace("_", " "))})` : ""}</div></td>
-    <td><span class="chip${i.estado_revision === "pendiente" ? " fuerte" : ""}">${esc(ESTADO[i.estado_revision] || i.estado_revision)}</span></td></tr>`;
+  return `<tr><td data-et="Operación"><strong>${esc(i.operacion_id)}</strong><span class="muted">${esc(fechaLarga(i.fecha))} · ${contraparte}</span></td>
+    <td data-et="Producto">${esc(i.producto_id)}<span class="muted">${esc(i.moneda)} · ${esc(i.unidad)}</span></td>
+    <td data-et="Señal principal">${senal(i)}<span>${esc((i.motivos || [])[0] || "—")}</span><span class="muted">${num(i.soporte)} operaciones anteriores de referencia</span></td>
+    <td class="n" data-et="Precio unitario">${valor(i.valor_unitario, i.moneda)}<span class="muted">referencia ${valor(i.referencia_valor_unitario, i.moneda)}</span></td>
+    <td class="n" data-et="Cantidad">${num(i.cantidad)}<span class="muted">referencia ${num(i.referencia_cantidad == null ? null : Math.round(i.referencia_cantidad * 100) / 100)}</span></td>
+    <td data-et="Revisión">${esc(ESTADO[i.estado_revision] || i.estado_revision)}</td>
+    <td><a class="boton-sec" href="#/anomalias?${n}">Revisar caso<span class="oculto-visual"> ${esc(i.operacion_id)}</span></a></td></tr>`;
 }
 
-function metricas(m) {
-  const p = m.precision_alertas_revisadas, f = m.falsas_alertas_por_100_normales_revisadas;
-  return `<section class="panel"><h2>Resultados de revisión humana</h2>
-    <p>${num(m.revisadas)} operaciones revisadas (${Object.entries(m.por_estado).map(([k, v]) => `${num(v)} ${esc(ESTADO[k].toLowerCase())}`).join(", ")}).</p>
-    <p>Precisión entre alertas revisadas: ${p.valor == null ? "no estimable" : num(p.valor)} (${num(p.numerador)} / ${num(p.denominador)})${p.motivo ? ` <span class="muted">— ${esc(p.motivo)}</span>` : ""}</p>
-    <p>Falsas alertas por 100 normales revisadas: ${f.por_100 == null ? "no estimable" : num(f.por_100)} (${num(f.numerador)} / ${num(f.denominador)})${f.motivo ? ` <span class="muted">— ${esc(f.motivo)}</span>` : ""}</p>
-    <p class="muted">${esc(m.nota)}</p></section>`;
-}
-
-async function detalleCaso(tipo, id, d) {
+async function detalleCaso(d, q) {
+  const tipo = d.universo, id = q.get("caso");
+  const n = new URLSearchParams(q); n.delete("caso"); n.delete("guardado");
+  const volver = { href: `#/anomalias?${n}`, texto: "Volver a la cola" };
   let c;
   try { c = await api("GET", `/api/anomalias/caso?tipo=${encodeURIComponent(tipo)}&id=${encodeURIComponent(id)}`); }
-  catch (e) { return `<section class="panel" id="caso">${errorHtml(e)}</section>`; }
+  catch (e) { return `${encabezado({ titulo: `Operación ${id}`, volver })}${errorHtml(e, { reintentar: e.status !== 404 })}`; }
   const p = c.publicaciones[0], v = c.caso_vigente;
   const hist = c.eventos.map(e => `<li><strong>${esc(EVENTO[e.tipo] || e.tipo)}</strong> · ${esc(fechaHora(e.fecha))} · ${esc(e.actor)}${e.estado_nuevo ? ` · ${esc(ESTADO[e.estado_anterior] || e.estado_anterior || "—")} → ${esc(ESTADO[e.estado_nuevo] || e.estado_nuevo)}` : ""}
     ${e.version_examinada ? `<span class="muted"> · versión ${esc(e.version_examinada)}</span>` : ""}${e.motivo ? `<div>${esc(e.motivo)}</div>` : ""}${e.evidencia ? `<div class="muted">Evidencia: ${esc(e.evidencia)}</div>` : ""}</li>`).join("");
-  const pubs = c.publicaciones.map(x => `<tr><td>${esc(x.corte)}${x.publicacion_activa ? ' <span class="chip">activa</span>' : ""}</td><td>${esc(x.version_modelo)}</td><td class="n">${x.puntaje == null ? "—" : num(Math.round(x.puntaje * 1000) / 1000)}</td><td>${x.alerta ? "Sí" : "No"}</td><td>${esc(x.estado_puntuacion)}</td></tr>`).join("");
-  const form = c.puede_revisar ? `<form id="f-rev" class="filtros"><label>Decisión <select name="estado" required>
-      <option value="error_confirmado">Error confirmado</option><option value="cambio_legitimo">Cambio legítimo</option><option value="informacion_insuficiente">Información insuficiente</option></select></label>
-      <label>Motivo <input name="motivo" required minlength="3" maxlength="400"></label><label>Evidencia <input name="evidencia" maxlength="400"></label><button>Registrar revisión</button></form>
-      <p class="muted">La revisión no cambia importes ni la operación: una corrección contable se hace en el flujo de datos (nueva carga A01) y crea una revisión nueva enlazada.</p>`
-    : '<p class="muted">Tu perfil puede consultar, pero no registrar revisiones.</p>';
-  return `<section class="panel" id="caso"><h2>${esc(UNIVERSO[tipo])} · ${esc(id)}</h2><div id="msg-an" role="status"></div>
-    <dl class="cifras"><div><dt>Fecha</dt><dd>${esc(p.fecha)}</dd></div><div><dt>Producto</dt><dd>${esc(p.producto_id)}</dd></div>
-      <div><dt>${tipo === "venta" ? "Cliente" : "Proveedor"}</dt><dd>${esc(tipo === "venta" ? p.cliente_id : p.proveedor_id)}</dd></div>
-      <div><dt>Valor unitario</dt><dd>${valor(p.valor_unitario, p.moneda)}</dd></div><div><dt>Referencia</dt><dd>${valor(p.referencia_valor_unitario, p.moneda)}</dd></div>
-      <div><dt>Cantidad / referencia</dt><dd>${num(p.cantidad)} / ${num(p.referencia_cantidad == null ? null : Math.round(p.referencia_cantidad * 100) / 100)}</dd></div>
-      <div><dt>Importe COP</dt><dd>${p.importe_cop_oculto ? '<span class="muted">restringido a Finanzas</span>' : p.estado_trm === "ausente" ? "TRM ausente: no convertible" : cop(p.importe_cop)}</dd></div>
-      <div><dt>Antecedentes</dt><dd>${num(p.soporte)}${p.antecedentes ? ` (${esc(p.antecedentes[0])} a ${esc(p.antecedentes[1])})` : ""}</dd></div>
-      <div><dt>Estado de revisión</dt><dd>${esc(v ? ESTADO[v.estado] : "Sin caso")}</dd></div></dl>
-    ${(p.motivos || []).map(m => `<p>${esc(m)}</p>`).join("")}
-    ${form}
-    <h3>Historial</h3>${hist ? `<ol class="historial">${hist}</ol>` : '<p class="muted">Sin eventos: la operación no tiene caso de revisión.</p>'}
-    ${c.casos.length > 1 ? `<p class="muted">${num(c.casos.length)} revisiones del caso por correcciones de datos; las decisiones anteriores se conservan.</p>` : ""}
-    <h3>Puntuaciones publicadas (inmutables)</h3><div class="tabla"><table><tr><th>Corte</th><th>Versión</th><th class="n">Puntaje</th><th>Alerta</th><th>Estado</th></tr>${pubs}</table></div>
-    ${detalleTecnico(`<pre>${esc(JSON.stringify(p.variables, null, 2))}</pre><p class="muted">Variables contextuales en moneda de origen (desviaciones robustas en logaritmos). La TRM y el importe COP no entran al detector.</p>`, "Variables")}
-  </section>`;
+  const comparar = (titulo, obs, ref, fmt) => obs == null || ref == null ? `<h3>${titulo}</h3>${vacio("Información insuficiente para comparar.", "Faltan operaciones anteriores del mismo producto.")}` :
+    `<h3>${titulo}</h3>${barras([{ etiqueta: "Esta operación", valor: obs, texto: fmt(obs) }, { etiqueta: "Referencia habitual", valor: ref, texto: fmt(ref) }], { etiquetaAria: `${titulo}: esta operación frente a la referencia, desde cero` })}`;
+  const form = c.puede_revisar ? `<form id="f-rev" class="campos" novalidate><fieldset><legend>¿Qué encontraste?</legend>
+      ${[["error_confirmado", "Error confirmado", "El dato está mal registrado. La corrección se hace cargando los datos de nuevo."], ["cambio_legitimo", "Cambio legítimo", "El valor es correcto: hubo una razón comercial."], ["informacion_insuficiente", "Información insuficiente", "No hay datos suficientes para decidir."]]
+        .map(([k, t, a]) => `<label class="en-linea"><input type="radio" name="estado" value="${k}" required> <span><strong>${t}</strong><span class="ayuda" style="display:block">${a}</span></span></label>`).join("")}
+      <span class="error-campo" id="err-estado"></span></fieldset>
+      <label for="motivo-rev">Motivo <span class="ayuda">Obligatorio: qué revisaste y por qué decides esto.</span><textarea id="motivo-rev" name="motivo" required minlength="3" maxlength="400" aria-describedby="err-motivo"></textarea><span class="error-campo" id="err-motivo"></span></label>
+      <label for="evidencia-rev">Evidencia (opcional) <span class="ayuda">Por ejemplo: número de factura o correo consultado.</span><input id="evidencia-rev" name="evidencia" maxlength="400"></label>
+      <div class="fila"><button>Guardar la revisión</button></div></form>
+      <p class="muted">La revisión no cambia importes ni la operación. Una corrección se hace cargando los datos de nuevo y queda enlazada a este caso.</p>`
+    : '<p class="estado">Tu perfil puede consultar este caso, pero no registrar revisiones.</p>';
+  return `${encabezado({ titulo: `Operación ${id}`, volver, estado: enPrueba(),
+    descripcion: `${esc(UNIVERSO[tipo])} · ${esc(fechaLarga(p.fecha))} · ${tipo === "venta" ? `cliente ${esc(p.cliente_id)}` : `proveedor ${esc(p.proveedor_id)}`} · producto ${esc(p.producto_id)}`,
+    contexto: [{ etiqueta: "Estado de revisión", valor: esc(v ? ESTADO[v.estado] : "Sin caso") }, ctxDatos(d.corte, "Publicación con datos hasta")] })}
+  <div id="msg-an" role="status" tabindex="-1">${q.get("guardado") ? '<div class="estado ok"><strong>Revisión guardada.</strong> Aparece en «Qué ha pasado con este caso».</div>' : ""}</div>
+  ${hallazgo({ que: esc((p.motivos || [])[0] || "Operación señalada para revisar."), porque: "Se aparta de lo habitual para este producto. Una señal no confirma un error ni un fraude: hace falta revisarla.", accion: c.puede_revisar ? '<button type="button" data-ir-a="f-rev-titulo">Registrar la revisión</button>' : "" })}
+  <div class="grid2">
+    <section class="panel"><h2>Esta operación frente a su referencia</h2>
+      ${comparar(`Precio unitario (${esc(p.moneda)})`, p.valor_unitario, p.referencia_valor_unitario, x => valor(x, p.moneda))}
+      ${comparar(`Cantidad (${esc(p.unidad || "unidades")})`, p.cantidad, p.referencia_cantidad, x => num(Math.round(x * 100) / 100))}
+      <p class="muted">Cada medida tiene su propia escala. Referencia: ${plural(p.soporte, "operación anterior", "operaciones anteriores")} del mismo producto${p.antecedentes ? `, del ${esc(fechaLarga(p.antecedentes[0]))} al ${esc(fechaLarga(p.antecedentes[1]))}` : ""}.</p>
+      ${(p.motivos || []).length > 1 ? `<h3>Todas las señales</h3><ul>${p.motivos.map(m => `<li>${esc(m)}</li>`).join("")}</ul>` : ""}
+      <dl class="cifras"><div><dt>Importe en pesos</dt><dd>${p.importe_cop_oculto ? "Restringido a Finanzas" : p.estado_trm === "ausente" ? "Sin TRM: no convertible" : cop(p.importe_cop)}</dd></div>
+        <div><dt>Diferencia de precio</dt><dd>${esc(veces(p.razon_valor_unitario) || "—")}</dd></div><div><dt>Diferencia de cantidad</dt><dd>${esc(veces(p.razon_cantidad) || "—")}</dd></div></dl></section>
+    <section class="panel"><h2 id="f-rev-titulo" tabindex="-1">Registrar la revisión</h2>${form}</section>
+  </div>
+  <section class="panel"><h2>Qué ha pasado con este caso</h2>${hist ? `<ol class="historial">${hist}</ol>` : '<p class="muted">Sin movimientos: la operación todavía no tiene caso de revisión.</p>'}
+    ${c.casos.length > 1 ? `<p class="muted">${num(c.casos.length)} versiones del caso por correcciones de datos; las decisiones anteriores se conservan.</p>` : ""}</section>
+  <details class="panel"><summary>Ver puntuaciones publicadas y variables</summary>
+    ${tablaHtml({ cabeceras: ["Fecha de los datos", "Versión", "Puntaje de rareza", "¿Para revisar?", "Estado"], numericas: new Set([2]), filas: c.publicaciones.map(x => [`${esc(fechaLarga(x.corte))}${x.publicacion_activa ? ' <span class="chip">vigente</span>' : ""}`, esc(x.version_modelo), x.puntaje == null ? "—" : num(Math.round(x.puntaje * 1000) / 1000), x.alerta ? "Sí" : "No", esc(x.estado_puntuacion)]) })}
+    <p class="muted">El puntaje mide rareza dentro de su mes y su grupo; no es un porcentaje de error ni de fraude. Las puntuaciones publicadas no se modifican.</p>
+    ${detalleTecnico(`<pre>${esc(JSON.stringify(p.variables, null, 2))}</pre><p class="muted">Variables en moneda de origen (desviaciones robustas en logaritmos). La TRM y el importe en pesos no entran al cálculo.</p>`, "Variables")}</details>`;
 }
 
 export async function vistaAnomalias() {
   const { q } = ruta();
   const turno = nuevoTurno();
-  $vista.innerHTML = estadoHtml("", "Cargando la cola de operaciones atípicas…");
+  if (!$vista.querySelector("#f-an, #f-rev")) $vista.innerHTML = `${encabezado({ titulo: TITULO, estado: enPrueba() })}${estadoHtml("", "Cargando las operaciones por revisar…")}`;
   const params = new URLSearchParams();
   for (const k of ["universo", "periodo", "producto", "moneda", "estado", "vista"]) if (q.get(k)) params.set(k, q.get(k));
   let d;
   try { d = await api("GET", `/api/anomalias?${params}`); }
-  catch (e) { if (vigente(turno)) $vista.innerHTML = `${titulo}${e.status === 403 ? estadoHtml("error", "Tu perfil no tiene acceso a la cola de operaciones atípicas.") : errorHtml(e)}`; return; }
+  catch (e) { if (vigente(turno)) $vista.innerHTML = `${encabezado({ titulo: TITULO, estado: enPrueba() })}${errorHtml(e, { reintentar: e.status !== 403 })}`; return; }
   if (!vigente(turno)) return;
   if (d.estado === "sin_sombra") {
-    $vista.innerHTML = `${titulo}${estadoHtml("", d.mensaje)}<p class="muted">${esc(d.nota)}</p>`;
+    $vista.innerHTML = `${encabezado({ titulo: TITULO, estado: enPrueba() })}${vacio("No hay una publicación en prueba de operaciones por revisar.", esc(d.mensaje))}<p class="muted">${esc(d.nota)}</p>`;
     return;
   }
-  const caso = q.get("caso") ? await detalleCaso(d.universo, q.get("caso"), d) : "";
-  if (!vigente(turno)) return;
-  const filas = d.items.map(fila).join("");
-  $vista.innerHTML = `${cabecera(d)}${filtros(d)}${caso}
-  <div class="tabla"><table><caption class="muted">Cola priorizada por mes (prioridad 1 = más rara). Se muestran las alertas, las señaladas fuera del cupo, la muestra de revisión y los casos abiertos.</caption>
-    <tr><th>Operación</th><th>Producto</th><th class="n">Valor unitario</th><th class="n">Cantidad</th><th>Prioridad y método</th><th>Motivos y soporte</th><th>Revisión</th></tr>
-    ${filas || '<tr><td colspan="7" class="muted">No hay operaciones con estos filtros.</td></tr>'}</table></div>
-  ${metricas(d.metricas_revision)}
-  <section class="panel"><h2>Cobertura por mes</h2><div class="tabla"><table><tr><th>Mes</th><th class="n">Válidas</th><th class="n">Puntuadas</th><th class="n">Sin historia</th><th class="n">Alertas / cupo</th><th class="n">Fuera de cupo</th><th>Cobertura temporal</th></tr>
-    ${d.cobertura.map(c => `<tr><td>${esc(mesLargo(c.periodo))}</td><td class="n">${num(c.validas)}</td><td class="n">${num(c.puntuadas)}</td><td class="n">${num(c.abstenciones.historia_insuficiente)}</td><td class="n">${num(c.alertas)} / ${num(c.cupo)}</td><td class="n">${num(c.exceso_sobre_cupo)}</td><td>${c.cobertura_temporal === "declarada" ? "Declarada" : "No declarada"}</td></tr>`).join("")}</table></div>
-    <p class="muted">Muestra de revisión: ${num(d.muestra.seleccionadas)} de ${num(d.muestra.objetivo)} previstas. ${esc(d.muestra.metodo || "")}</p></section>
-  ${detalleTecnico(`<pre>${esc(JSON.stringify({ sombra: d.sombra_id, estado: d.estado_experimento, politica: d.politica_alertas, distribucion: d.resumen.distribucion_puntaje }, null, 2))}</pre>`, "Publicación")}`;
+  if (q.get("caso")) {
+    const html = await detalleCaso(d, q);
+    if (!vigente(turno)) return;
+    $vista.innerHTML = html;
+    enlazarRevision(d, q);
+    return;
+  }
+  const u = d.universo, r = d.resumen;
+  const dec = d.decision ? `${esc(DECISION[d.decision.decision] || d.decision.decision)}${motivoDecision(d.decision)}` : "Sin decisión registrada";
+  $vista.innerHTML = `${encabezado({ titulo: TITULO, estado: enPrueba(),
+    descripcion: "Ventas y compras cuyo precio o cantidad se aparta mucho de lo habitual para ese producto. Una persona decide si es un error o un cambio legítimo.",
+    contexto: [ctxDatos(d.corte), { etiqueta: "Periodo", valor: `${esc(mesLargo(d.desde?.slice(0, 7)))} a ${esc(mesLargo(d.corte.slice(0, 7)))}` }] })}
+  ${pestanas(Object.entries(UNIVERSO).map(([k, v]) => [k, v, `#/anomalias?universo=${k}`]), u, "Tipo de operación")}
+  ${avisoPrueba("Una señal no confirma un error ni un fraude, y revisar un caso no cambia importes.")}
+  ${r.cobertura_temporal === "no_declarada" ? `<p class="aviso-cifras" role="note">Cobertura incompleta: ${esc(r.nota_cobertura || "compras sin cobertura temporal declarada")}.</p>` : ""}
+  ${hallazgo({
+    que: `<strong>${plural(r.casos_pendientes, "caso está pendiente", "casos están pendientes")} de revisar</strong> en ${esc(UNIVERSO[u].toLowerCase())}.`,
+    porque: `${plural(r.alertas, "operación quedó", "operaciones quedaron")} para revisar dentro de la capacidad del equipo (${num(r.capacidad_revision)}). Otras ${num(r.exceso_sobre_cupo)} se señalaron por reglas, fuera de esa capacidad.`,
+    accion: d.items[0] ? `<a class="boton" href="#/anomalias?${new URLSearchParams({ universo: u, caso: d.items[0].operacion_id })}">Revisar el primer caso</a>` : "",
+  })}
+  ${indicadores([
+    { etiqueta: "Pendientes de revisar", valor: num(r.casos_pendientes), detalle: `${num(r.casos_revisados)} ya revisados` },
+    { etiqueta: "Para revisar este periodo", valor: num(r.alertas), detalle: `capacidad acordada: ${num(r.capacidad_revision)} · ${num(r.alertas_por_100_validas)} por cada 100 operaciones` },
+    { etiqueta: "Operaciones evaluadas", valor: `${num(r.puntuadas)} de ${num(r.validas)}`, detalle: `${plural(r.abstenciones, "sin historia suficiente", "sin historia suficiente")}; no se evaluaron` },
+  ])}
+  ${filtros(d, q)}
+  <section class="panel"><h2>Cola para revisar</h2>
+    ${d.items.length ? `<div class="tabla"><table class="apilable"><caption>Ordenada por mes y prioridad (1 = más rara dentro de su mes y tipo). Incluye las de la capacidad, las señaladas fuera de ella, la muestra de revisión y los casos abiertos.</caption>
+      <thead><tr><th scope="col">Operación</th><th scope="col">Producto</th><th scope="col">Señal principal</th><th scope="col" class="n">Precio unitario</th><th scope="col" class="n">Cantidad</th><th scope="col">Revisión</th><th scope="col"><span class="oculto-visual">Abrir</span></th></tr></thead>
+      <tbody>${d.items.map(i => fila(i, q)).join("")}</tbody></table></div>` : vacio("No hay operaciones con estos filtros.", "", `<a class="boton-sec" href="#/anomalias?universo=${esc(u)}">Quitar filtros</a>`)}
+  </section>
+  <details class="panel"><summary>Cómo se evaluó y qué queda sin evaluar</summary>
+    <p><strong>Método publicado:</strong> ${esc(METODO[d.metodo] || d.metodo)}. Candidato de IA: ${esc(d.candidato === "isolation_forest" ? "Isolation Forest" : "en abstención")}. Decisión de la prueba: ${dec}. ${esc(d.politica_alertas?.convencion || "")}</p>
+    <p class="muted">${esc(d.nota)} Versión ${esc(d.version)} · ${esc(d.emision?.tipo === "reconstruccion_historica" ? "reconstrucción histórica" : d.emision?.tipo || "")}.</p>
+    <h3>Resultados de la revisión humana</h3>${metricas(d.metricas_revision)}
+    <h3>Evaluación por mes</h3>
+    ${tablaHtml({ cabeceras: ["Mes", "Válidas", "Evaluadas", "Sin historia", "Para revisar / capacidad", "Fuera de capacidad", "Cobertura temporal"], numericas: new Set([1, 2, 3, 4, 5]),
+      filas: d.cobertura.map(c => [esc(mesLargo(c.periodo)), num(c.validas), num(c.puntuadas), num(c.abstenciones.historia_insuficiente), `${num(c.alertas)} / ${num(c.cupo)}`, num(c.exceso_sobre_cupo), c.cobertura_temporal === "declarada" ? "Declarada" : "No declarada"]) })}
+    <p class="muted">Excluidas del universo: ${Object.entries(r.excluidas || {}).map(([k, v]) => `${num(v)} ${esc(k.replace(/_/g, " "))}`).join(", ") || "ninguna"}. Muestra de revisión: ${num(d.muestra.seleccionadas)} de ${num(d.muestra.objetivo)} previstas. ${esc(d.muestra.metodo || "")}</p>
+    ${detalleTecnico(`<pre>${esc(JSON.stringify({ sombra: d.sombra_id, estado: d.estado_experimento, politica: d.politica_alertas, distribucion: d.resumen.distribucion_puntaje }, null, 2))}</pre>`, "Publicación (datos originales)")}</details>`;
   document.getElementById("f-an").addEventListener("submit", e => {
     e.preventDefault();
     const p = new URLSearchParams();
-    for (const [k, v] of new FormData(e.target)) if (v) p.set(k, v);
+    for (const [k, v] of new FormData(e.target)) if (v && !(k === "vista" && v === "cola")) p.set(k, v);
     ir(`#/anomalias?${p}`);
   });
+}
+
+function metricas(m) {
+  const p = m.precision_alertas_revisadas, f = m.falsas_alertas_por_100_normales_revisadas;
+  return `<p>${plural(m.revisadas, "operación revisada", "operaciones revisadas")}${Object.keys(m.por_estado).length ? ` (${Object.entries(m.por_estado).map(([k, v]) => `${num(v)} ${esc((ESTADO[k] || k).toLowerCase())}`).join(", ")})` : ""}.</p>
+    <p>De las señaladas y revisadas, eran errores: ${p.valor == null ? "no estimable" : num(p.valor)} (${num(p.numerador)} de ${num(p.denominador)})${p.motivo ? ` <span class="muted">— ${esc(p.motivo)}</span>` : ""}.</p>
+    <p>Señales en operaciones normales revisadas, por cada 100: ${f.por_100 == null ? "no estimable" : num(f.por_100)} (${num(f.numerador)} de ${num(f.denominador)})${f.motivo ? ` <span class="muted">— ${esc(f.motivo)}</span>` : ""}.</p>
+    <p class="muted">${esc(m.nota)}</p>`;
+}
+
+function enlazarRevision(d, q) {
   const fr = document.getElementById("f-rev");
-  if (fr) fr.addEventListener("submit", async e => {
+  if (!fr) return;
+  fr.addEventListener("submit", async e => {
     e.preventDefault();
-    const fd = new FormData(fr);
+    const fd = new FormData(fr), motivo = document.getElementById("motivo-rev");
+    let primero = null;
+    document.getElementById("err-estado").textContent = fd.get("estado") ? "" : "Elige qué encontraste.";
+    if (!fd.get("estado")) primero = fr.querySelector("input[name=estado]");
+    const corto = (fd.get("motivo") || "").trim().length < 3;
+    motivo.setAttribute("aria-invalid", String(corto)); document.getElementById("err-motivo").textContent = corto ? "Escribe el motivo (al menos 3 letras)." : "";
+    if (corto && !primero) primero = motivo;
+    if (primero) return primero.focus();
+    const b = fr.querySelector("button"); b.disabled = true; b.textContent = "Guardando…";
     try {
-      await api("POST", "/api/anomalias/revision", { tipo_operacion: d.universo, operacion_id: q.get("caso"), estado: fd.get("estado"), motivo: fd.get("motivo"), evidencia: fd.get("evidencia") || null });
-      vistaAnomalias();
-    } catch (err) { document.getElementById("msg-an").innerHTML = errorHtml(err); }
+      await api("POST", "/api/anomalias/revision", { tipo_operacion: d.universo, operacion_id: q.get("caso"), estado: fd.get("estado"), motivo: fd.get("motivo").trim(), evidencia: fd.get("evidencia") || null, __clave: fr.dataset.clave ||= clave() });
+      const n = new URLSearchParams(q); n.set("guardado", "1"); ir(`#/anomalias?${n}`);
+    } catch (err) { const m = document.getElementById("msg-an"); m.innerHTML = errorHtml(err); m.focus(); b.disabled = false; b.textContent = "Guardar la revisión"; }
   });
 }

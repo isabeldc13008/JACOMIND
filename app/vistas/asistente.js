@@ -1,6 +1,7 @@
 // Asistente conversacional (entradas 15 y 16 del plan): chat con memoria, citas, fuentes y pasos visibles.
 // La conversación se guarda por identidad, empresa y cierre: al cambiar de sesión no se ve la anterior.
 import { $vista, S, api, clave, esc, errorHtml, fechaLarga, puede } from "../nucleo.js";
+import { encabezado } from "../ui.js";
 
 const conversaciones = new Map();   // clave de sesión → { id, mensajes: [{rol, html}] }
 const claveSesion = () => `${S.usuario?.id}|${S.usuario?.organizacion_id}|${S.cierre}`;
@@ -9,12 +10,15 @@ function conversacion() {
   if (!conversaciones.has(k)) conversaciones.set(k, { id: clave().replace(/[^\w-]/g, "").slice(0, 40), mensajes: [] });
   return conversaciones.get(k);
 }
-export function olvidarConversaciones() { conversaciones.clear(); capacidades = null; }
+export function olvidarConversaciones() { conversaciones.clear(); capacidades = null; ejemplo = undefined; }
 let capacidades = null;
+let borrador = "";   // pregunta que no llegó a responderse, para no perderla
+let ejemplo;   // cliente real del conjunto activo para las preguntas de ejemplo (nunca un identificador fijo)
 
 // Enlaces que el perfil puede abrir (los permisos se aplican también a los enlaces).
 const PERMISO_ENLACE = [["#/clientes/", "cartera.ver"], ["#/agenda", "cartera.ver"], ["#/finanzas", "finanzas.ver"], ["#/tareas", "tareas.ver"],
-  ["#/tableros/operaciones", "tablero.operaciones"], ["#/tableros/ventas", "tablero.ventas"], ["#/pqrs/", null], ["#/pqrs", null], ["#/beneficios", null]];
+  ["#/tableros/operaciones", "tablero.operaciones"], ["#/tableros/ventas", "tablero.ventas"], ["#/pqrs/", null], ["#/pqrs", null], ["#/beneficios", null],
+  ["#/prevencion", "prevencion.ver"], ["#/proxima", "proxima.ver"], ["#/venta-cruzada", "venta_cruzada.ver"], ["#/anomalias", "anomalias.ver"], ["#/monitoreo", "monitoreo.ver"], ["#/ia", "cartera.ver"]];
 function enlaceAutorizado(h) {
   if (!h || !h.startsWith("#/")) return null;
   const regla = PERMISO_ENLACE.find(([p]) => h.startsWith(p));
@@ -87,8 +91,8 @@ function respuestaAgente(r, id) {
     ${r.cifras_sin_respaldo?.length ? `<p class="aviso-cifras">Revisa estas cifras: no aparecen tal cual en los datos consultados (${esc(r.cifras_sin_respaldo.join(", "))}). Pueden ser cálculos del asistente.</p>` : ""}
     ${fuentesHtml(r, id)}
     <div class="chat-acciones"><span class="muted">${r.corte ? `Datos hasta el ${esc(fechaLarga(r.corte))}` : ""}</span>
-      ${r.registro_id ? `<button type="button" class="icono" data-calif="1" data-reg="${r.registro_id}" aria-label="Respuesta útil" title="Respuesta útil">👍</button><button type="button" class="icono" data-calif="0" data-reg="${r.registro_id}" aria-label="Respuesta incorrecta" title="Respuesta incorrecta">👎</button>` : ""}
-      <button type="button" class="icono" data-copiar aria-label="Copiar respuesta" title="Copiar">⧉</button></div>
+      ${r.registro_id ? `<button type="button" class="icono-texto" data-calif="1" data-reg="${r.registro_id}" aria-pressed="false">Me sirvió</button><button type="button" class="icono-texto" data-calif="0" data-reg="${r.registro_id}" aria-pressed="false">No es correcta</button>` : ""}
+      <button type="button" class="icono-texto" data-copiar>Copiar respuesta</button></div>
     ${!S.usuario.externo ? `<details class="tecnico"><summary>Detalle técnico</summary><p class="muted">${esc(r.version || "")} · ${esc(r.motor || "")} · ${r.latencia_ms ?? "—"} ms${pasos.length ? ` · ${esc(JSON.stringify(pasos))}` : ""}</p></details>` : ""}
   </div></div>`;
 }
@@ -107,19 +111,21 @@ const burbujaUsuario = t => `<div class="chat-msg usuario"><div class="chat-cuer
 function sugerencias() {
   if (S.usuario.externo) return [["Tus solicitudes", ["¿En qué estado están mis solicitudes?", "¿Qué necesito para consultar un caso?"]],
     ["Tus beneficios", ["¿Qué beneficios tengo disponibles?", "¿Cómo pido el descuento por renovación anticipada?"]]];
-  const g = [["Sobre el proyecto", ["¿Cómo calcula JACOMIND la probabilidad de compra y qué limitaciones tiene?", "¿Qué significa que un cliente esté «frío»?", "¿Cómo se publica un cierre mensual?"]]];
+  const g = [];
   if (puede("agente.datos")) {
     const datos = [];
-    if (puede("cartera.ver")) datos.push("¿Qué clientes requieren revisión de cobertura y por qué?", "¿Qué compró DEMO01?");
-    if (puede("finanzas.ver") || puede("tablero.gerencia")) datos.push("¿Por qué cayeron las ventas en el último mes?");
+    if (puede("finanzas.ver") || puede("tablero.gerencia")) datos.push("¿Qué cambió en las ventas del último mes?");
+    if (puede("cartera.ver")) datos.push("¿A quién debo revisar primero y por qué?", "¿Qué clientes requieren revisión de cobertura?");
+    if (puede("cartera.ver") && ejemplo) datos.push(`¿Qué compró ${ejemplo}?`);
     if (puede("finanzas.ver")) datos.push("¿Cuánto costarían las compras en dólares si el dólar sube 8 %?");
-    if (datos.length) g.push(["Analizar datos", datos]);
+    if (datos.length) g.push(["Entender los datos", datos]);
     const rec = [];
     if (puede("cartera.ver")) rec.push("¿Con qué clientes debería hablar primero esta semana?");
     if (puede("tablero.operaciones")) rec.push("¿Qué coberturas debo atender antes y qué recomiendas?");
     if (puede("finanzas.ver")) rec.push("Analiza las ventas por familia y recomienda acciones");
     if (rec.length) g.push(["Recomendaciones", rec]);
   } else if (puede("documentos.consultar")) g.push(["Políticas", ["¿Cuál es el descuento por renovación anticipada?", "¿Qué dice el manual sobre el plazo de respuesta?"]]);
+  g.push(["Cómo funciona", ["¿Qué significa que un cliente lleve 90 días sin comprar?", "¿Cómo calcula JACOMIND la posibilidad de compra y qué límites tiene?", ...(puede("cartera.ver") || puede("monitoreo.ver") ? ["¿Qué modelos de IA hay y en qué estado están?"] : [])]]);
   return g;
 }
 
@@ -127,23 +133,24 @@ function sugerencias() {
 export async function vistaAsistente() {
   const externo = S.usuario.externo;
   if (!capacidades) capacidades = await api("GET", "/api/asistente/capacidades").catch(() => ({ modo: "basico" }));
+  if (ejemplo === undefined && !externo && puede("cartera.ver")) ejemplo = (await api("GET", `/api/cierres/${S.cierre}/agenda?tam=1`).catch(() => null))?.items?.[0]?.cliente_id || null;
   const conv = conversacion();
   const modoAgente = capacidades.modo === "agente";
   $vista.innerHTML = `<section class="chat">
-    <header class="chat-cabecera"><div><h1>${externo ? "Consulta tus beneficios o el estado de una solicitud" : "Asistente"}</h1>
-      <p class="muted">${modoAgente ? (externo ? "Responde con la información de tu empresa y las políticas vigentes, y cita de dónde sale cada dato." : "Pregunta sobre el proyecto, analiza datos del cierre o pide recomendaciones. Cada dato lleva su fuente.")
-        : "Modo básico: responde preguntas concretas con reglas (cliente, periodo o definición). El análisis libre necesita el modelo de lenguaje."}</p></div>
-      <div class="fila"><span class="chip ${modoAgente ? "fuerte" : ""}" title="${esc(capacidades.llm || "")}">${modoAgente ? "Agente con IA" : "Modo básico"}</span>
-      ${conv.mensajes.length ? '<button type="button" class="sec" id="nueva">Nueva conversación</button>' : ""}</div></header>
+    ${encabezado({ titulo: externo ? "Pregunta por tus beneficios o tus solicitudes" : "Asistente",
+      descripcion: modoAgente ? (externo ? "Responde con la información de tu empresa y las políticas vigentes, y dice de dónde sale cada dato." : "Pregunta por los datos, un cliente o una política. Cada respuesta indica sus fuentes para que puedas comprobarlas.")
+        : "Funciona en <strong>modo básico</strong>: responde preguntas concretas (un cliente, un mes, una definición o un modelo) con reglas fijas. Las preguntas abiertas necesitan el modelo de lenguaje, que no está activo en este equipo.",
+      contexto: [{ etiqueta: "Modo", valor: modoAgente ? "asistente con IA" : "básico (sin modelo de lenguaje)" }, S.estadoApi?.corte_activo ? { etiqueta: "Datos hasta", valor: esc(fechaLarga(S.estadoApi.corte_activo)) } : null],
+      acciones: conv.mensajes.length ? '<button type="button" class="sec" id="nueva">Empezar una conversación nueva</button>' : "" })}
     <div class="chat-mensajes" id="chat" aria-live="polite">${conv.mensajes.length ? conv.mensajes.map(m => m.html).join("") : `<div class="chat-vacio">
-      <div class="avatar grande" aria-hidden="true">J</div><p class="frase">¿En qué te ayudo?</p>
+      <p class="frase">¿En qué te ayudo? Elige una pregunta o escribe la tuya.</p>
       <div class="chat-sugerencias">${sugerencias().map(([t, ps]) => `<div><h2>${esc(t)}</h2>${ps.map(p => `<button type="button" class="sugerencia" data-e="${esc(p)}">${esc(p)}</button>`).join("")}</div>`).join("")}</div></div>`}</div>
     <form id="f" class="chat-entrada"><label class="oculto-visual" for="p">Escribe tu pregunta</label>
-      <textarea id="p" rows="1" maxlength="1000" placeholder="${externo ? "Pregunta por tus solicitudes o beneficios…" : "Pregunta, pide un análisis o una recomendación…"}"></textarea>
-      <button id="enviar" aria-label="Enviar pregunta">Enviar</button></form>
-    <p class="muted chat-nota">Enter envía · Mayús + Enter salta de línea · ${externo ? "Solo ve información de tu empresa." : "Las recomendaciones requieren decisión humana."}</p></section>`;
+      <textarea id="p" rows="1" maxlength="1000" placeholder="${externo ? "Escribe tu pregunta sobre solicitudes o beneficios" : "Escribe tu pregunta"}"></textarea>
+      <button id="enviar">Enviar pregunta</button></form>
+    <p class="muted chat-nota">La tecla Enter envía; Mayúsculas + Enter salta de línea. ${externo ? "Solo ve información de tu empresa." : "Las sugerencias requieren decisión humana."} Puedes seguir usando el menú mientras esperas.</p></section>`;
   const chat = document.getElementById("chat"), ta = document.getElementById("p");
-  chat.scrollTop = chat.scrollHeight;
+  if (conv.mensajes.length) chat.lastElementChild?.scrollIntoView({ block: "end" });
   enlazarMensajes(chat);
   const k = claveSesion();
   const enviar = async pregunta => {
@@ -151,17 +158,17 @@ export async function vistaAsistente() {
     const c = conversacion();
     if (!c.mensajes.length) chat.innerHTML = "";
     c.mensajes.push({ rol: "usuario", html: burbujaUsuario(pregunta) });
-    chat.insertAdjacentHTML("beforeend", burbujaUsuario(pregunta) + `<div class="chat-msg asistente pensando" id="pensando"><div class="avatar" aria-hidden="true">J</div><div class="chat-cuerpo"><span class="puntos" aria-label="Consultando"><i></i><i></i><i></i></span> <span class="muted">Consultando datos y fuentes…</span></div></div>`);
-    chat.scrollTop = chat.scrollHeight; ta.value = ""; ta.style.height = ""; ta.disabled = true; document.getElementById("enviar").disabled = true;
+    chat.insertAdjacentHTML("beforeend", burbujaUsuario(pregunta) + `<div class="chat-msg asistente pensando" id="pensando"><div class="avatar" aria-hidden="true">J</div><div class="chat-cuerpo"><span class="girando" aria-hidden="true"></span> <span role="status">Consultando datos y fuentes…</span></div></div>`);
+    document.getElementById("pensando").scrollIntoView({ block: "nearest" }); ta.value = ""; ta.style.height = ""; ta.disabled = true; document.getElementById("enviar").disabled = true;
     const id = `m${c.mensajes.length}`;
     let html;
     try {
       const r = await api("POST", "/api/asistente", { pregunta, cierre: S.cierre, conversacion: c.id });
       html = r.modo === "agente" ? respuestaAgente(r, id) : respuestaBasica(r, id);
       if (r.aviso) html = `<p class="estado">${esc(r.aviso)}</p>` + html;
-    } catch (e) { html = `<div class="chat-msg asistente"><div class="avatar" aria-hidden="true">J</div><div class="chat-cuerpo">${errorHtml(e)}</div></div>`; }
+    } catch (e) { html = `<div class="chat-msg asistente"><div class="avatar" aria-hidden="true">J</div><div class="chat-cuerpo">${errorHtml(e)}<p class="muted">Tu pregunta quedó en el cuadro de texto para que puedas volver a enviarla.</p></div></div>`; borrador = pregunta; }
     (conversaciones.get(k) || c).mensajes.push({ rol: "asistente", html });
-    if (location.hash.startsWith("#/asistente") && claveSesion() === k) vistaAsistente().then(() => document.getElementById("p")?.focus());
+    if (location.hash.startsWith("#/asistente") && claveSesion() === k) vistaAsistente().then(() => { const t = document.getElementById("p"); if (t) { t.value = borrador; borrador = ""; t.focus(); } });
   };
   document.getElementById("f").addEventListener("submit", e => { e.preventDefault(); enviar(ta.value); });
   ta.addEventListener("keydown", e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); enviar(ta.value); } });
@@ -192,13 +199,13 @@ function enlazarMensajes(chat) {
     const calif = e.target.closest("[data-calif]");
     if (calif) {
       await api("POST", `/api/asistente/${calif.dataset.reg}/calificar`, { correcta: calif.dataset.calif === "1" }).catch(() => {});
-      calif.parentElement.querySelectorAll("[data-calif]").forEach(b => b.classList.toggle("elegido", b === calif));
+      calif.parentElement.querySelectorAll("[data-calif]").forEach(b => { b.classList.toggle("elegido", b === calif); b.setAttribute("aria-pressed", String(b === calif)); });
       return;
     }
     if (e.target.closest("[data-copiar]")) {
       const texto = e.target.closest(".chat-cuerpo").querySelector(".chat-texto").innerText;
       navigator.clipboard?.writeText(texto);
-      e.target.textContent = "✓"; setTimeout(() => { e.target.textContent = "⧉"; }, 1200);
+      const b = e.target.closest("[data-copiar]"); b.textContent = "Copiada"; setTimeout(() => { b.textContent = "Copiar respuesta"; }, 1500);
     }
   });
 }
