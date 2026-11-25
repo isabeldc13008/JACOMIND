@@ -1,0 +1,43 @@
+#!/usr/bin/env bash
+# Despliegue desde CI: actualiza a un commit concreto de main, migra, reinicia y comprueba.
+# Se instala como /usr/local/sbin/jacomind-desplegar (root:root 755) con habilitar-cd.sh y solo lo puede
+# ejecutar el usuario «despliegue» mediante el comando forzado de su clave SSH.
+# Entrada: SSH_ORIGINAL_COMMAND = SHA de 40 caracteres que ya debe estar en origin/main.
+set -euo pipefail
+APP=/opt/jacomind/app
+VENV=/opt/jacomind/venv
+RAMA=main
+COMMIT="${SSH_ORIGINAL_COMMAND:-}"
+[[ "$COMMIT" =~ ^[0-9a-f]{40}$ ]] || { echo "Se espera el SHA completo del commit" >&2; exit 2; }
+
+exec 9>/run/jacomind-desplegar.lock
+flock -n 9 || { echo "Hay otro despliegue en curso" >&2; exit 3; }
+
+set -a; . /etc/jacomind/jacomind.env; set +a
+cd "$APP"
+sudo -u jacomind git -C "$APP" fetch -q origin "$RAMA"
+sudo -u jacomind git -C "$APP" merge-base --is-ancestor "$COMMIT" "origin/$RAMA" \
+  || { echo "El commit $COMMIT no pertenece a origin/$RAMA" >&2; exit 4; }
+ANTERIOR=$(sudo -u jacomind git -C "$APP" rev-parse HEAD)
+
+sudo -u jacomind --preserve-env "$VENV/bin/python" -m api --db "$JACOMIND_DB" respaldo >/dev/null   # respaldo previo
+sudo -u jacomind git -C "$APP" reset -q --hard "$COMMIT"
+if "$VENV/bin/python" -c "import langgraph" 2>/dev/null; then
+  sudo -u jacomind "$VENV/bin/pip" install -q -r "$APP/requirements-llm.txt"
+fi
+sudo -u jacomind --preserve-env "$VENV/bin/python" -m api migrar >/dev/null
+systemctl restart jacomind
+
+for i in $(seq 1 30); do
+  if curl -fsS http://127.0.0.1:8000/api/estado >/dev/null 2>&1; then
+    echo "Desplegado $(sudo -u jacomind git -C "$APP" log --oneline -1)"
+    exit 0
+  fi
+  sleep 1
+done
+
+# Si no arranca, vuelve al commit anterior (la base ya tiene un respaldo previo en var/respaldos).
+echo "La aplicación no respondió; se vuelve a $ANTERIOR" >&2
+sudo -u jacomind git -C "$APP" reset -q --hard "$ANTERIOR"
+systemctl restart jacomind
+exit 5

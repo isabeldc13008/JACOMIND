@@ -96,3 +96,19 @@ Para restaurar en producción: `sudo systemctl stop jacomind`, copia el respaldo
 - Con `JACOMIND_PROXY_AUTH=1`, Caddy debe eliminar la cabecera `X-Usuario-Autenticado` que envíe el cliente y fijarla solo tras autenticar (`forward_auth`); si no, cualquiera podría suplantar una identidad.
 - Con `LOGIN_DEMO=1`, cualquiera con la URL puede entrar con una identidad ficticia. Úsalo solo con datos sintéticos. Para un piloto con datos reales: `LOGIN_DEMO=0` y un proveedor de identidad delante, que fija la cabecera `X-Usuario-Autenticado` (`JACOMIND_PROXY_AUTH=1`).
 - No subas datos empresariales sin la autorización acordada con Green.
+
+## Integración y despliegue continuos (GitHub Actions)
+
+| Flujo | Cuándo | Qué hace |
+| --- | --- | --- |
+| `.github/workflows/ci.yml` | Cada push y pull request | Carril B y pruebas de integración con la biblioteca estándar; carril A con las dependencias de `requirements-modelos.txt`. Las pruebas que necesitan los datos privados se omiten. |
+| `.github/workflows/despliegue.yml` | Cuando el CI de `main` termina bien, o manualmente | Entra por SSH con el usuario restringido `despliegue` y ejecuta `jacomind-desplegar <commit>`: respaldo previo, `git reset` a ese commit (solo si está en `origin/main`), migración y reinicio. Si la aplicación no responde, vuelve al commit anterior. Al final comprueba `/api/estado` desde Internet. |
+
+Puesta en marcha (una sola vez):
+
+1. Instala la aplicación con `instalar.sh` (sección 3).
+2. En la instancia: `sudo CLAVE_PUBLICA="ssh-ed25519 … jacomind-ci" bash /opt/jacomind/app/despliegue/lightsail/habilitar-cd.sh`. Crea el usuario `despliegue`; su clave **solo** puede ejecutar el despliegue (comando forzado, sin terminal ni túneles; sudo limitado a ese programa). Imprime la huella del servidor.
+3. En GitHub, entorno `produccion`: variables `LIGHTSAIL_HOST` (IP o dominio) y `URL_PUBLICA` (`https://dominio`), y secretos `LIGHTSAIL_SSH_KEY` (clave privada) y `LIGHTSAIL_KNOWN_HOSTS` (la huella impresa). Mientras `LIGHTSAIL_HOST` esté vacía, el despliegue se omite.
+4. Abre el puerto 22 del firewall de Lightsail para que GitHub Actions pueda conectarse. La clave solo ejecuta el despliegue y no permite contraseñas.
+
+Para cambiar la clave, vuelve a ejecutar `habilitar-cd.sh` con la nueva clave pública y actualiza el secreto.

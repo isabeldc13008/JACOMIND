@@ -1,0 +1,59 @@
+# Despliegue continuo: cuando el CI de main termina bien, actualiza la instancia Lightsail a ese commit.
+# El acceso usa un usuario restringido («despliegue») cuya clave solo ejecuta jacomind-desplegar
+# (ver despliegue/lightsail/habilitar-cd.sh). Configuración del entorno «produccion»:
+#   variable LIGHTSAIL_HOST        IP estática o dominio de la instancia (dato público)
+#   variable URL_PUBLICA           URL base, p. ej. http://IP o https://dominio
+#   secreto  LIGHTSAIL_SSH_KEY     clave privada ed25519 del usuario «despliegue»
+#   secreto  LIGHTSAIL_KNOWN_HOSTS huella del servidor (línea de known_hosts) para no aceptar hosts desconocidos
+name: Despliegue
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: despliegue-produccion
+  cancel-in-progress: false
+
+jobs:
+  lightsail:
+    name: Lightsail (producción de demostración)
+    # Se omite mientras el entorno no esté configurado (variable LIGHTSAIL_HOST vacía).
+    if: >-
+      vars.LIGHTSAIL_HOST != '' && (github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment:
+      name: produccion
+      url: ${{ vars.URL_PUBLICA }}/app/
+    env:
+      COMMIT: ${{ github.event.workflow_run.head_sha || github.sha }}
+    steps:
+      - name: Preparar la clave SSH
+        env:
+          CLAVE: ${{ secrets.LIGHTSAIL_SSH_KEY }}
+          HOSTS: ${{ secrets.LIGHTSAIL_KNOWN_HOSTS }}
+        run: |
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$CLAVE" > ~/.ssh/despliegue && chmod 600 ~/.ssh/despliegue
+          printf '%s\n' "$HOSTS" > ~/.ssh/known_hosts && chmod 644 ~/.ssh/known_hosts
+      - name: Desplegar ${{ env.COMMIT }}
+        env:
+          HOST: ${{ vars.LIGHTSAIL_HOST }}
+        run: ssh -i ~/.ssh/despliegue -o StrictHostKeyChecking=yes -o BatchMode=yes "despliegue@$HOST" "$COMMIT"
+      - name: Comprobar desde Internet
+        env:
+          URL: ${{ vars.URL_PUBLICA }}
+        run: |
+          for i in $(seq 1 20); do curl -fsS "$URL/api/estado" && exit 0; sleep 3; done
+          echo "La aplicación no responde en $URL" >&2; exit 1
+      - name: Borrar la clave
+        if: always()
+        run: rm -f ~/.ssh/despliegue
