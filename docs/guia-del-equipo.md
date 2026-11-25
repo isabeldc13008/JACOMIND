@@ -1,184 +1,248 @@
 # JACOMIND · Guía del equipo
 
-Punto de entrada para quien llega al proyecto. Explica qué hace la aplicación, cómo fluyen los datos, qué hace cada modelo de IA y cómo funciona el asistente. El detalle técnico de cada pieza está en los documentos enlazados.
+Esta guía explica qué hace JACOMIND, cómo funciona por dentro, qué hace cada modelo de inteligencia artificial (IA) y cómo funciona el asistente.
 
-> **Estado al 25 de noviembre de 2026.** Todos los datos son **sintéticos** (paquete de prueba de Green Services). Ninguna métrica de esta guía es un resultado comercial real: la efectividad solo se puede medir con un piloto con datos de la empresa.
+**Está escrita para todo el equipo, no solo para quien programa.** La **Parte 1** usa lenguaje cotidiano y no requiere conocimientos técnicos. La **Parte 2** reúne el detalle técnico para quien mantiene el sistema. Si una palabra no es clara, búscala en el [glosario](#6-glosario-palabras-que-vas-a-encontrar).
 
-## 1. Qué es JACOMIND
+> **Importante.** Todos los datos actuales son **de práctica** (sintéticos): no corresponden a clientes reales. Las cifras de esta guía describen cómo se comportan los modelos con esos datos; **no son resultados comerciales**. Para saber si ayudan a vender más hace falta una prueba piloto con datos reales de la empresa.
 
-Una aplicación web para que Gerencia, Ventas, Operaciones, Finanzas y Atención **entiendan qué pasó en el mes, decidan a quién atender y registren lo que hicieron**. Las empresas cliente tienen además un portal propio para ver sus beneficios y sus solicitudes.
+## Parte 1 · Para todo el equipo
 
-Tiene tres ideas centrales:
+## 1. Qué es JACOMIND, en pocas palabras
 
-1. **El cierre mensual es la fuente de verdad.** Cada mes se publica una versión sellada de los datos (el «cierre»). Todas las pantallas dicen hasta qué fecha llegan sus datos.
-2. **La IA sugiere; las personas deciden.** Solo un modelo influye en el trabajo diario (M1). Los demás están **en prueba**: se muestran para revisión, pero no cambian nada por sí solos.
-3. **Todo queda registrado.** Seguimientos, decisiones sobre sugerencias, revisiones de casos y respuestas a clientes guardan quién, cuándo y por qué.
+JACOMIND es una aplicación web que ayuda a cada área de la empresa a responder tres preguntas cada mes:
 
-**En línea (demo):** https://jacomind-demo.duckdns.org/app/ · Guion de demostración: [demo-accesible.md](demo-accesible.md)
+1. **¿Qué pasó?** Cuánto se vendió, qué cambió y dónde.
+2. **¿A quién debemos atender?** Qué clientes necesitan una llamada, una renovación o una propuesta, y por qué.
+3. **¿Qué hicimos?** Qué contacto se hizo, con qué resultado y quién lo hizo.
 
-## 2. Arquitectura en una página
+Además, las **empresas cliente** tienen un portal propio para ver sus beneficios y seguir sus solicitudes.
 
+Tres ideas guían todo el diseño:
+
+- **Una sola versión de los datos por mes.** Cada mes se publica el «cierre»: una foto oficial y verificada de la información. Todas las pantallas dicen hasta qué fecha llegan sus datos.
+- **La IA sugiere; las personas deciden.** Solo un modelo de IA influye en el trabajo diario. Los demás están **en prueba**: muestran sugerencias, pero no cambian nada por sí solos.
+- **Todo queda registrado.** Cada decisión guarda quién la tomó, cuándo y por qué.
+
+**Ver la demo:** https://jacomind-demo.duckdns.org/app/ · Para presentarla a un cliente: [guion de demostración](demo-accesible.md).
+
+## 2. Cómo funciona un mes
+
+```pasos
+Llegan los archivos | Ventas, compras, clientes, coberturas y tipo de cambio, en CSV o Excel.
+Se revisa su calidad | Se apartan las filas con errores o duplicadas y se explica el motivo de cada una.
+Se publica el cierre | Una foto oficial del mes. Si algo falla, la gente sigue viendo el cierre anterior.
+Los modelos estiman | Calculan posibilidades y ventanas de tiempo. Las que están en prueba solo se muestran.
+Las personas deciden | Ventas, Operaciones y Atención revisan, actúan y registran lo que hicieron.
 ```
- Archivos de la empresa            Carril A (pipeline/, modelos/)               Carril B (api/, app/)
- ventas, compras, clientes,  ──▶  A01 carga y calidad ─▶ cierre mensual  ──▶  Publicación sellada (C2) ──▶ Aplicación web
- coberturas, TRM, productos        reglas de agenda (C1)                       SQLite + API HTTP            por perfil
-                                   modelo M1 (en uso)                                    ▲
-                                   M2…M6 ─────────────▶ publicaciones «en prueba» ───────┘  (no cambian el cierre)
+
+Así, cuando alguien abre JACOMIND, todo lo que ve viene del mismo cierre. Las estimaciones de la IA siempre aparecen marcadas como tales.
+
+## 3. Qué ve cada persona
+
+Cada persona entra con su perfil y solo ve lo que le corresponde. Los permisos los controla el servidor, no solo la pantalla.
+
+| Perfil | Al entrar ve… | Para qué le sirve |
+| --- | --- | --- |
+| **Gerencia** | El resumen ejecutivo | Entender las ventas del mes, dónde cambiaron y qué necesita atención. |
+| **Ventas** | El resumen comercial | Saber a qué clientes llamar primero, por qué y con qué propuesta. |
+| **Operaciones** | «¿Qué necesitas hacer?» | Atender coberturas que vencen, revisar operaciones raras y preparar el cierre. |
+| **Finanzas** | El resultado del mes | Ver ventas y compras, el pronóstico, escenarios del dólar e informes. |
+| **Atención** | Las solicitudes de clientes | Clasificar, preparar y publicar respuestas con base en las políticas. |
+| **Empresa cliente** | Sus beneficios | Pedir un beneficio o seguir sus solicitudes. Nunca ve datos de otras empresas. |
+
+Este es el reparto de la cartera al 31 de octubre de 2026 (120 clientes de práctica): lo primero que ve Ventas.
+
+```barras
+titulo: ¿Qué necesita cada cliente? (120 clientes, datos al 31 de octubre de 2026)
+unidad: clientes
+Revisar cobertura: 64
+Revisar reactivación: 41
+Seguimiento habitual: 12
+Revisar oportunidad de recompra: 3
+nota: Cada cliente aparece una sola vez, en su acción más urgente. Datos de práctica.
+```
+
+## 4. Los modelos de IA, explicados con sencillez
+
+Un **modelo** es un cálculo que aprende de las compras pasadas para **estimar** algo que todavía no ha ocurrido. Una estimación no es un hecho: es una posibilidad, y puede equivocarse.
+
+### En uso o en prueba
+
+```tarjetas
+En uso | Compra en 30 días (M1) | Ya forma parte del trabajo diario: ordena la cartera y activa la acción «Revisar oportunidad de recompra». En esta demo está aprobado solo para datos de práctica.
+En prueba | Los otros cinco modelos | Se muestran con el sello «En prueba» para que una persona los revise. No cambian la cartera, no crean tareas y no envían nada a nadie.
+```
+
+**¿Por qué tantos en prueba?** Porque todavía no demostraron acertar más que una regla sencilla que usaría cualquier persona, como «llamar primero a quien lleva más días sin comprar». Un modelo solo pasa a uso cuando lo demuestra con datos reales **y** una persona lo aprueba. Nunca pasa solo.
+
+### Qué responde cada uno
+
+```tarjetas
+En uso | M1 · ¿Comprará pronto? | Estima la posibilidad de que un cliente compre en los próximos 30 días. Si supera el 40 %, se sugiere revisar una recompra. Pantalla: Cartera y ficha del cliente.
+En prueba | M2 · ¿Podría dejar de comprar? | Avisa qué clientes que todavía compran podrían llegar a 90 días sin comprar. Sirve para prevenir antes de perderlos. Pantalla: Clientes que podrían dejar de comprar.
+En prueba | M3 · ¿Cuándo conviene contactar? | Indica una ventana de fechas en la que es probable que el cliente vuelva a comprar. Es una estimación, no una fecha de contrato. Pantalla: Cuándo conviene contactar.
+En prueba | M4 · ¿Qué más podríamos ofrecer? | Propone hasta tres productos que el cliente aún no tiene, con el motivo. Aceptar una sugerencia no es una venta. Pantalla: Productos que podrías ofrecer.
+En prueba | M5 · ¿Cuánto venderemos? | Proyecta las ventas de los próximos 1 a 3 meses, con el margen de error de meses anteriores. Pantalla: Pronóstico.
+En prueba | M6 · ¿Hay algo raro? | Señala ventas o compras con precios o cantidades muy distintos a lo habitual. Una señal no es fraude ni un error confirmado: alguien debe revisarla. Pantalla: Operaciones por revisar.
+```
+
+### Qué tan bien funcionan hoy
+
+Cada modelo se comparó con una regla sencilla, usando meses pasados de los datos de práctica. Estos gráficos muestran el resultado con honestidad: en varios casos la regla sencilla funcionó igual o mejor.
+
+```barras
+titulo: M1 · Compradores reales entre los 10 clientes que cada método pone primero (10 meses de prueba, 100 lugares)
+unidad: de 100
+Modelo en uso (M1.3): 60
+Versión anterior del modelo: 56
+Regla: más días sin comprar: 54
+Otra variante probada: 51
+nota: El modelo en uso queda primero, pero con una diferencia pequeña e inconclusa. Datos de práctica.
+```
+
+```barras
+titulo: M2 · De cada 10 clientes señalados, cuántos sí llegaron a 90 días sin comprar (julio y agosto)
+unidad: de 10
+Regla: más días sin comprar: 8
+Modelo M2: 6,5
+Misma probabilidad para todos: 4,5
+nota: Aquí la regla sencilla acertó más. Por eso M2 sigue en prueba y la regla se mantiene como referencia.
+```
+
+```barras
+titulo: M4 · El primer producto sugerido fue comprado después (porcentaje de casos)
+unidad: %
+Modelo aprendido: 13,3
+Productos más populares: 12,1
+nota: La diferencia (1,2 puntos) no alcanza la meta de 5 puntos. Se publica la sugerencia por popularidad, filtrada por compatibilidad.
+```
+
+```barras
+titulo: M5 · Resultado de 42 comparaciones (14 series × 3 horizontes)
+unidad: comparaciones
+Se mantuvo el método sencillo: 21
+Sin conclusión clara: 14
+El método nuevo fue peor: 6
+El método nuevo fue mejor: 1
+nota: Las ventas de práctica suben y bajan sin una tendencia clara; por eso el pronóstico sale casi plano.
+```
+
+```barras
+titulo: M6 · Casos raros de prueba que la versión actual detecta (ventas)
+unidad: %
+Versión actual (M6.1): 86,4
+Versión anterior (M6): 68,9
+nota: Además, las señales en operaciones reales bajaron de 14 a 1, así que hay menos falsas alarmas. Datos de práctica.
+```
+
+## 5. El asistente
+
+El asistente responde preguntas escritas en lenguaje normal, como «¿A quién debo llamar primero?» o «¿Qué cambió en las ventas de octubre?». Se abre con el botón **Asistente** en la parte superior de la pantalla.
+
+```pasos
+Haces una pregunta | En tus palabras, sobre clientes, ventas, políticas o los modelos.
+Busca en los datos | Solo consulta lo que tu perfil puede ver.
+Redacta la respuesta | Usa las cifras que encontró, sin inventar otras.
+Muestra sus fuentes | Cada dato lleva un número que lleva a su origen para comprobarlo.
+```
+
+Debes saber cuatro cosas:
+
+- **Tiene dos modos.** Con el modelo de lenguaje activo (Gemini) responde de forma conversacional. Si el servicio no responde o llega a su límite de uso, pasa a **modo básico**: respuestas más simples con reglas fijas. La pantalla siempre dice en qué modo está.
+- **Avisa si duda de una cifra.** Si escribe un número que no aparece en los datos consultados, lo marca para que lo revises.
+- **No actúa por ti.** No envía mensajes, no crea tareas y no cambia datos. Solo informa.
+- **Respeta los permisos.** Una empresa cliente solo recibe información de su propia empresa.
+
+## 6. Glosario: palabras que vas a encontrar
+
+| Palabra | Qué significa |
+| --- | --- |
+| **Cierre** | La foto oficial de los datos de un mes. Todo lo que ves viene de un cierre. |
+| **Fecha de los datos** | Hasta qué día llega la información. Aparece arriba en cada pantalla. |
+| **Modelo de IA** | Un cálculo que aprende del pasado para estimar algo futuro. |
+| **Estimación** | Lo que el modelo cree que puede pasar. No es un hecho. |
+| **En uso** | El modelo ya influye en el trabajo diario. |
+| **En prueba** | El modelo solo se muestra para revisarlo; no hace nada por sí solo. |
+| **Regla sencilla o referencia** | La forma simple de decidir sin IA, contra la que se compara cada modelo. |
+| **Pendiente de madurez** | Aún no pasó el tiempo para saber si el modelo acertó: lo estimado en octubre se comprueba con lo que pase en noviembre. |
+| **Ventana estimada** | Un rango de fechas en el que es probable que algo ocurra. |
+| **Cobertura** | Un servicio contratado con fecha de fin, que puede renovarse. |
+| **Seguimiento** | Una tarea con un cliente: quién la atiende, qué se hizo y con qué resultado. |
+| **PQRS** | Peticiones, quejas, reclamos y sugerencias de las empresas cliente. |
+| **Datos de práctica** | Datos inventados para probar el sistema sin usar información real. |
+
+## 7. Preguntas frecuentes
+
+**¿La IA decide a quién llamar?** No. Ordena y sugiere; una persona decide y registra lo que hizo.
+
+**¿Por qué una gráfica de pronóstico sale casi plana?** Porque las ventas de práctica suben y bajan sin una tendencia clara. Un buen pronóstico no inventa picos: muestra un nivel y cuánto se ha equivocado antes.
+
+**¿Qué significa «Pendiente de madurez» en los modelos?** Que hay que esperar al mes siguiente para comparar lo estimado con lo que realmente pasó. No es un error.
+
+**¿Por qué se usan datos de práctica?** Para probar todo el sistema sin exponer información real de clientes. Los resultados con datos reales pueden ser diferentes.
+
+**¿Qué hago si veo algo raro o un número que no cuadra?** Abre «Ver cifras exactas y cómo se calcularon» en esa pantalla y avisa al equipo técnico con la fecha de los datos y la pantalla.
+
+## Parte 2 · Detalle técnico
+
+## 8. Arquitectura
+
+```pasos
+Archivos de la empresa | CSV o Excel de ventas, compras, clientes, productos, coberturas y TRM.
+A01 · carga y calidad | pipeline/: filas aceptadas, duplicadas y aisladas, con su incidencia.
+Cierre mensual (C2) | Agenda C1, historial, coberturas, series, oportunidades y M1. Se valida y se publica de forma atómica.
+API y SQLite | api/: servidor con la biblioteca estándar; permisos en api/permisos.py.
+Aplicación web | app/: HTML, CSS y JS sin frameworks; vistas por perfil.
 ```
 
 | Pieza | Qué hace | Dónde |
 | --- | --- | --- |
-| **A01 · carga y calidad** | Lee CSV o Excel y separa filas aceptadas, duplicadas y apartadas, con el motivo de cada una. | `pipeline/`, vista *Datos y cierres* |
-| **Cierre mensual** | Genera la publicación del mes (agenda, historial, coberturas, series, oportunidades y predicciones de M1), la valida contra el contrato C2 y la publica de forma atómica. Si falla, sigue vigente el cierre anterior. | `python -m api cierre`, `api/publicacion.py` |
-| **Contratos** | C1 (agenda) y C2 (publicación) son esquemas JSON. Lo que no los cumple no se publica. | `contratos/` |
-| **API** | Servidor HTTP con la biblioteca estándar de Python y SQLite. Los permisos se comprueban en el servidor, no en la pantalla. | `api/servidor.py`, `api/permisos.py` |
-| **Aplicación web** | HTML, CSS y JavaScript sin frameworks. Accesible: letra de 18 px, controles de 48 px, ajustes de tamaño y tema. | `app/`, [DESIGN.md](../DESIGN.md), [UX-CONTRACT.md](../UX-CONTRACT.md) |
-| **Modelos** | Entrenamiento y evaluación con protocolos fijados antes de ver resultados. La inferencia y la API funcionan **sin** scikit-learn ni statsmodels. | `modelos/`, [plan/modelos](plan/modelos/README.md) |
-| **Monitoreo** | Observaciones de salud, distribución, desempeño y revisión humana por modelo, con avisos persistentes. | `api/monitoreo*.py`, [monitoreo-modelos.md](monitoreo-modelos.md) |
+| A01 · carga y calidad | Lee CSV o Excel y separa filas aceptadas, duplicadas y aisladas, con el motivo de cada una. | `pipeline/`, vista *Datos y cierres* |
+| Cierre mensual | Genera la publicación del mes, la valida contra el contrato C2 y la publica de forma atómica. Si falla, sigue vigente el cierre anterior. | `python -m api cierre`, `api/publicacion.py` |
+| Contratos | C1 (agenda) y C2 (publicación) son esquemas JSON. Lo que no los cumple no se publica. | `contratos/` |
+| API | Servidor HTTP con la biblioteca estándar de Python y SQLite. Los permisos se comprueban en el servidor. | `api/servidor.py`, `api/permisos.py` |
+| Aplicación web | Accesible: letra de 18 px, controles de 48 px, ajustes de tamaño y tema. | `app/`, [DESIGN.md](../DESIGN.md), [UX-CONTRACT.md](../UX-CONTRACT.md) |
+| Modelos | Entrenamiento y evaluación con protocolos fijados antes de ver resultados. La inferencia y la API funcionan **sin** scikit-learn ni statsmodels. | `modelos/`, [plan de modelos](plan/modelos/README.md) |
+| Publicaciones en prueba | Las salidas de M2–M6 se importan aparte con `python -m api sombra <carpeta>` y no cambian el cierre. | `api/prevencion.py`, `api/proxima.py`, `api/venta_cruzada.py`, `api/demanda.py`, `api/anomalias.py` |
+| Monitoreo | Observaciones de salud, distribución, desempeño y revisión humana por modelo, con avisos persistentes. | `api/monitoreo*.py`, [monitoreo-modelos.md](monitoreo-modelos.md) |
 
-### Perfiles y lo que ve cada uno
+## 9. Modelos: métodos, estado y documentación
 
-El menú se genera desde las capacidades de cada perfil (`app/navegacion.js` + `api/permisos.py`):
+| Modelo | Método publicado | Decisión de la evaluación | Ficha |
+| --- | --- | --- | --- |
+| M1 · `compra_30d` | `compra_30d-m13-P`: regresión logística, pesos por antigüedad (semivida de 180 días) y ajuste de nivel | Inconclusa; **en uso en modo demostración** | [modelo-compra.md](modelo-compra.md), [M1.3](modelo-compra-m13.md) |
+| M2 · `inactividad_60d` | `m21-poisson-180`: ritmo de compra de los últimos 180 días | Inconclusa; la referencia es «mayor recencia» | [modelo-inactividad.md](modelo-inactividad.md) |
+| M3 · `proxima_compra` | Cox con regularización L2; publica la ventana del 10 % al 50 % | Inconclusa; mejora a la curva poblacional (Brier integrado −10,3 %) | [modelo-proxima-compra.md](modelo-proxima-compra.md) |
+| M4 · `venta_cruzada` | Popularidad filtrada por compatibilidad (`compat-v1`) | Inconclusa; se conservó la referencia | [modelo-venta-cruzada.md](modelo-venta-cruzada.md) |
+| M5 · `demanda` | Referencias por serie (último mes, promedio de 3 meses) y candidatos SES/Holt amortiguado; total = suma de familias | 21 de 42 conservan la referencia | [modelo-demanda.md](modelo-demanda.md) |
+| M6 · `anomalias` | M6.1: reglas de catálogo y contexto (mediana/MAD) con cupo de revisión | Se conservan las reglas; Isolation Forest no aportó valor demostrable | [modelo-anomalias.md](modelo-anomalias.md) |
 
-| Perfil | Inicio | Áreas principales |
-| --- | --- | --- |
-| Gerencia | Resumen ejecutivo | Todo lo de consulta; reconoce avisos de modelos |
-| Ventas | Resumen comercial | Cartera, seguimientos, M1–M4, beneficios |
-| Operaciones | «¿Qué necesitas hacer?» | Coberturas, operaciones por revisar, datos y cierres, configuración |
-| Finanzas | Resultado del mes | Pronóstico, escenarios del dólar, informes, operaciones por revisar |
-| Atención | Solicitudes | Bandeja, beneficios, base de conocimiento |
-| Empresa (portal) | Beneficios | Solo su empresa: beneficios, mis solicitudes, asistente |
+**Promoción:** solo con `python -m modelos.cli promover`, una decisión favorable del protocolo, datos reales y la aprobación de una persona. **Estados de monitoreo:** sin información, pendiente de madurez, no comparable, sin problemas detectados (nunca aparece por falta de datos), requiere revisión y publicación rechazada. Reconocer o resolver un aviso exige un motivo y nunca reentrena un modelo.
 
-## 3. Los modelos
+## 10. Asistente: detalle técnico
 
-### Cómo leer el estado de un modelo
-
-| Estado | Qué significa | Qué hace en la aplicación |
-| --- | --- | --- |
-| **En uso** | Pasó su evaluación y una persona lo promovió (en la demo: «modo demostración», aprobado solo para datos sintéticos). | Viaja dentro del cierre y **cambia el trabajo**: ordena la cartera, activa acciones y crea seguimientos. |
-| **En prueba** (o «en sombra») | Su evaluación fue inconclusa o se conservó el método de referencia. | **Solo se muestra**, con el sello «En prueba». No cambia la cartera, no crea seguimientos ni recordatorios y no envía nada. |
-
-Pasar de prueba a uso **nunca es automático**. Hacen falta tres cosas: una decisión favorable del protocolo, datos reales y la aprobación de una persona (`python -m modelos.cli promover`).
-
-### Resumen
-
-| | Pregunta que responde | Método publicado | Estado | Pantalla |
-| --- | --- | --- | --- | --- |
-| **M1** | ¿Es probable que el cliente compre en 30 días? | `compra_30d-m13-P`: regresión logística con pesos por antigüedad y ajuste de nivel | **En uso** (modo demostración) | Cartera, ficha del cliente |
-| **M2** | ¿Podría llegar a 90 días sin comprar en los próximos 60? | `m21-poisson-180`: ritmo de compra de los últimos 180 días | En prueba | Clientes que podrían dejar de comprar |
-| **M3** | ¿Cuándo es probable que vuelva a comprar? | Cox con regularización L2 (supervivencia) | En prueba | Cuándo conviene contactar |
-| **M4** | ¿Qué producto que aún no tiene podría interesarle? | Popularidad filtrada por compatibilidad (se conservó la referencia) | En prueba | Productos que podrías ofrecer |
-| **M5** | ¿Cuánto se venderá en los próximos 1–3 meses? | Referencias por serie (último mes, promedio de 3 meses) y candidatos SES/Holt; el total es la suma de las familias | En prueba | Pronóstico |
-| **M6** | ¿Qué venta o compra se aparta de lo habitual? | M6.1: reglas de catálogo y contexto (mediana/MAD) con un cupo de revisión | En prueba | Operaciones por revisar |
-
-### M1 · Compra en 30 días
-
-- **Qué estima:** la posibilidad de que un cliente con historial compre en los 30 días siguientes a la fecha de los datos.
-- **Cómo se usa:** si supera el **40 %**, la acción del cliente pasa a «Revisar oportunidad de recompra». La estimación también ordena la cartera dentro de cada acción.
-- **Cómo se calcula:** regresión logística con cuatro variables de recencia y frecuencia. Los cortes recientes pesan más (semivida de 180 días) y el intercepto se ajusta al nivel del último mes con resultado conocido, sin cambiar el orden.
-- **Distinciones que muestra la pantalla:** «0 %» (el modelo estimó cero), «Hay compras, pero falta la estimación» (no hay modelo para esa fecha) y «Sin compras registradas».
-- **Límites:** frente a la regla «más días sin comprar», los resultados fueron inconclusos con datos sintéticos. Está en uso solo para demostrar el flujo completo.
-- **Más:** [modelo-compra.md](modelo-compra.md), [M1.3](modelo-compra-m13.md)
-
-### M2 · Riesgo de inactividad a 60 días
-
-- **Qué estima:** para clientes con 30 a 89 días sin comprar, la probabilidad de llegar a 90 días sin compra en los próximos 60. Sirve para **prevenir**, no para reactivar a quien ya se pausó.
-- **Quién queda fuera:** los que ya llevan 90 días o más (reactivación, en la cartera) y los que llevan menos de 30 (riesgo cero por definición).
-- **Resultado de la evaluación:** entre los 10 primeros, la regla «más días sin comprar» acierta algo más. La diferencia no es concluyente, así que la regla sigue siendo la referencia.
-- **Más:** [modelo-inactividad.md](modelo-inactividad.md)
-
-### M3 · Próxima compra
-
-- **Qué estima:** una **ventana** de inicio probable de la próxima compra. En la demo va del 10 % al 50 % de posibilidad acumulada; **no es una banda del 80 %**.
-- **Cómo se muestra:** como barras en el tiempo, con el fin de cobertura (fecha de contrato) marcado aparte. Si un límite no se alcanza en 60 días, no se inventa la fecha.
-- **Resultado de la evaluación:** mejora con claridad a la curva de toda la población, pero ninguna ventana del 10 % al 90 % es utilizable en 60 días.
-- **Más:** [modelo-proxima-compra.md](modelo-proxima-compra.md)
-
-### M4 · Productos que podrías ofrecer
-
-- **Qué hace:** propone hasta 3 productos que el cliente aún no tiene, con motivo y estado de compatibilidad. El número es un **orden**, no una probabilidad.
-- **Resultado de la evaluación:** el modelo aprendido no superó por 5 puntos a la popularidad, así que se publica la popularidad filtrada. La compatibilidad queda «por revisar» porque la empresa aún no ha definido sus reglas.
-- **Decisiones:** Ventas puede aceptar, aplazar o descartar con motivo. **Aceptar no es una venta ni envía una oferta.** Además hay una muestra para la evaluación comercial, que no tiene revisiones.
-- **Más:** [modelo-venta-cruzada.md](modelo-venta-cruzada.md)
-
-### M5 · Pronóstico de demanda
-
-- **Qué estima:** ventas en pesos por familia y en total (suma de familias), y unidades por producto, a 1, 2 y 3 meses.
-- **Cómo se muestra:** la línea continua es lo observado y la discontinua lo estimado. El rango solo aparece donde la publicación lo trae (empírico, sin garantía). El error medio en meses ya conocidos se presenta como error, **no como confianza**.
-- **Por qué la línea sale casi plana:** las ventas sintéticas suben y bajan sin tendencia, y los métodos proyectan un nivel. De 42 decisiones (serie × horizonte), 21 conservaron la referencia y solo 1 fue favorable.
-- **No confundir:** con la proyección operativa A08 de *Finanzas → Resultado*, que es una regla del cierre y no este modelo.
-- **Más:** [modelo-demanda.md](modelo-demanda.md)
-
-### M6 · Operaciones por revisar
-
-- **Qué hace:** arma una cola de ventas y compras cuyo precio o cantidad se aparta de lo habitual para ese producto, con un cupo de revisión por mes.
-- **Qué significa una señal:** **no es fraude ni un error confirmado.** Una persona decide si es un error, un cambio legítimo o si falta información. Revisar no cambia importes; una corrección se hace cargando los datos de nuevo.
-- **M6.1 frente a M6:** la versión anterior usaba Isolation Forest, que no aportó valor demostrable. M6.1 usa reglas de catálogo y contexto y reduce las señales innecesarias.
-- **Revisiones:** no hay ninguna revisión humana, así que la precisión no es estimable.
-- **Más:** [modelo-anomalias.md](modelo-anomalias.md)
-
-### Monitoreo de modelos
-
-Cada publicación genera observaciones de cuatro tipos: salud de datos, distribución, desempeño frente a lo que realmente pasó y revisión humana.
-
-**Estados que puede tener un modelo:**
-
-| Estado | Cuándo aparece |
-| --- | --- |
-| Sin información | No hay observaciones. |
-| **Pendiente de madurez** | Todavía no pasó el tiempo para saber si acertó. Es el estado actual de los seis: las estimaciones de octubre se comparan con noviembre. |
-| No comparable | Cambió la versión o la política del modelo. |
-| Sin problemas detectados | Hay resultados observados y no se activó ninguna regla. Nunca aparece por falta de datos. |
-| Requiere revisión | Una regla detectó un cambio o un deterioro. |
-| Publicación rechazada | Falló el control de integridad de una publicación. |
-
-- **Reconocer o resolver un aviso** exige un motivo y queda en el historial. Nunca reentrena ni promueve un modelo.
-- **Más:** [monitoreo-modelos.md](monitoreo-modelos.md)
-
-## 4. El asistente
-
-Disponible desde el botón «Asistente» de la cabecera. Responde preguntas sobre los datos, los clientes, las políticas y los modelos, y **cita de dónde sale cada dato**.
-
-### Dos modos
-
-| Modo | Cuándo | Cómo funciona |
-| --- | --- | --- |
-| **Asistente con IA** (agente) | Hay librerías de LangGraph y una clave de Gemini o Anthropic | Un modelo de lenguaje decide qué herramientas consultar. Responde con las cifras que devuelven y cita las fuentes. |
-| **Modo básico** | Sin modelo de lenguaje, o si este falla o llega al límite de su cuota | Reglas fijas que reconocen intenciones (un cliente, un mes, una definición, un modelo) y responden con plantillas. La pantalla lo indica siempre. |
-
-- **Proveedores:** Gemini es el principal (`gemini-3.5-flash-lite`, con `gemini-3.1-flash-lite` de respaldo) y Anthropic es opcional. Se configuran con variables en `/etc/jacomind/jacomind.env` (en el servidor) o en `.env` (en local). **Nunca en el repositorio.**
-- **Si el proveedor no responde:** por ejemplo, ante un límite de peticiones por minuto, la respuesta sale en modo básico con un aviso, sin error para la persona.
-
-### Herramientas según el perfil
-
-El asistente solo puede usar las herramientas que corresponden a los permisos de la persona (`api/agente_chat.py`). Los permisos los comprueba el servidor.
+- **Orquestación:** grafo de LangGraph (`api/agente_chat.py`) con herramientas construidas según los permisos del usuario. El modo básico es un grafo de reglas (`api/agente.py`).
+- **Proveedores** (`api/llm.py`): Gemini es el principal (`gemini-3.5-flash-lite`, con `gemini-3.1-flash-lite` de respaldo) y Anthropic es opcional. Las claves van en `/etc/jacomind/jacomind.env` o en `.env`, **nunca en el repositorio**. Ante un límite de cuota (`GoogleRateLimitError`) responde en modo básico con un aviso.
+- **Salvaguardas:** se eliminan las citas a fuentes que no existen, se detectan las cifras sin respaldo, la memoria se guarda por conversación y está aislada entre usuarios y empresas, y las estimaciones en prueba se rotulan como experimentales.
 
 | Grupo | Herramientas | Quién |
 | --- | --- | --- |
-| Cartera | `resumen_cartera`, `buscar_clientes`, `ficha_cliente`, `oportunidades_prioritarias`, `seguimientos_pendientes`, `coberturas_por_vencer` | Perfiles internos con acceso a la cartera |
+| Cartera | `resumen_cartera`, `buscar_clientes`, `ficha_cliente`, `oportunidades_prioritarias`, `seguimientos_pendientes`, `coberturas_por_vencer` | Perfiles con acceso a la cartera |
 | Finanzas | `ventas_o_compras_por_mes`, `clientes_que_redujeron_compras`, `simular_tipo_de_cambio` | Finanzas y Gerencia |
-| Modelos | `riesgo_inactividad` (M2), `proxima_compra` (M3), `venta_cruzada` (M4), `pronostico_demanda` (M5, en pesos solo para Finanzas y Gerencia), `operaciones_atipicas` (M6), `monitoreo_de_modelos`, `resultados_de_modelos` | Los mismos permisos que la pantalla de cada modelo |
+| Modelos | `riesgo_inactividad`, `proxima_compra`, `venta_cruzada`, `pronostico_demanda` (en pesos solo para Finanzas y Gerencia), `operaciones_atipicas`, `monitoreo_de_modelos`, `resultados_de_modelos` | Los mismos permisos que la pantalla de cada modelo |
 | Conocimiento | `buscar_politicas`, `buscar_en_documentacion`, `definicion_de_indicador` | Según el perfil |
-| Portal | `mis_solicitudes`, `mis_beneficios`, `buscar_politicas` | Empresa: solo su empresa, nunca datos internos |
+| Portal | `mis_solicitudes`, `mis_beneficios`, `buscar_politicas` | Empresa: solo su empresa |
 
-### Salvaguardas
-
-- **Fuentes:** cada respuesta enumera las que usó. Las citas a fuentes que no existen se eliminan.
-- **Cifras sin respaldo:** si el texto trae un número que no aparece en los datos consultados, se marca «revisa estas cifras».
-- **Memoria:** se guarda por conversación y está aislada entre usuarios y empresas.
-- **Estimaciones:** las de los modelos en prueba se presentan como experimentales, nunca como hechos.
-
-## 5. Operación y despliegue
+## 11. Operación, despliegue y trabajo en local
 
 | Tema | Resumen | Más |
 | --- | --- | --- |
-| Servidor | Amazon Lightsail (Ubuntu 24.04, 1 GB, Ohio), Caddy con HTTPS automático, servicio systemd `jacomind` y datos en `/var/lib/jacomind` | [despliegue.md](despliegue.md) |
+| Servidor | Amazon Lightsail (Ubuntu 24.04, 1 GB, Ohio), Caddy con HTTPS automático, servicio `jacomind` y datos en `/var/lib/jacomind` | [despliegue.md](despliegue.md) |
 | CI | GitHub Actions corre las pruebas de aplicación, integración y modelos en cada push | `.github/workflows/ci.yml` |
 | CD | Si el CI de `main` pasa, se despliega ese commit con respaldo previo y vuelta atrás automática si no arranca | `.github/workflows/despliegue.yml` |
-| Datos de la demo | El despliegue solo actualiza el **código**. La base de la demo se sube aparte (`salida/demo_cliente_2026_11_25/demo.sqlite3`). | [demo-accesible.md](demo-accesible.md) |
-| Respaldos | Copia diaria a las 03:30 en el servidor, guardada 30 días | [operacion.md](operacion.md) |
-
-### Trabajar en local
+| Datos de la demo | El despliegue actualiza el **código**. La base de la demo se sube aparte. | [demo-accesible.md](demo-accesible.md) |
+| Respaldos | Copia diaria a las 03:30, guardada 30 días | [operacion.md](operacion.md) |
 
 ```
 python -m api --db salida/demo_cliente_2026_11_25/demo.sqlite3 servir --puerto 8000   # abrir http://127.0.0.1:8000/app/
@@ -187,7 +251,7 @@ python -m unittest discover -s tests/app -t tests/app               # carril B (
 python -m unittest discover -s tests/integracion -t tests/integracion
 ```
 
-## 6. Reglas del proyecto
+## 12. Reglas del proyecto
 
 - **Datos:** no se modifican los datos originales, las ejecuciones históricas ni las publicaciones congeladas para que pase una prueba.
 - **Protocolos:** se fijan **antes** de ver los resultados y no se cambian después.
@@ -196,7 +260,7 @@ python -m unittest discover -s tests/integracion -t tests/integracion
 - **Controles:** no se desactivan para que algo funcione. Si una publicación falla la integridad, se investiga.
 - **Lo que no va al repositorio:** datos de clientes ni claves. El repositorio es **público**.
 
-## 7. Mapa de documentos
+## 13. Mapa de documentos
 
 | Necesito… | Documento |
 | --- | --- |

@@ -1,7 +1,7 @@
 // «Cómo funciona JACOMIND»: muestra docs/guia-del-equipo.md dentro de la aplicación (una sola fuente que mantener).
 // Solo perfiles internos (capacidad guia.ver). Los enlaces a otros documentos abren el archivo en el repositorio.
 import { $vista, api, errorHtml, esc, estadoHtml, nuevoTurno, vigente } from "../nucleo.js";
-import { encabezado } from "../ui.js";
+import { barras, encabezado } from "../ui.js";
 
 const REPO = "https://github.com/isabeldc13008/JACOMIND/blob/main/";
 
@@ -23,12 +23,46 @@ function enLinea(t) {
     .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
     .replace(/(^|[^*])\*([^*\n]+)\*/g, "$1<em>$2</em>")
     .replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, (_, texto, url) => {
+      if (url.startsWith("#")) return `<button type="button" class="enlace" data-ir-a="g-${esc(url.slice(1))}">${texto}</button>`;   // salto dentro de la guía
       const destino = enlaceRepo(url.replace(/&amp;/g, "&"));
       return `<a href="${esc(destino)}" target="_blank" rel="noopener">${texto}<span class="oculto-visual"> (se abre en una pestaña nueva)</span></a>`;
     });
 }
 
-/** Markdown de la guía → HTML seguro: títulos, párrafos, listas, tablas, citas y bloques de código. */
+const numero = t => Number(String(t).trim().replace(/\./g, "").replace(",", "."));
+
+/** Bloques ilustrados de la guía. En GitHub se leen como texto; aquí se dibujan. */
+function bloqueEspecial(tipo, lineas) {
+  const filas = lineas.map(l => l.trim()).filter(Boolean);
+  if (tipo === "pasos") {
+    const pasos = filas.map(l => l.split("|").map(x => x.trim()));
+    return `<ol class="guia-pasos">${pasos.map(([t, d], i) => `<li><span class="guia-paso-num" aria-hidden="true">${i + 1}</span><strong>${enLinea(t)}</strong>${d ? `<span>${enLinea(d)}</span>` : ""}</li>`).join("")}</ol>`;
+  }
+  if (tipo === "tarjetas") {
+    return `<div class="guia-tarjetas">${filas.map(l => {
+      const [estado, titulo, texto] = l.split("|").map(x => x.trim());
+      const uso = /uso/i.test(estado);
+      return `<article class="guia-tarjeta ${uso ? "uso" : "prueba"}"><span class="sello ${uso ? "sello-ok" : "sello-prueba"}">${esc(estado)}</span><h4>${enLinea(titulo)}</h4><p>${enLinea(texto || "")}</p></article>`;
+    }).join("")}</div>`;
+  }
+  if (tipo === "barras") {
+    const meta = {}, items = [];
+    for (const l of filas) {
+      const m = l.match(/^(titulo|unidad|nota):\s*(.*)$/i);
+      if (m) { meta[m[1].toLowerCase()] = m[2]; continue; }
+      const k = l.lastIndexOf(":");
+      if (k > 0) {
+        const bruto = l.slice(k + 1).trim();
+        items.push({ etiqueta: l.slice(0, k).trim(), valor: numero(bruto), texto: `${bruto}${meta.unidad === "%" ? " %" : meta.unidad ? ` ${meta.unidad}` : ""}` });
+      }
+    }
+    return `<figure class="guia-grafico panel"><figcaption><strong>${enLinea(meta.titulo || "")}</strong></figcaption>
+      ${barras(items, { etiquetaAria: meta.titulo || "Gráfico de barras" })}${meta.nota ? `<p class="muted">${enLinea(meta.nota)}</p>` : ""}</figure>`;
+  }
+  return null;
+}
+
+/** Markdown de la guía → HTML seguro: títulos, párrafos, listas, tablas, citas, código y bloques ilustrados. */
 export function guiaHtml(md) {
   const lineas = md.replace(/\r/g, "").split("\n");
   const html = [], indice = [];
@@ -37,9 +71,9 @@ export function guiaHtml(md) {
   while (i < lineas.length) {
     const l = lineas[i], t = l.trim();
     if (t.startsWith("```")) {
-      cerrar(); const bloque = []; i++;
+      cerrar(); const tipo = t.slice(3).trim(), bloque = []; i++;
       while (i < lineas.length && !lineas[i].trim().startsWith("```")) bloque.push(lineas[i++]);
-      html.push(`<pre><code>${esc(bloque.join("\n"))}</code></pre>`); i++; continue;
+      html.push(bloqueEspecial(tipo, bloque) ?? `<pre><code>${esc(bloque.join("\n"))}</code></pre>`); i++; continue;
     }
     let m;
     if ((m = t.match(/^(#{1,3})\s+(.*)$/))) {
@@ -47,6 +81,10 @@ export function guiaHtml(md) {
       const nivel = m[1].length, texto = m[2];
       if (nivel === 1) { i++; continue; }                       // el título va en el encabezado de la página
       const id = idDe(texto);
+      if (nivel === 2 && /^Parte \d/.test(texto)) {                 // separador de las dos partes de la guía
+        indice.push({ id, texto, parte: true });
+        html.push(`<h2 id="${id}" tabindex="-1" class="guia-parte">${enLinea(texto)}</h2>`); i++; continue;
+      }
       if (nivel === 2) indice.push({ id, texto });
       html.push(`<h${nivel} id="${id}" tabindex="-1">${enLinea(texto)}</h${nivel}>`); i++; continue;
     }
@@ -94,7 +132,7 @@ export async function vistaGuia() {
     contexto: [{ etiqueta: "Fuente", valor: `<a href="${esc(REPO + d.archivo)}" target="_blank" rel="noopener">${esc(d.archivo)}<span class="oculto-visual"> (se abre en una pestaña nueva)</span></a>` }] })}
   <div class="guia">
     <nav class="guia-indice panel" aria-label="Contenido de la guía"><h2>Contenido</h2>
-      <ol>${indice.map(x => `<li><button type="button" class="enlace" data-ir-a="${x.id}">${esc(x.texto.replace(/^\d+\.\s*/, ""))}</button></li>`).join("")}</ol></nav>
+      <ul>${indice.map(x => `<li class="${x.parte ? "guia-indice-parte" : ""}"><button type="button" class="enlace" data-ir-a="${x.id}">${esc(x.texto)}</button></li>`).join("")}</ul></nav>
     <article class="guia-texto">${html}</article>
   </div>`;
 }
