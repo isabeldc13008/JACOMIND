@@ -151,11 +151,19 @@ class PruebasTareas(CasoBase):
             self.assertEqual(len(expuestas), con.execute("SELECT count(*) FROM tareas").fetchone()[0])
 
     def test_compra_posterior_observada_separada_de_resultado(self):
+        # La tarea guarda su creación con la hora real: la compra «posterior» se fecha después de ese día,
+        # para que la prueba no dependa del día en que se ejecuta.
+        from datetime import date, timedelta
+        with self.db.conexion() as con:
+            creada = con.execute("SELECT creada_en FROM tareas WHERE cliente_id = 'DEMO03'").fetchone()[0][:10]
+        compra = date.fromisoformat(creada) + timedelta(days=1)
+        corte = max(date(2026, 11, 30), compra + timedelta(days=5))
+
         def cambiar(tb):
-            _mover_corte(tb, "2026-11-30")
+            _mover_corte(tb, corte.isoformat())
             for c in tb["agenda"]["clientes"]:
                 if c["cliente_id"] == "DEMO03":
-                    c["ultima_compra"] = "2026-11-25"; c["dias_sin_compra"] = 5
+                    c["ultima_compra"] = compra.isoformat(); c["dias_sin_compra"] = (corte - compra).days
         fijar_hoy("2026-11-02")
         d = self.publicacion_modificada("nov", cambiar)
         publicacion.publicar_ruta(self.db, d, "ops1")
