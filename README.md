@@ -2,6 +2,8 @@
 
 [Plan de la hackatón de Green Services para dos personas](PLAN_HACKATON.md)
 
+**[Guía del equipo: cómo funciona el proyecto, los modelos y el asistente](docs/guia-del-equipo.md)**
+
 [Plan de implementación del proyecto completo](PLAN_IMPLEMENTACION.md) · [Tareas de datos y modelos](docs/plan/datos-y-modelos.md) · [Tareas de aplicación y operación](docs/plan/aplicacion-y-operacion.md)
 
 [Plan de mejora de las vistas por perfil](docs/plan/mejora-de-vistas.md) · [Reorganización accesible para la demo](docs/plan/reorganizacion-demo.md) · [Matriz V01–V31](docs/plan/matriz-v01-v31.md) · [Sistema visual](DESIGN.md) · [Contrato de experiencia](UX-CONTRACT.md)
