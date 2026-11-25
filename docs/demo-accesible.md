@@ -6,6 +6,15 @@ Base de demostración: `salida/demo_accesible_2026_11_24/demo.sqlite3`. Es una c
 
 ## Antes de presentar
 
+> **Base vigente para clientes (25-11-2026):** `salida/demo_cliente_2026_11_25/demo.sqlite3`, la misma que está publicada en https://jacomind-demo.duckdns.org/app/.
+> Parte de la base anterior y añade lo siguiente:
+> - Avisos de monitoreo revisados y resueltos con su motivo (el rechazo de integridad de M5 venía de una copia alterada a propósito en la prueba del 24-11-2026).
+> - Informe de octubre generado.
+> - Carga real de `ventas.csv` confirmada y `ventas_con_incidencias_OPCIONAL.csv` validada, pendiente de confirmar, para mostrar las incidencias.
+> - Cierre ejecutado (reconocido como ya publicado).
+>
+> Las muestras de revisión humana de Productos sugeridos y Operaciones por revisar quedan pendientes a propósito: se completan en vivo.
+
 1. Restaurar la copia limpia (borra lo que se haya registrado en ensayos):
    `copy salida\demo_accesible_2026_11_24\demo_limpia.sqlite3 salida\demo_accesible_2026_11_24\demo.sqlite3` con el servidor detenido.
 2. Iniciar: `python -m api --db salida/demo_accesible_2026_11_24/demo.sqlite3 servir --puerto 8000` y abrir `http://127.0.0.1:8000/app/`.
