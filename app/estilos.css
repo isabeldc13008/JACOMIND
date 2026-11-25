@@ -339,6 +339,20 @@ a.opcion-origen strong { color: var(--acento); }
 .comparacion dt { font-size: var(--t-sec); color: var(--texto-2); font-weight: 600; }
 .comparacion dd { margin: .2rem 0 0; font-weight: 700; font-size: 1.111rem; font-variant-numeric: tabular-nums; }
 
+/* ---------------------------------------------------------------- guía del equipo */
+.guia { display: grid; grid-template-columns: minmax(14rem, 17rem) minmax(0, 1fr); gap: var(--e4); align-items: start; }
+.guia-indice { position: sticky; top: 5rem; max-height: calc(100vh - 6rem); overflow-y: auto; }
+.guia-indice ol { padding-left: 1.3rem; margin: 0; }
+.guia-indice li { margin: .1rem 0; }
+.guia-indice button.enlace { text-align: left; padding: .35rem .25rem; }
+.guia-texto { min-width: 0; max-width: 62rem; }
+main [id] { scroll-margin-top: 5.5rem; }
+.guia-texto h2 { margin-top: var(--e5); padding-top: var(--e2); border-top: 1px solid var(--borde); }
+.guia-texto h2:first-child { margin-top: 0; border-top: none; padding-top: 0; }
+.guia-texto pre { font-size: var(--t-sec); }
+.guia-texto td, .guia-texto th { min-width: 8rem; }
+@media (max-width: 1100px) { .guia { grid-template-columns: minmax(0, 1fr); } .guia-indice { position: static; max-height: none; } }
+
 /* ---------------------------------------------------------------- diálogo */
 dialog.dialogo { border: 1px solid var(--borde); border-radius: var(--r-panel); padding: var(--e3); max-width: min(36rem, 94vw); background: var(--superficie); color: var(--texto); box-shadow: 0 20px 50px rgba(0, 0, 0, .25); }
 dialog.dialogo::backdrop { background: rgba(10, 20, 15, .45); }

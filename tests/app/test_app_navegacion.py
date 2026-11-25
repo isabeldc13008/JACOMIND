@@ -26,6 +26,7 @@ REQUISITOS = {
     "#/beneficios": {"beneficios.ver_interno", "beneficios.portal"}, "#/documentos": {"documentos.gestionar"},
     "#/operacion?seccion=cargar": {"operacion.administrar"}, "#/operacion?seccion=actividad": {"operacion.administrar"},
     "#/operacion?seccion=administrar": {"operacion.administrar"}, "#/ia": {"cartera.ver"}, "#/monitoreo": {"monitoreo.ver"},
+    "#/guia": {"guia.ver"},
 }
 
 SCRIPT = r"""
@@ -114,6 +115,9 @@ class PruebasNavegacion(unittest.TestCase):
         self.assertNotIn("clientes", [a["id"] for a in self.menu["fin1"]["areas"]])
         self.assertNotIn("#/operacion?seccion=cargar", self.destinos("ger1"))   # Gerencia no administra cierres
         self.assertIn("#/tableros/gerencia", self.destinos("fin1"))             # Finanzas conserva el resumen ejecutivo
+        for i in ("ger1", "ventas1", "ops1", "fin1", "aten1"):
+            self.assertIn("#/guia", self.destinos(i), i)                       # la guía del equipo, para todo perfil interno
+        self.assertNotIn("#/guia", self.destinos("cli_a"))                      # nunca en el portal de empresas
 
     def test_maximo_dos_niveles_y_sin_duplicados(self):
         for ident in self.perfiles:
@@ -123,3 +127,43 @@ class PruebasNavegacion(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class PruebasGuiaDelEquipo(unittest.TestCase):
+    """La guía de la aplicación se sirve desde docs/guia-del-equipo.md solo a perfiles internos."""
+
+    def test_permisos_y_contenido(self):
+        import sys
+        sys.path.insert(0, str(Path(__file__).parent))
+        from _apoyo_app import CasoBase
+        caso = type("C", (CasoBase,), {"runTest": lambda s: None})()
+        caso.setUp()
+        try:
+            st, d = caso.http("GET", "/api/guia", como="ventas1")
+            self.assertEqual(st, 200)
+            self.assertIn("# JACOMIND · Guía del equipo", d["markdown"])
+            self.assertEqual(caso.http("GET", "/api/guia", como="cli_a")[0], 403)
+        finally:
+            caso.tearDown()
+
+    @unittest.skipUnless(shutil.which("node"), "Node no disponible")
+    def test_la_guia_se_convierte_sin_perder_secciones(self):
+        script = r"""
+globalThis.document = { getElementById: () => null, documentElement: { dataset: {} }, querySelector: () => null };
+globalThis.localStorage = { getItem: () => null, setItem: () => {} };
+globalThis.location = { hash: "" };
+const fs = await import("node:fs");
+const g = await import("./app/vistas/guia.js");
+const md = fs.readFileSync("docs/guia-del-equipo.md", "utf8");
+const r = g.guiaHtml(md);
+console.log(JSON.stringify({ secciones: r.indice.length, h2: (md.match(/^## /gm) || []).length, tablas: (r.html.match(/<table>/g) || []).length,
+  enlace: g.enlaceRepo("../DESIGN.md"), ficha: g.enlaceRepo("plan/modelos/README.md"), script: /<script/i.test(r.html) }));
+"""
+        p = subprocess.run(["node", "--input-type=module", "-e", script], cwd=RAIZ, capture_output=True, text=True, encoding="utf-8")
+        self.assertEqual(p.returncode, 0, p.stderr)
+        r = json.loads(p.stdout)
+        self.assertEqual(r["secciones"], r["h2"])
+        self.assertGreater(r["tablas"], 5)
+        self.assertEqual(r["enlace"], "https://github.com/isabeldc13008/JACOMIND/blob/main/DESIGN.md")
+        self.assertEqual(r["ficha"], "https://github.com/isabeldc13008/JACOMIND/blob/main/docs/plan/modelos/README.md")
+        self.assertFalse(r["script"])

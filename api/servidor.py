@@ -176,6 +176,17 @@ def r_ficha(c: Ctx):
         return f
 
 
+# ------------------------------------------------------------------ guía del equipo (docs/guia-del-equipo.md, solo lectura)
+@ruta("GET", "/api/guia", "guia.ver")
+def r_guia(c: Ctx):
+    archivo = RAIZ / "docs" / "guia-del-equipo.md"
+    if not archivo.is_file():
+        raise ErrorApi(404, "guia_no_disponible", "La guía del equipo no está en este despliegue")
+    from datetime import datetime, timezone
+    return {"markdown": archivo.read_text(encoding="utf-8"), "archivo": "docs/guia-del-equipo.md",
+            "actualizado": datetime.fromtimestamp(archivo.stat().st_mtime, timezone.utc).isoformat(timespec="seconds")}
+
+
 # ------------------------------------------------------------------ resultados de los modelos de IA (solo lectura)
 @ruta("GET", "/api/ia", "cartera.ver")
 def r_ia(c: Ctx):

@@ -51,6 +51,7 @@ MATRIZ: dict[str, set[str]] = {
     "agente.portal": {"empresa", "atencion"},
     "operacion.administrar": {"operaciones"},
     "auditoria.ver": {"operaciones", "gerencia"},
+    "guia.ver": {"operaciones", "ventas", "finanzas", "atencion", "gerencia"},   # guía del equipo (funcionamiento interno; no el portal)
     "eventos.exportar": {"operaciones", "gerencia"},
 }
 

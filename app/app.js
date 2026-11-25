@@ -23,6 +23,7 @@ import { vistaVentaCruzada } from "./vistas/venta_cruzada.js";
 import { vistaDemanda } from "./vistas/demanda.js";
 import { vistaAnomalias } from "./vistas/anomalias.js";
 import { vistaMonitoreo } from "./vistas/monitoreo.js";
+import { vistaGuia } from "./vistas/guia.js";
 
 const ROLES = { operaciones: "Operaciones", ventas: "Ventas", finanzas: "Finanzas", atencion: "Atención", gerencia: "Gerencia", empresa: "Empresa" };
 const menu = document.getElementById("menu"), botonMenu = document.getElementById("boton-menu");
@@ -210,6 +211,7 @@ async function render() {
       case "documentos": return await vistaDocumentos();
       case "operacion": return await vistaOperacion();
       case "monitoreo": return puede("monitoreo.ver") ? await vistaMonitoreo() : sinPermiso();
+      case "guia": return puede("guia.ver") ? await vistaGuia() : sinPermiso();
       case "anomalias": return puede("anomalias.ver") ? await vistaAnomalias() : sinPermiso();
       case "demanda": return puede("demanda.ver_cop") || puede("demanda.ver_unidades") ? await vistaDemanda() : sinPermiso();
       case "venta-cruzada": return puede("venta_cruzada.ver") ? await vistaVentaCruzada() : sinPermiso();

@@ -22,6 +22,7 @@ const ICONOS = {
   atencion: '<path d="M5 6h14v9.5H10l-4 3.5v-3.5H5z"/><path d="M8.5 9.5h7M8.5 12.5h4.5"/>',
   administracion: '<circle cx="12" cy="12" r="3"/><path d="M12 3.5v2.3M12 18.2v2.3M3.5 12h2.3M18.2 12h2.3M6 6l1.6 1.6M16.4 16.4 18 18M6 18l1.6-1.6M16.4 7.6 18 6"/>',
   portal: '<path d="M4 9.5 12 5l8 4.5v9.5H4z"/><path d="M9.5 19v-5h5v5"/>',
+  guia: '<path d="M5 5.5A2.5 2.5 0 0 1 7.5 3H19v15H7.5A2.5 2.5 0 0 0 5 20.5z"/><path d="M5 20.5A2.5 2.5 0 0 1 7.5 18H19v3H7.5"/><path d="M9 7.5h6M9 10.5h4"/>',
   solicitudes: '<rect x="5" y="4" width="14" height="16" rx="2"/><path d="M8.5 8.5h7M8.5 12h7M8.5 15.5h4"/>',
 };
 export const icono = (nombre, clase = "icono") =>
@@ -84,6 +85,8 @@ export function areasPara(usuario, puede) {
       puede("operacion.administrar") && { hash: "#/operacion?seccion=actividad", titulo: "Actividad", describe: "Cargas, cierres y errores" },
       puede("operacion.administrar") && { hash: "#/operacion?seccion=administrar", titulo: "Configuración y respaldos", describe: "Funciones activas y copias" },
     ] },
+    // Ayuda al final del menú: la guía del equipo no compite con las áreas de trabajo.
+    { id: "guia", titulo: "Cómo funciona JACOMIND", icono: "guia", items: [puede("guia.ver") && { hash: "#/guia", titulo: "Cómo funciona JACOMIND", describe: "Guía del proyecto, los modelos y el asistente" }] },
   ];
   return areas
     .map(a => ({ ...a, items: a.items.filter(Boolean).filter(i => a.id === "inicio" || i.hash !== inicio) }))
