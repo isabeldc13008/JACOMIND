@@ -108,7 +108,7 @@ Puesta en marcha (una sola vez):
 
 1. Instala la aplicación con `instalar.sh` (sección 3).
 2. En la instancia: `sudo CLAVE_PUBLICA="ssh-ed25519 … jacomind-ci" bash /opt/jacomind/app/despliegue/lightsail/habilitar-cd.sh`. Crea el usuario `despliegue`; su clave **solo** puede ejecutar el despliegue (comando forzado, sin terminal ni túneles; sudo limitado a ese programa). Imprime la huella del servidor.
-3. En GitHub, entorno `produccion`: variables `LIGHTSAIL_HOST` (IP o dominio) y `URL_PUBLICA` (`https://dominio`), y secretos `LIGHTSAIL_SSH_KEY` (clave privada) y `LIGHTSAIL_KNOWN_HOSTS` (la huella impresa). Mientras `LIGHTSAIL_HOST` esté vacía, el despliegue se omite.
+3. En GitHub (Settings → Secrets and variables → Actions, del repositorio o del entorno `produccion`): variables `LIGHTSAIL_HOST` (IP o dominio) y `URL_PUBLICA` (`https://dominio`), y secretos `LIGHTSAIL_SSH_KEY` (clave privada) y `LIGHTSAIL_KNOWN_HOSTS` (la huella impresa). Mientras `LIGHTSAIL_HOST` esté vacía, el despliegue se omite.
 4. Abre el puerto 22 del firewall de Lightsail para que GitHub Actions pueda conectarse. La clave solo ejecuta el despliegue y no permite contraseñas.
 
 Para cambiar la clave, vuelve a ejecutar `habilitar-cd.sh` con la nueva clave pública y actualiza el secreto.

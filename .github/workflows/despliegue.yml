@@ -1,6 +1,6 @@
 # Despliegue continuo: cuando el CI de main termina bien, actualiza la instancia Lightsail a ese commit.
 # El acceso usa un usuario restringido («despliegue») cuya clave solo ejecuta jacomind-desplegar
-# (ver despliegue/lightsail/habilitar-cd.sh). Configuración del entorno «produccion»:
+# (ver despliegue/lightsail/habilitar-cd.sh). Configuración (repositorio o entorno «produccion»):
 #   variable LIGHTSAIL_HOST        IP estática o dominio de la instancia (dato público)
 #   variable URL_PUBLICA           URL base, p. ej. http://IP o https://dominio
 #   secreto  LIGHTSAIL_SSH_KEY     clave privada ed25519 del usuario «despliegue»
