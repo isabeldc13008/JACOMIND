@@ -387,8 +387,8 @@ def construir_herramientas(con, usuario, cierre: dict, fuentes: Fuentes) -> list
                                                                     for o in m["desempeno"][:4]]} for m in d["modelos"]]}, n)
 
     def resultados_de_modelos() -> str:
-        from .base import RAIZ
-        ruta = RAIZ / "salida" / "ia" / "resumen.json"
+        from .base import DIR_SALIDA
+        ruta = DIR_SALIDA / "ia" / "resumen.json"   # misma carpeta que /api/ia
         if not ruta.is_file():
             n = fuentes.agregar("datos", "Resultados de los modelos de IA", "sin resumen generado")
             return salida({"disponible": False, "mensaje": "Aún no se ha generado el resumen (python -m modelos.cli resumen-ia)."}, n)

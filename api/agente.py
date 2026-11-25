@@ -379,8 +379,8 @@ def herramienta_modelos(con, usuario, cierre, intencion: str, p: dict) -> dict:
         estado = "; ".join(f"{m['nombre']}: {m['estado_texto']}" + (f" ({len(m['avisos_activos'])} avisos)" if m["avisos_activos"] else "") for m in d["modelos"])
         return _resp("ok", intencion, p, {"modelos": [{k: m[k] for k in ("modelo_id", "estado", "ultimo_corte")} for m in d["modelos"]]}, ev("#/monitoreo"),
                      f"Estado del monitoreo (reglas iniciales): {estado}. Ningún aviso promueve ni revierte modelos.")
-    from .base import RAIZ
-    ruta_r = RAIZ / "salida" / "ia" / "resumen.json"
+    from .base import DIR_SALIDA
+    ruta_r = DIR_SALIDA / "ia" / "resumen.json"   # misma carpeta que /api/ia (JACOMIND_SALIDA en el servidor)
     if not ruta_r.is_file():
         return _resp("sin_datos", intencion, p, texto="Aún no se ha generado el resumen de los modelos de IA.")
     rs = json.loads(ruta_r.read_text(encoding="utf-8"))
