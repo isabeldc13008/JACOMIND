@@ -45,6 +45,10 @@ def main(argv=None) -> int:
     mo.add_argument("--datos", default=None, help="resultados: revisión A01 aceptada (con su cobertura declarada)")
     mo.add_argument("--modelo", default=None, help="limitar a un modelo")
     mo.add_argument("--observado-hasta", default=None, help="resultados: cobertura explícita (AAAA-MM-DD) si el lote no la declara")
+    na = sub.add_parser("narrativas", help="pre-redacta con IA los textos de venta cruzada y de la ficha (en lotes, sin pasar los límites)")
+    na.add_argument("--tipo", choices=["venta_cruzada", "ficha", "todas"], default="todas")
+    na.add_argument("--limite", type=int, default=None, help="máximo de solicitudes al modelo por tipo")
+    sub.add_parser("cuota-llm", help="uso de hoy de cada clave y modelo frente a sus límites")
     c = sub.add_parser("cierre")
     c.add_argument("--corte", required=True); c.add_argument("--datos"); c.add_argument("--desde")
     c.add_argument("--reintentos", type=int, default=2); c.add_argument("--actor", default="programador")
@@ -69,11 +73,22 @@ def main(argv=None) -> int:
             from .servidor import Aplicacion, crear_servidor
             solo_permisos(db)
             srv = crear_servidor(Aplicacion(db, practica=a.practica, login_demo=not a.sin_login_demo), a.host, a.puerto)
+            from . import narrativas
+            db.migrar(); narrativas.iniciar_precalculo(db)   # textos de IA, poco a poco y dentro del cupo
             print(f"JACOMIND en http://{a.host}:{a.puerto}/app/  (base: {a.db}; Ctrl+C para salir)")
             try:
                 srv.serve_forever()
             except KeyboardInterrupt:
                 pass
+        elif a.cmd == "narrativas":
+            from . import narrativas as NA
+            db.migrar()
+            tipos = NA.TIPOS if a.tipo == "todas" else (a.tipo,)
+            imprimir([NA.generar_todo(db, t, a.limite) for t in tipos])
+        elif a.cmd == "cuota-llm":
+            from . import cuota_llm
+            e = cuota_llm.estado()
+            imprimir({k: v for k, v in e.items() if k != "uso"} | {"uso": [u for u in e["uso"] if u["hoy"] or u["bloqueado_hasta"]]})
         elif a.cmd == "publicar":
             from .demo import solo_permisos
             from .publicacion import publicar_ruta

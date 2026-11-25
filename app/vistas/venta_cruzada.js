@@ -2,6 +2,7 @@
 // cambian la cartera y no muestran porcentajes: el modelo publica un orden sin calibrar.
 import { $vista, S, api, clave, errorHtml, esc, estadoHtml, fechaLarga, ir, nuevoTurno, num, plural, puede, ruta, vigente } from "../nucleo.js";
 import { avisoPrueba, ctxDatos, detalleTecnico, encabezado, enPrueba, hallazgo, pestanas, vacio } from "../ui.js";
+import { estadoIA, pedirNarrativa, pieIA } from "../ia_textos.js";
 
 const COMPAT = { confirmada: "Compatibilidad confirmada", pendiente_revision: "Compatibilidad por revisar" };
 const EPISODIO = { en_revision: "En revisión", aceptada: "Aceptada", aplazada: "Aplazada", descartada: "Descartada (no se reabre)", cerrada_compra: "Cerrada: compra posterior observada" };
@@ -25,9 +26,29 @@ function decisionHtml(i) {
 function tarjeta(i) {
   return `<article class="tarjeta-caso"><h3>${num(i.posicion)}. ${esc(i.producto_nombre)} <span class="muted">${esc(i.producto_id)}</span></h3>
     <p><span class="sello ${i.estado_compatibilidad === "confirmada" ? "sello-ok" : "sello-prueba"}">${esc(COMPAT[i.estado_compatibilidad] || i.estado_compatibilidad)}</span></p>
-    <dl class="comparacion"><div><dt>Por qué se sugiere</dt><dd>${esc(i.origen_texto)}</dd></div><div><dt>Clientes que lo compraron</dt><dd>${num(i.soporte)}</dd></div></dl>
+    <div class="ia-producto" data-ia-cliente="${esc(i.cliente_id)}" data-ia-producto="${esc(i.producto_id)}"></div>
+    <dl class="comparacion"><div><dt>Cómo se eligió</dt><dd>${esc(i.origen_texto)}</dd></div><div><dt>Clientes que lo compraron</dt><dd>${num(i.soporte)}</dd></div></dl>
+    <p class="etiqueta-datos">Datos que lo respaldan</p>
     <ul>${(i.motivos || []).map(m => `<li>${esc(m)}</li>`).join("")}</ul>
     <div class="decision" data-msg>${decisionHtml(i)}</div></article>`;
+}
+
+/** Caja donde aparece el enfoque redactado por IA para un cliente. */
+const cajaEnfoque = id => `<div class="ia-panel" data-ia-enfoque="${esc(id)}" aria-live="polite"><h3>Cómo plantear la conversación</h3><div class="ia-cuerpo"></div></div>`;
+
+/** Pide el texto de IA del cliente y lo coloca en el enfoque y en cada producto. Sin IA, deja los textos originales. */
+export function pintarVentaCruzadaIA(raiz, clienteId, turno) {
+  const caja = raiz.querySelector(`[data-ia-enfoque="${clienteId}"] .ia-cuerpo`);
+  if (!caja) return;
+  pedirNarrativa(`/api/narrativas/venta-cruzada/${encodeURIComponent(clienteId)}`, turno, r => {
+    if (r.estado === "no_aplica" || r.estado === "desactivada") { caja.parentElement.hidden = true; return; }
+    if (r.estado !== "ok") { caja.innerHTML = estadoIA(r); return; }
+    caja.innerHTML = `<p>${esc(r.texto.enfoque)}</p>${pieIA(r)}`;
+    raiz.querySelectorAll(`[data-ia-cliente="${clienteId}"]`).forEach(el => {
+      const t = r.texto.productos?.[el.dataset.iaProducto];
+      el.innerHTML = t ? `<p class="ia-texto"><span class="sello sello-ia">IA</span> ${esc(t)}</p>` : "";
+    });
+  });
 }
 
 /** Bloque para la ficha: productos sugeridos con evidencia y compatibilidad; separado de recompra y renovación. */
@@ -35,7 +56,7 @@ export function ventaCruzadaFichaHtml(s) {
   if (!s) return "";
   const vacioTxt = s.cobertura && s.cobertura.estado !== "con_recomendaciones" ? `${esc(COBERTURA[s.cobertura.estado] || s.cobertura.estado)}: ${esc(s.cobertura.motivo || "")}` : "Sin sugerencias para este cliente.";
   return `<section class="panel"><h2>Productos que podrías ofrecer ${enPrueba()}</h2><div id="msg-vc" role="status"></div>
-    ${s.items.length ? s.items.map(tarjeta).join("") : vacio(vacioTxt)}
+    ${s.items.length ? cajaEnfoque(s.items[0].cliente_id) + s.items.map(tarjeta).join("") : vacio(vacioTxt)}
     <p class="muted">Datos hasta el ${esc(fechaLarga(s.corte))} · ${esc(s.estado_experimento)}. ${esc(s.nota)} Los productos que ya tiene se atienden como recompra o renovación en la cartera.</p></section>`;
 }
 
@@ -129,6 +150,7 @@ export async function vistaVentaCruzada() {
     <section class="panel" aria-labelledby="t-sel-vc">${sel ? `<h2 id="t-sel-vc">Cliente ${esc(sel)}</h2>
       <dl class="comparacion"><div><dt>Ya tiene</dt><dd>${yaTiene ? esc(yaTiene) : puede("cartera.ver") ? "Sin compras registradas" : "Dato no disponible para tu perfil"}</dd></div><div><dt>Se sugiere</dt><dd>${esc(items.map(i => i.producto_nombre).join(", "))}</dd></div></dl>
       <p class="muted">El número indica el orden de la sugerencia, no una probabilidad. ${puede("cartera.ver") ? `<a href="#/clientes/${encodeURIComponent(sel)}">Ver la ficha del cliente</a>` : ""}</p>
+      ${cajaEnfoque(sel)}
       ${items.map(tarjeta).join("")}` : vacio("Elige un cliente de la lista para ver sus sugerencias.")}
     </section>
   </div>
@@ -142,4 +164,5 @@ export async function vistaVentaCruzada() {
     ir(enlace({ buscar: fd.get("buscar").trim(), compatibilidad: fd.get("compatibilidad"), cliente: "" }));
   });
   activarVentaCruzada($vista, vistaVentaCruzada);
+  if (sel && seccion === "propuestas") pintarVentaCruzadaIA($vista, sel, turno);
 }

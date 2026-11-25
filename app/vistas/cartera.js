@@ -10,7 +10,8 @@ import {
 } from "../ui.js";
 import { inactividadFichaHtml } from "./prevencion.js";
 import { proximaFichaHtml } from "./proxima.js";
-import { activarVentaCruzada, ventaCruzadaFichaHtml } from "./venta_cruzada.js";
+import { activarVentaCruzada, pintarVentaCruzadaIA, ventaCruzadaFichaHtml } from "./venta_cruzada.js";
+import { estadoIA, pedirNarrativa, pieIA } from "../ia_textos.js";
 
 export async function cargarLocal() {
   const url = URL_FUENTE[S.fuente];
@@ -257,6 +258,22 @@ export async function vistaFicha(id, q) {
   <div id="contenido-ficha">${cuerpo}</div>
   ${detalleTecnico(`<pre>${esc(JSON.stringify(c, null, 2))}</pre>`, "Registro original del cliente")}</div>`;
   activarVentaCruzada($vista, () => vistaFicha(id, q));
+  pintarFichaIA(id, turno);
+  if (f.venta_cruzada_sombra?.items?.length) pintarVentaCruzadaIA($vista, id, turno);
+}
+
+/** «Para preparar la conversación», redactado por IA con los datos de la ficha. */
+function pintarFichaIA(id, turno) {
+  const caja = document.getElementById("ia-ficha");
+  if (!caja) return;
+  const cuerpo = caja.querySelector(".ia-cuerpo");
+  pedirNarrativa(`/api/narrativas/ficha/${encodeURIComponent(id)}`, turno, r => {
+    if (r.estado === "no_aplica" || r.estado === "desactivada") { caja.hidden = true; return; }   // sin IA: la ficha queda como antes
+    if (r.estado !== "ok") { cuerpo.innerHTML = estadoIA(r); return; }
+    const t = r.texto;
+    cuerpo.innerHTML = `<p>${esc(t.situacion)}</p><p><strong>Qué atender primero:</strong> ${esc(t.primero)}</p>
+      ${t.preguntas?.length ? `<p><strong>Preguntas para la llamada</strong></p><ul>${t.preguntas.map(x => `<li>${esc(x)}</li>`).join("")}</ul>` : ""}${pieIA(r)}`;
+  });
 }
 
 function pestanaResumen(f, c, corte, local) {
@@ -267,7 +284,8 @@ function pestanaResumen(f, c, corte, local) {
     ...f.oportunidades.filter(o => o.fecha_sugerida).map(o => ({ fecha: o.fecha_sugerida, etiquetaFecha: fechaLarga(o.fecha_sugerida), tipo: "sugerida", titulo: `Revisión sugerida · ${o.accion || o.tipo}`, chip: "Sugerencia", detalle: esc(o.motivos.join(" · ")) })),
     ...(vp && vp.fecha_p10 ? [{ fecha: vp.fecha_p10, etiquetaFecha: `${fechaLarga(vp.fecha_p10)}${vp.fecha_p50 ? ` a ${fechaLarga(vp.fecha_p50)}` : ""}`, tipo: "sugerida", titulo: "Ventana estimada de próxima compra", chip: "Estimación en prueba", detalle: esc(vp.fecha_p50 ? "Entre el 10 % y el 50 % de posibilidad estimada; no es una fecha de compra." : "La mitad de posibilidad no se alcanza dentro del horizonte; no hay fecha de fin.") }] : []),
   ].sort((a, b) => a.fecha.localeCompare(b.fecha));
-  return `<section class="panel"><h2>Compras, vencimientos y estimaciones en el tiempo</h2>
+  const ia = !local && enServidor() ? `<section class="panel ia-panel" id="ia-ficha" aria-live="polite"><h2>Para preparar la conversación</h2><div class="ia-cuerpo"></div></section>` : "";
+  return `${ia}<section class="panel"><h2>Compras, vencimientos y estimaciones en el tiempo</h2>
     <p class="muted">Cada tipo tiene su marca: círculo azul = compra registrada (hecho); rombo = fin de cobertura (fecha de contrato); círculo punteado = sugerencia o ventana estimada. Se muestran las 6 compras más recientes de ${num(f.historial_total ?? f.historial.length)}.</p>
     ${local ? vacio("La agenda local trae solo el resumen de compras.", "El historial, las coberturas y las fechas sugeridas requieren entrar con el perfil a la información publicada.") : cronologia(eventos, { corte, vacio: "Sin compras, coberturas ni revisiones sugeridas." })}</section>
   <section class="panel"><h2>Cifras del cliente</h2><dl class="cifras">

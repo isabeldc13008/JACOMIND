@@ -154,6 +154,20 @@ Debes saber cuatro cosas:
 - **No actúa por ti.** No envía mensajes, no crea tareas y no cambia datos. Solo informa.
 - **Respeta los permisos.** Una empresa cliente solo recibe información de su propia empresa.
 
+### Textos redactados por IA en las pantallas
+
+Además del asistente, la IA redacta textos de apoyo en dos lugares, donde más ayudan a quien va a hablar con un cliente:
+
+```tarjetas
+IA | Productos que podrías ofrecer | «Cómo plantear la conversación» y, en cada producto, por qué podría interesarle al cliente, en lenguaje comercial. Los datos originales siguen debajo, en «Datos que lo respaldan».
+IA | Ficha del cliente | «Para preparar la conversación»: qué pasa con el cliente, qué atender primero y dos o tres preguntas para la llamada.
+```
+
+- **Se reconocen por el sello morado «Redactado por IA»**, con el nombre del modelo que los escribió.
+- **Solo usan datos de esa pantalla.** Si un texto trae una cifra que no está en los datos, se descarta y se muestra el texto original.
+- **Se redactan una vez y se guardan.** Si un texto aún no existe, la pantalla dice «Redactando con IA…» y lo muestra al terminar (hasta un par de minutos). Puedes seguir trabajando mientras tanto.
+- **Son apoyo, no datos nuevos.** Revísalos antes de usarlos; no crean tareas ni envían nada.
+
 ## 6. Glosario: palabras que vas a encontrar
 
 | Palabra | Qué significa |
@@ -223,7 +237,7 @@ Aplicación web | app/: HTML, CSS y JS sin frameworks; vistas por perfil.
 ## 10. Asistente: detalle técnico
 
 - **Orquestación:** grafo de LangGraph (`api/agente_chat.py`) con herramientas construidas según los permisos del usuario. El modo básico es un grafo de reglas (`api/agente.py`).
-- **Proveedores** (`api/llm.py`): Gemini es el principal (`gemini-3.5-flash-lite`, con `gemini-3.1-flash-lite` de respaldo) y Anthropic es opcional. Las claves van en `/etc/jacomind/jacomind.env` o en `.env`, **nunca en el repositorio**. Ante un límite de cuota (`GoogleRateLimitError`) responde en modo básico con un aviso.
+- **Proveedores** (`api/llm.py`): Gemini es el principal, con **dos claves** (`GEMINI_API_KEY` y `GEMINI_API_KEY2`); Anthropic es el respaldo final opcional. Las claves van en `/etc/jacomind/jacomind.env` o en `.env`, **nunca en el repositorio**. Si no hay cupo en ningún modelo, el asistente responde en modo básico con un aviso.
 - **Salvaguardas:** se eliminan las citas a fuentes que no existen, se detectan las cifras sin respaldo, la memoria se guarda por conversación y está aislada entre usuarios y empresas, y las estimaciones en prueba se rotulan como experimentales.
 
 | Grupo | Herramientas | Quién |
@@ -234,7 +248,37 @@ Aplicación web | app/: HTML, CSS y JS sin frameworks; vistas por perfil.
 | Conocimiento | `buscar_politicas`, `buscar_en_documentacion`, `definicion_de_indicador` | Según el perfil |
 | Portal | `mis_solicitudes`, `mis_beneficios`, `buscar_politicas` | Empresa: solo su empresa |
 
-## 11. Operación, despliegue y trabajo en local
+## 11. Orquestador de cuotas de Gemini
+
+Las claves del plan gratuito de Gemini tienen tres límites por modelo: **solicitudes por minuto** (RPM), **tokens por minuto** (TPM) y **solicitudes por día** (RPD). El día se reinicia a medianoche de la hora del Pacífico. `api/cuota_llm.py` decide, en cada llamada, **qué clave y qué modelo** usar:
+
+```pasos
+Reserva | Antes de llamar comprueba los tres límites de esa clave y ese modelo, usando como máximo el 90 %.
+Llama | Si cabe, llama a Google; si no, pasa al siguiente candidato sin gastar nada.
+Anota | Guarda los tokens reales. El registro vive en var/llm_cuota.sqlite3 y sobrevive a reinicios.
+Bloquea | Si Google responde 429 o el modelo está saturado, aparta esa combinación hasta el minuto o el día siguiente.
+```
+
+| Tarea | Orden de modelos (en cada uno, primero la clave menos usada hoy) | Por qué |
+| --- | --- | --- |
+| **Asistente** (`chat`) | Gemini 3.5 Flash Lite → 3.1 Flash Lite → Gemma 4 31B → Gemma 4 26B → 2.5 Flash Lite → 2.5 Flash → los mejores Flash, solo el 25 % de su cupo | Los Flash Lite dan 500 solicitudes al día por clave. Gemma da 14 400 al día, pero solo 16 000 tokens por minuto. |
+| **Redacción** (`redaccion`) | Gemini 3.8 Flash → 3.6 Flash → 3 Flash → Flash Lite, hasta el 30 % de su cupo | Los mejores modelos solo dan 20 al día por clave, así que se usan en lotes de 5 clientes y el resultado se guarda. |
+
+```barras
+titulo: Solicitudes diarias disponibles con las dos claves (después del margen del 90 %)
+unidad: al día
+Flash Lite 3.5 y 3.1 (asistente): 1800
+Gemma 4 31B y 26B (respaldo del asistente): 51840
+Flash 3.8, 3.6 y 3 (redacción): 108
+Flash 2.5 y 2.5 Lite (respaldo): 72
+nota: Una pregunta al asistente usa de 1 a 4 solicitudes. Redactar los textos de todos los clientes de un cierre usa unas 50 solicitudes de los mejores modelos.
+```
+
+- **Consultar el uso:** `python -m api cuota-llm` o `GET /api/llm/cuota`, con permiso de Operaciones o de monitoreo. Nunca muestra las claves, solo una huella.
+- **Textos de IA** (`api/narrativas.py`): se guardan en la tabla `narrativas` con una huella de los datos de entrada. El servidor los pre-redacta poco a poco al arrancar y luego cada hora, dentro del cupo (`JACOMIND_NARRATIVAS_AUTO=0` lo desactiva). También se pueden pre-redactar con `python -m api narrativas`.
+- **Privacidad:** en el plan gratuito, Google puede usar lo que se le envía para mejorar sus productos. Sirve para la demo con datos de práctica; **con datos reales de clientes hay que usar un plan de pago** o desactivar la IA (`JACOMIND_LLM=0`).
+
+## 12. Operación, despliegue y trabajo en local
 
 | Tema | Resumen | Más |
 | --- | --- | --- |
@@ -251,7 +295,7 @@ python -m unittest discover -s tests/app -t tests/app               # carril B (
 python -m unittest discover -s tests/integracion -t tests/integracion
 ```
 
-## 12. Reglas del proyecto
+## 13. Reglas del proyecto
 
 - **Datos:** no se modifican los datos originales, las ejecuciones históricas ni las publicaciones congeladas para que pase una prueba.
 - **Protocolos:** se fijan **antes** de ver los resultados y no se cambian después.
@@ -259,8 +303,9 @@ python -m unittest discover -s tests/integracion -t tests/integracion
 - **Lo que no se inventa:** etiquetas, revisiones, resultados comerciales, ahorro, ventas recuperadas ni ROI.
 - **Controles:** no se desactivan para que algo funcione. Si una publicación falla la integridad, se investiga.
 - **Lo que no va al repositorio:** datos de clientes ni claves. El repositorio es **público**.
+- **IA con datos reales:** no se usa el plan gratuito de Gemini con datos reales de clientes.
 
-## 13. Mapa de documentos
+## 14. Mapa de documentos
 
 | Necesito… | Documento |
 | --- | --- |

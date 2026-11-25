@@ -1,13 +1,11 @@
 """Componente de lenguaje (redacción) con LangChain. El producto funciona sin él.
 
-Cadena de modelos (JACOMIND_LLM_PROVEEDORES, por defecto "gemini,anthropic"):
+Proveedores (JACOMIND_LLM_PROVEEDORES, por defecto "gemini,anthropic"):
 
-* **Gemini** (principal): ``langchain_google_genai.ChatGoogleGenerativeAI`` con
-  GEMINI_API_KEY (o GOOGLE_API_KEY). Modelos: JACOMIND_GEMINI_MODELO (lista separada por comas).
-* **Anthropic** (respaldo): ``langchain_anthropic.ChatAnthropic`` con
-  ANTHROPIC_API_KEY. Modelo: JACOMIND_ANTHROPIC_MODELO.
-
-El primero se envuelve con ``with_fallbacks`` hacia el segundo. Las claves se leen
+* **Gemini** (principal): ``langchain_google_genai.ChatGoogleGenerativeAI`` con una o varias claves
+  (GEMINI_API_KEY, GEMINI_API_KEY2…). Qué clave y qué modelo se usan en cada llamada lo decide el
+  orquestador de cuotas (``api/cuota_llm.py``) según la tarea («chat» o «redaccion») y sus límites.
+* **Anthropic** (respaldo final): ``langchain_anthropic.ChatAnthropic`` con ANTHROPIC_API_KEY. Las claves se leen
 de ``.env`` (ver ``.env.example``); JACOMIND_LLM=0 lo desactiva. El modelo solo
 redacta un resultado ya calculado por el servicio: si la redacción introduce cifras
 ausentes del resultado, se descarta y se usa la plantilla determinista.
@@ -17,6 +15,8 @@ from __future__ import annotations
 import os
 import re
 
+from . import cuota_llm as cuota
+
 PLANTILLA = "plantilla-determinista-1"
 SISTEMA = ("Redactas respuestas en español para usuarios de Green Services a partir de un resultado estructurado. "
            "Usa solo los hechos del resultado; no añadas cifras, fechas, políticas ni promesas. Conserva cada cifra, "
@@ -25,18 +25,16 @@ SISTEMA = ("Redactas respuestas en español para usuarios de Green Services a pa
 TIMEOUT_S = float(os.environ.get("JACOMIND_LLM_TIMEOUT", "20"))
 
 
-# Lista en orden de preferencia; si un modelo está saturado (503) o no responde, se usa el siguiente.
-# gemini-2.5-flash ya no está disponible para cuentas nuevas (404).
-MODELOS_GEMINI_DEFECTO = "gemini-3.5-flash-lite,gemini-3.1-flash-lite"
+class SinCuota(RuntimeError):
+    """Ningún modelo tiene cupo ahora (o todos fallaron): el servicio sigue con plantillas o el modo básico."""
 
 
-def _modelos_gemini() -> list[str]:
-    valor = os.environ.get("JACOMIND_GEMINI_MODELO") or MODELOS_GEMINI_DEFECTO
-    return [m.strip() for m in valor.split(",") if m.strip()]
-
-
-def _modelo_gemini() -> str:
-    return _modelos_gemini()[0]
+def _modelos_gemini(tarea: str = "chat") -> list[str]:
+    """Modelos de la tarea en orden. JACOMIND_GEMINI_MODELO, si existe, restringe la cadena del chat."""
+    valor = os.environ.get("JACOMIND_GEMINI_MODELO") if tarea == "chat" else None
+    if valor:
+        return [m.strip() for m in valor.split(",") if m.strip()]
+    return [m for m, _ in cuota.TAREAS.get(tarea, cuota.TAREAS["chat"])]
 
 
 def _modelo_anthropic() -> str:
@@ -44,7 +42,8 @@ def _modelo_anthropic() -> str:
 
 
 def _clave_gemini() -> str | None:
-    return os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
+    c = cuota.claves()
+    return c[0][1] if c else None
 
 
 def _importable(modulo: str) -> bool:
@@ -74,7 +73,9 @@ def disponible() -> bool:
 
 
 def _nombre(p: str) -> str:
-    return " → ".join(f"gemini:{m}" for m in _modelos_gemini()) if p == "gemini" else f"anthropic:{_modelo_anthropic()}"
+    if p == "gemini":
+        return f"gemini ({len(cuota.claves())} claves): " + " → ".join(_modelos_gemini())
+    return f"anthropic:{_modelo_anthropic()}"
 
 
 def version() -> str:
@@ -83,50 +84,92 @@ def version() -> str:
 
 
 def estado() -> dict:
-    return {"proveedores": proveedores(), "version": version(),
+    return {"proveedores": proveedores(), "version": version(), "claves_gemini": len(cuota.claves()),
             "gemini_configurado": bool(_clave_gemini()), "anthropic_configurado": bool(os.environ.get("ANTHROPIC_API_KEY")),
             "langchain_instalado": _importable("langchain_core"), "langgraph_instalado": _importable("langgraph")}
 
 
-def _crear(p: str) -> list:
-    """Modelos LangChain de un proveedor, en orden de preferencia."""
-    if p == "gemini":
+_instancias: dict[tuple, object] = {}
+
+
+def _gemini(modelo: str, huella: str, clave: str, max_tokens: int, timeout: float = TIMEOUT_S):
+    k = (modelo, huella, max_tokens, timeout)
+    if k not in _instancias:
         from langchain_google_genai import ChatGoogleGenerativeAI
-        return [ChatGoogleGenerativeAI(model=m, google_api_key=_clave_gemini(),
-                                       max_output_tokens=1024, timeout=TIMEOUT_S, max_retries=0)
-                for m in _modelos_gemini()]
+        _instancias[k] = ChatGoogleGenerativeAI(model=modelo, google_api_key=clave, max_output_tokens=max_tokens,
+                                                timeout=timeout, max_retries=0)
+    return _instancias[k]
+
+
+def _anthropic(max_tokens: int):
     from langchain_anthropic import ChatAnthropic
     # Sin temperature: los modelos Claude actuales rechazan parámetros de muestreo.
-    return [ChatAnthropic(model=_modelo_anthropic(), api_key=os.environ["ANTHROPIC_API_KEY"], max_tokens=1024,
-                          timeout=TIMEOUT_S, max_retries=1)]
+    return ChatAnthropic(model=_modelo_anthropic(), api_key=os.environ["ANTHROPIC_API_KEY"], max_tokens=max_tokens,
+                         timeout=TIMEOUT_S, max_retries=1)
 
 
-_cadena_cache: dict[tuple, object] = {}
+def estimar_tokens(mensajes, herramientas=None) -> int:
+    """Estimación previa (unos 4 caracteres por token) para no pasar el límite de tokens por minuto."""
+    texto = "".join(str(getattr(m, "content", m)) for m in mensajes)
+    if herramientas:
+        texto += "".join(f"{getattr(h, 'name', '')}{getattr(h, 'description', '')}{getattr(h, 'args', '')}" for h in herramientas)
+    return len(texto) // 4 + 600
 
 
-def modelo_chat():
-    """Modelo de chat LangChain con respaldo, o None si no hay proveedores."""
-    lista = proveedores()
-    if not lista:
-        return None
-    clave = (tuple(lista), tuple(_modelos_gemini()), _modelo_anthropic())
-    if clave not in _cadena_cache:
-        modelos = [m for p in lista for m in _crear(p)]
-        _cadena_cache[clave] = modelos[0].with_fallbacks(modelos[1:]) if len(modelos) > 1 else modelos[0]
-    return _cadena_cache[clave]
+class ModeloOrquestado:
+    """Modelo de chat que, en cada llamada, elige clave y modelo con cupo según la tarea (ver ``api/cuota_llm.py``).
 
-
-def modelo_con_herramientas(herramientas: list):
-    """Modelo con tool calling y la misma cadena de respaldo, o None si no hay proveedores.
-
-    Cada modelo se enlaza a las herramientas antes de encadenar los respaldos: así un modelo
-    de reserva también puede llamar herramientas.
+    Se comporta como un modelo de LangChain para ``invoke`` y ``bind_tools``. Si todas las combinaciones de Gemini
+    están sin cupo o fallan, prueba Anthropic (si está configurado) y, si no, lanza ``SinCuota``.
     """
-    lista = proveedores()
-    if not lista:
-        return None
-    modelos = [m.bind_tools(herramientas) for p in lista for m in _crear(p)]
-    return modelos[0].with_fallbacks(modelos[1:]) if len(modelos) > 1 else modelos[0]
+
+    def __init__(self, tarea: str = "chat", herramientas: list | None = None, max_tokens: int = 1024, timeout: float = TIMEOUT_S):
+        self.tarea, self.herramientas, self.max_tokens, self.timeout = tarea, herramientas, max_tokens, timeout
+
+    def bind_tools(self, herramientas: list):
+        return ModeloOrquestado(self.tarea, herramientas, self.max_tokens, self.timeout)
+
+    def invoke(self, mensajes, config=None, **kwargs):
+        lista = proveedores()
+        estimado = estimar_tokens(mensajes, self.herramientas)
+        intentos: list[str] = []
+        if "gemini" in lista:
+            permitidos = set(_modelos_gemini(self.tarea))
+            for huella, clave, modelo, fraccion in cuota.candidatos(self.tarea):
+                if modelo not in permitidos:
+                    continue
+                reserva = cuota.reservar(huella, modelo, self.tarea, estimado, fraccion)
+                if reserva is None:
+                    continue
+                try:
+                    m = _gemini(modelo, huella, clave, self.max_tokens, self.timeout)
+                    if self.herramientas:
+                        m = m.bind_tools(self.herramientas)
+                    resp = m.invoke(mensajes)
+                except Exception as e:  # noqa: BLE001 - se clasifica y se pasa al siguiente candidato
+                    intentos.append(f"{modelo}:{cuota.fallo(reserva, huella, modelo, e)}")
+                    continue
+                uso = getattr(resp, "usage_metadata", None) or {}
+                cuota.confirmar(reserva, uso.get("total_tokens") or estimado)
+                meta = getattr(resp, "response_metadata", None)
+                if isinstance(meta, dict):
+                    meta["model_name"] = modelo
+                    meta["jacomind_clave"] = huella
+                return resp
+        if "anthropic" in lista:
+            m = _anthropic(self.max_tokens)
+            return (m.bind_tools(self.herramientas) if self.herramientas else m).invoke(mensajes)
+        raise SinCuota("Sin cupo disponible en los modelos de lenguaje" + (f" ({', '.join(intentos[:6])})" if intentos else ""))
+
+
+def modelo_chat(tarea: str = "chat", max_tokens: int = 1024, timeout: float = TIMEOUT_S):
+    """Modelo orquestado para la tarea, o None si no hay proveedores."""
+    return ModeloOrquestado(tarea, None, max_tokens, timeout) if proveedores() else None
+
+
+def modelo_con_herramientas(herramientas: list, tarea: str = "chat"):
+    """Modelo orquestado con tool calling: cada modelo de respaldo también puede llamar herramientas."""
+    return ModeloOrquestado(tarea, herramientas) if proveedores() else None
 
 
 def _texto(resp) -> str:
@@ -148,7 +191,7 @@ def _numeros(t: str) -> set[str]:
 
 def redactar(borrador: str, contexto: str = "") -> tuple[str, str]:
     """Devuelve (texto, version). Ante cualquier fallo devuelve el borrador determinista."""
-    modelo = modelo_chat()
+    modelo = modelo_chat("redaccion")
     if modelo is None:
         return borrador, PLANTILLA
     from langchain_core.messages import HumanMessage, SystemMessage

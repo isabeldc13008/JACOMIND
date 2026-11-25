@@ -41,8 +41,8 @@ function bloqueEspecial(tipo, lineas) {
   if (tipo === "tarjetas") {
     return `<div class="guia-tarjetas">${filas.map(l => {
       const [estado, titulo, texto] = l.split("|").map(x => x.trim());
-      const uso = /uso/i.test(estado);
-      return `<article class="guia-tarjeta ${uso ? "uso" : "prueba"}"><span class="sello ${uso ? "sello-ok" : "sello-prueba"}">${esc(estado)}</span><h4>${enLinea(titulo)}</h4><p>${enLinea(texto || "")}</p></article>`;
+      const uso = /uso/i.test(estado), ia = /^IA$/i.test(estado);
+      return `<article class="guia-tarjeta ${uso ? "uso" : ia ? "ia" : "prueba"}"><span class="sello ${uso ? "sello-ok" : ia ? "sello-ia" : "sello-prueba"}">${esc(estado)}</span><h4>${enLinea(titulo)}</h4><p>${enLinea(texto || "")}</p></article>`;
     }).join("")}</div>`;
   }
   if (tipo === "barras") {

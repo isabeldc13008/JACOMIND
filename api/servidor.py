@@ -19,7 +19,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
 
 from . import (__version__, agente, atencion, auth, beneficios, consultas, documentos, finanzas, llm, operacion,
-               pqrs, prevencion, proxima, publicacion, tareas, venta_cruzada, demanda, anomalias, monitoreo)
+               pqrs, prevencion, proxima, publicacion, tareas, venta_cruzada, demanda, anomalias, monitoreo, narrativas, cuota_llm)
 from .base import DIR_SALIDA, DIR_VAR, RAIZ, BaseDatos, ErrorApi
 from .permisos import IDENTIDADES
 
@@ -306,6 +306,22 @@ def r_demanda(c: Ctx):
 @ruta("POST", "/api/demanda/sombra", "operacion.administrar")
 def r_demanda_sombra(c: Ctx):
     return demanda.importar_sombra(c.db, _ruta_publicable(str(c.body.get("ruta", ""))), c.usuario.id)
+
+
+# ------------------------------------------------------------------ textos redactados por IA (api/narrativas.py)
+@ruta("GET", "/api/narrativas/venta-cruzada/{cliente}", "venta_cruzada.ver")
+def r_narrativa_vc(c: Ctx):
+    return narrativas.obtener(c.db, "venta_cruzada", unquote(c.params["cliente"]))
+
+
+@ruta("GET", "/api/narrativas/ficha/{cliente}", "cartera.ver")
+def r_narrativa_ficha(c: Ctx):
+    return narrativas.obtener(c.db, "ficha", unquote(c.params["cliente"]))
+
+
+@ruta("GET", "/api/llm/cuota", "operacion.administrar", "monitoreo.ver")
+def r_llm_cuota(c: Ctx):
+    return cuota_llm.estado() | {"llm": llm.estado()}
 
 
 # ------------------------------------------------------------------ venta cruzada (M4, en sombra)

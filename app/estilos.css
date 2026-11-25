@@ -339,6 +339,22 @@ a.opcion-origen strong { color: var(--acento); }
 .comparacion dt { font-size: var(--t-sec); color: var(--texto-2); font-weight: 600; }
 .comparacion dd { margin: .2rem 0 0; font-weight: 700; font-size: 1.111rem; font-variant-numeric: tabular-nums; }
 
+/* ---------------------------------------------------------------- textos redactados por IA */
+.sello-ia { color: var(--ia); background: var(--ia-suave); }
+:root { --ia: #5b3fa8; --ia-suave: #efeafb; }
+:root[data-theme="dark"] { --ia: #c6b4ff; --ia-suave: #2a2240; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme]) { --ia: #c6b4ff; --ia-suave: #2a2240; } }
+.ia-panel { border-left: 4px solid var(--ia); }
+.ia-panel h3 { margin: 0 0 .4rem; font-size: 1.056rem; }
+div.ia-panel { background: var(--superficie-2); border-radius: var(--r-panel); padding: var(--e2) var(--e3); margin: var(--e2) 0; }
+.ia-pie { color: var(--texto-2); font-size: var(--t-sec); margin: .5rem 0 0; }
+.ia-texto { margin: .5rem 0; }
+.ia-estado { display: flex; align-items: center; gap: .6rem; margin: 0; }
+.ia-pulso { width: .8rem; height: .8rem; border-radius: 50%; background: var(--ia); animation: ia-pulso 1.2s ease-in-out infinite; flex: none; }
+@keyframes ia-pulso { 50% { opacity: .25; } }
+@media (prefers-reduced-motion: reduce) { .ia-pulso { animation: none; } }
+.etiqueta-datos { margin: .6rem 0 0; font-size: var(--t-sec); font-weight: 700; color: var(--texto-2); }
+
 /* ---------------------------------------------------------------- guía del equipo */
 .guia { display: grid; grid-template-columns: minmax(14rem, 17rem) minmax(0, 1fr); gap: var(--e4); align-items: start; }
 .guia-indice { position: sticky; top: 5rem; max-height: calc(100vh - 6rem); overflow-y: auto; }
@@ -363,6 +379,7 @@ main [id] { scroll-margin-top: 5.5rem; }
 .guia-tarjetas { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr)); gap: var(--e2); margin: var(--e2) 0 var(--e3); }
 .guia-tarjeta { background: var(--superficie); border: 1px solid var(--borde); border-radius: var(--r-panel); padding: var(--e2) var(--e3); box-shadow: var(--sombra); }
 .guia-tarjeta.uso { border: 2px solid var(--bueno); }
+.guia-tarjeta.ia { border-left: 4px solid var(--ia); }
 .guia-tarjeta h4 { font-size: 1.111rem; margin: .6rem 0 .35rem; }
 .guia-tarjeta p { margin: 0; color: var(--texto-2); }
 .guia-grafico { margin: var(--e3) 0; }
