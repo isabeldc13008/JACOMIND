@@ -35,12 +35,10 @@ def preparar(db: BaseDatos, publicar_muestra: bool = True) -> dict:
 
 
 def solo_permisos(db: BaseDatos) -> None:
-    """Sincroniza la matriz de permisos sin crear identidades ficticias (entornos de piloto)."""
-    from .permisos import filas_permisos
+    """Sincroniza permisos y deja disponible la identidad de la demo/piloto."""
     db.migrar()
     with db.transaccion() as con:
-        con.execute("DELETE FROM permisos")
-        con.executemany("INSERT INTO permisos (rol, accion) VALUES (?,?)", filas_permisos())
+        sembrar_identidades(con)
 
 
 __all__ = ["preparar", "solo_permisos", "ErrorApi"]
