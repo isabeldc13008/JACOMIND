@@ -6,9 +6,10 @@ sus beneficios y casos. La empresa siempre se resuelve en el servidor.
 """
 from __future__ import annotations
 
-ROLES = ["operaciones", "ventas", "finanzas", "atencion", "gerencia", "empresa"]
+ROLES = ["admin", "operaciones", "ventas", "finanzas", "atencion", "gerencia", "empresa"]
 
 MATRIZ: dict[str, set[str]] = {
+    "usuarios.gestionar": {"admin"},
     "cartera.ver": {"operaciones", "ventas", "gerencia"},
     "cartera.exportar": {"operaciones", "gerencia"},
     "prevencion.ver": {"operaciones", "ventas", "gerencia"},      # M2 experimental: mismos roles que la cartera

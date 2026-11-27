@@ -24,8 +24,9 @@ import { vistaDemanda } from "./vistas/demanda.js";
 import { vistaAnomalias } from "./vistas/anomalias.js";
 import { vistaMonitoreo } from "./vistas/monitoreo.js";
 import { vistaGuia } from "./vistas/guia.js";
+import { vistaAdmin } from "./vistas/admin.js";
 
-const ROLES = { operaciones: "Operaciones", ventas: "Ventas", finanzas: "Finanzas", atencion: "Atención", gerencia: "Gerencia", empresa: "Empresa" };
+const ROLES = { admin: "Administrador", operaciones: "Operaciones", ventas: "Ventas", finanzas: "Finanzas", atencion: "Atención", gerencia: "Gerencia", empresa: "Empresa" };
 const menu = document.getElementById("menu"), botonMenu = document.getElementById("boton-menu");
 
 // ---------------------------------------------------------------- cabecera y navegación por áreas
@@ -115,11 +116,10 @@ async function vistaInicio() {
   };
   const acceso = elegido === "servidor" && S.apiDisponible ? `<section class="panel" aria-labelledby="t-acceso"><h2 id="t-acceso">Entra con tu perfil</h2>
     ${S.usuario ? `<p>Ya entraste como <strong>${esc(S.usuario.nombre)}</strong>.</p><a class="boton" href="${esc(inicioDePerfil())}">Ir a mi inicio</a>`
-      : S.estadoApi?.login_demo ? (ids.length ? `<p>Esta es una <strong>demostración</strong>: las personas de la lista son ficticias y cada una entra con los permisos de su perfil.</p>
+      : `${S.estadoApi?.login_local ? `<form id="f-login-local" class="campos"><h3>Iniciar sesión</h3><label>Usuario <input name="usuario" required autocomplete="username"></label><label>Contraseña <input name="password" type="password" required autocomplete="current-password"></label><button>Entrar</button></form><div id="msg-local" aria-live="polite"></div>` : ""}${S.estadoApi?.login_demo ? (ids.length ? `<p>También puedes entrar a la demostración con perfiles ficticios:</p>
         <form id="f-entrar" class="filtros"><label>Perfil con el que quieres entrar <select id="ident">${ids.map(i => `<option value="${esc(i.id)}" data-rol="${esc(ROLES[i.rol] || i.rol)}">${esc(i.nombre)} — ${esc(ROLES[i.rol] || i.rol)}${i.organizacion && i.organizacion !== "GREEN" ? ` (${esc(i.organizacion)})` : ""}</option>`).join("")}</select></label>
         <button id="entrar">Entrar como ${esc(ROLES[ids[0].rol] || ids[0].rol)}</button></form>`
-        : vacio("No hay perfiles de demostración en esta base de datos.", "La persona encargada debe preparar la demostración (ver la ayuda de abajo). No se simula una sesión."))
-      : "<p>El acceso se hace con el inicio de sesión de tu organización.</p>"}<div id="msg" aria-live="polite"></div></section>` : "";
+        : vacio("No hay perfiles de demostración en esta base de datos.", "La persona encargada debe preparar la demostración (ver la ayuda de abajo). No se simula una sesión.")) : ""}<div id="msg" aria-live="polite"></div></section>` : "";
   $vista.innerHTML = `${encabezado({ titulo: "Te damos la bienvenida a JACOMIND", descripcion: "Decisiones comerciales con evidencia: qué pasó, a quién atender y cuál es el siguiente paso." })}
   ${aviso}${conjunto}${acceso}
   ${elegido && elegido !== "servidor" ? `<p><a class="boton" href="#/agenda">Abrir la lista de clientes</a></p>` : ""}
@@ -139,6 +139,11 @@ async function vistaInicio() {
   }));
   const textoEntrar = () => `Entrar como ${document.getElementById("ident").selectedOptions[0]?.dataset.rol || ""}`;
   document.getElementById("ident")?.addEventListener("change", () => { document.getElementById("entrar").textContent = textoEntrar(); });
+  document.getElementById("f-login-local")?.addEventListener("submit", async e => {
+    e.preventDefault(); const b = e.target.querySelector("button"), msg = document.getElementById("msg-local"); b.disabled = true; b.textContent = "Entrando…";
+    try { const r = await api("POST", "/api/sesion", Object.fromEntries(new FormData(e.target))); S.usuario = r.usuario; S.fuente = "servidor"; localStorage.setItem("jacomind.fuente", "servidor"); ir(inicioDePerfil()); }
+    catch (err) { msg.innerHTML = errorHtml(err); b.disabled = false; b.textContent = "Entrar"; }
+  });
   document.getElementById("f-entrar")?.addEventListener("submit", async e => {
     e.preventDefault();
     const b = document.getElementById("entrar"); b.disabled = true; b.textContent = "Entrando…";
@@ -201,6 +206,7 @@ async function render() {
     const sinPermiso = () => { S.aviso = null; ir(inicioDePerfil()); };
     switch (v) {
       case "bienvenida": return await vistaBienvenida();
+      case "admin": return puede("usuarios.gestionar") ? await vistaAdmin() : sinPermiso();
       case "clientes": return await vistaFicha(a, ruta().q);
       case "tableros": return await vistaTableros(a);
       case "tareas": return await vistaTareas(a);

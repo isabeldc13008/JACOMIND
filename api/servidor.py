@@ -91,7 +91,8 @@ def r_estado(c: Ctx):
         fila = con.execute("SELECT corte, origen FROM cierres WHERE id = ?", (act,)).fetchone() if act else None
     return {"version": __version__, "esquema": c.db.version_esquema(), "cierre_activo": act,
             "corte_activo": fila["corte"] if fila else None, "origen_activo": fila["origen"] if fila else None, "modo_practica": c.app.practica,
-            "login_demo": c.app.login_demo, "asistente": {"motor": agente.motor(), "llm": llm.version()}}
+            "login_demo": c.app.login_demo, "login_local": c.app.login_local,
+            "asistente": {"motor": agente.motor(), "llm": llm.version()}}
 
 
 @ruta("GET", "/api/identidades")
@@ -103,9 +104,15 @@ def r_identidades(c: Ctx):
 
 @ruta("POST", "/api/sesion")
 def r_login(c: Ctx):
-    if not c.app.login_demo:
-        raise ErrorApi(403, "login_externo", "Usa el proveedor de identidad aprobado")
-    token, u = auth.crear_sesion(c.db, str(c.body.get("identidad", "")))
+    if c.body.get("usuario") is not None:
+        if not c.app.login_local:
+            raise ErrorApi(403, "login_local", "El inicio de sesión local está desactivado")
+        u = auth.autenticar_local(c.db, str(c.body.get("usuario", "")), str(c.body.get("password", "")))
+        token, u = auth.crear_sesion(c.db, u.id)
+    else:
+        if not c.app.login_demo:
+            raise ErrorApi(403, "login_externo", "Usa el proveedor de identidad aprobado")
+        token, u = auth.crear_sesion(c.db, str(c.body.get("identidad", "")))
     cookie = f"{COOKIE}={token}; HttpOnly; SameSite=Strict; Path=/; Max-Age={auth.DURACION_SESION_MIN * 60}{_seguro()}"
     return _json({"usuario": u.como_dict()}, cabeceras={"Set-Cookie": cookie})
 
@@ -119,6 +126,25 @@ def r_logout(c: Ctx):
 @ruta("GET", "/api/sesion", "*")
 def r_yo(c: Ctx):
     return {"usuario": c.usuario.como_dict()}
+
+
+@ruta("GET", "/api/usuarios", "usuarios.gestionar")
+def r_usuarios(c: Ctx):
+    return auth.listar_usuarios(c.db)
+
+
+@ruta("POST", "/api/usuarios", "usuarios.gestionar")
+def r_crear_usuario(c: Ctx):
+    resultado = auth.crear_usuario_local(c.db, str(c.body.get("usuario", "")), str(c.body.get("nombre", "")),
+                                         str(c.body.get("rol", "")), str(c.body.get("password", "")),
+                                         str(c.body.get("organizacion_id", "GREEN")))
+    return resultado
+
+
+@ruta("PATCH", "/api/usuarios/{identidad}", "usuarios.gestionar")
+def r_actualizar_usuario(c: Ctx):
+    return auth.actualizar_usuario_local(c.db, c.params["identidad"], activo=c.body.get("activo"),
+                                         rol=c.body.get("rol"), password=c.body.get("password"))
 
 
 # ------------------------------------------------------------------ cierres y cartera (B02/B03)
@@ -678,6 +704,7 @@ def r_export_pqrs(c: Ctx):
 class Aplicacion:
     def __init__(self, db: BaseDatos, practica: bool = False, login_demo: bool = True):
         self.db, self.practica, self.login_demo = db, practica, login_demo
+        self.login_local = os.environ.get("JACOMIND_LOGIN_LOCAL", "1") == "1"
 
     def despachar(self, metodo: str, ruta_url: str, cabeceras: dict, cuerpo: bytes) -> Respuesta:
         url = urlparse(ruta_url)

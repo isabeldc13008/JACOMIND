@@ -1,7 +1,7 @@
 """Datos de demostración ficticios: identidades, cierre de muestra, documentos, beneficios y PQRS."""
 from __future__ import annotations
 
-from .auth import Usuario, cargar_usuario, sembrar_identidades
+from .auth import Usuario, cargar_usuario, sembrar_identidades, sembrar_usuarios_configurados
 from .base import RAIZ, BaseDatos, ErrorApi
 from . import beneficios, documentos, pqrs, publicacion
 
@@ -12,6 +12,7 @@ def preparar(db: BaseDatos, publicar_muestra: bool = True) -> dict:
     db.migrar()
     with db.transaccion() as con:
         sembrar_identidades(con)
+    sembrar_usuarios_configurados(db)
         hay_docs = con.execute("SELECT count(*) FROM documentos").fetchone()[0]
         hay_ben = con.execute("SELECT count(*) FROM beneficios").fetchone()[0]
         hay_pqrs = con.execute("SELECT count(*) FROM pqrs").fetchone()[0]
