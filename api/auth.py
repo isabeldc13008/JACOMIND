@@ -210,6 +210,10 @@ def resolver(db: BaseDatos, token: str | None, cabecera_proxy: str | None = None
         if datetime.fromisoformat(r["expira_en"]) < datetime.now(timezone.utc):
             con.execute("DELETE FROM sesiones WHERE token = ?", (token,))
             return None
+        local = con.execute("SELECT activo FROM usuarios_locales WHERE identidad_id = ?", (r["identidad_id"],)).fetchone()
+        if local is not None and not local["activo"]:
+            con.execute("DELETE FROM sesiones WHERE token = ?", (token,))
+            return None
         return cargar_usuario(con, r["identidad_id"])
 
 

@@ -3,7 +3,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from api.auth import crear_usuario_local, autenticar_local, verificar_password, listar_usuarios
+from api.auth import crear_usuario_local, autenticar_local, verificar_password, listar_usuarios, crear_sesion, resolver, actualizar_usuario_local
 from api.base import BaseDatos
 from api.demo import solo_permisos
 
@@ -41,6 +41,12 @@ class AuthLocalTests(unittest.TestCase):
         fila = listar_usuarios(self.db)[-1]
         self.assertNotIn("password_hash", fila)
         self.assertEqual(fila["rol"], "finanzas")
+
+    def test_desactivar_cuenta_invalida_susiones_existentes(self):
+        crear_usuario_local(self.db, "atencion", "Atención", "atencion", "Clave-1")
+        token, _ = crear_sesion(self.db, "atencion")
+        actualizar_usuario_local(self.db, "atencion", activo=False)
+        self.assertIsNone(resolver(self.db, token))
 
 
 if __name__ == "__main__":
