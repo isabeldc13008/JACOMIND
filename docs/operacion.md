@@ -74,3 +74,14 @@ python -m contratos.validar salida/agenda.json                        # contrato
 | Documento retirado | Documentos → Retirar | abstención del asistente, borradores a revisión |
 | Sesión caducada | esperar `JACOMIND_SESION_MIN` | 401 y vuelta al inicio de sesión |
 | Restauración | `respaldo` → acción posterior → `restaurar` | la acción previa aparece, la posterior no |
+## Inicio de sesión local y usuarios
+
+Para el piloto en Azure, el administrador inicial se crea durante la migración usando variables de entorno fuera del repositorio:
+
+```text
+JACOMIND_LOGIN_LOCAL=1
+JACOMIND_ADMIN_USUARIO=admin
+JACOMIND_ADMIN_PASSWORD=<clave-de-8-o-mas-caracteres>
+```
+
+El administrador entra en **Administración → Usuarios** y crea las cuentas de Operaciones, Ventas, Finanzas, Atención, Gerencia o Empresa. Las contraseñas se guardan como hash PBKDF2; no se pueden consultar desde la aplicación. Para las cuentas ficticias de demostración se puede definir temporalmente `JACOMIND_DEMO_PASSWORD`; no se debe usar esa variable con datos reales.

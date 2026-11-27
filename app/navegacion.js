@@ -11,6 +11,7 @@ export function inicioPara(usuario, puede) {
   if (rol("finanzas")) return "#/finanzas";
   if (rol("atencion")) return "#/pqrs";
   if (rol("operaciones")) return "#/bienvenida";
+  if (rol("admin") || puede("usuarios.gestionar")) return "#/admin";
   return puede("cartera.ver") ? "#/agenda" : "#/inicio";
 }
 
@@ -80,6 +81,7 @@ export function areasPara(usuario, puede) {
       puede("documentos.gestionar") && { hash: "#/documentos", titulo: "Base de conocimiento", describe: "Políticas que respaldan respuestas" },
     ] },
     { id: "administracion", titulo: "Administración", icono: "administracion", items: [
+      puede("usuarios.gestionar") && { hash: "#/admin", titulo: "Usuarios", describe: "Crear y administrar cuentas" },
       puede("operacion.administrar") && { hash: "#/operacion?seccion=cargar", titulo: "Datos y cierres", describe: "Cargar archivos y publicar el mes", rutas: ["#/operacion?seccion=ejecutar", "#/operacion"] },
       (puede("cartera.ver") || puede("monitoreo.ver")) && { hash: puede("cartera.ver") ? "#/ia" : "#/monitoreo", titulo: "Modelos y monitoreo", describe: "Qué estima cada modelo y sus avisos", rutas: ["#/ia", "#/monitoreo"] },
       puede("operacion.administrar") && { hash: "#/operacion?seccion=actividad", titulo: "Actividad", describe: "Cargas, cierres y errores" },
