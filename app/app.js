@@ -36,7 +36,8 @@ function pintarCabecera() {
   const activo = activoEn(areas, partes, q);
   S.ubicacion = activo ? { area: activo.area.titulo, item: activo.item.titulo } : null;
   document.body.classList.toggle("sin-lateral", !areas.length);
-  menu.innerHTML = areas.map(a => {
+  const resumenPerfil = S.usuario ? `<div class="menu-perfil"><span class="menu-perfil-marca" aria-hidden="true">${esc((S.usuario.nombre || "J").trim().charAt(0).toUpperCase())}</span><div><span class="menu-perfil-kicker">ESPACIO DE TRABAJO</span><strong>${esc(S.usuario.nombre.replace(/\s*\(fictici[oa]\)/, ""))}</strong><small>${esc(S.usuario.roles.map(r => ROLES[r] || r).join(" · "))}</small></div></div>` : "";
+  menu.innerHTML = resumenPerfil + `<div class="menu-seccion-kicker">Navegación</div>` + areas.map(a => {
     const unica = a.items.length === 1 && (a.id === "inicio" || a.items[0].titulo === a.titulo);
     const enlace = i => `<li><a href="${esc(i.hash)}" ${activo?.item === i ? 'aria-current="page"' : ""}>${unica ? icono(a.icono) : ""}${esc(i.titulo)}</a></li>`;
     return unica ? `<div class="area area-unica"><ul>${a.items.map(enlace).join("")}</ul></div>`
