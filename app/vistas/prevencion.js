@@ -1,6 +1,6 @@
 // V07 Clientes que podrían dejar de comprar (M2, en prueba). Separa prevenir de reactivar; no cambia la cartera ni crea tareas.
 import { $vista, api, errorHtml, esc, estadoHtml, fechaHora, fechaLarga, ir, nuevoTurno, num, pct, plural, puede, ruta, vigente } from "../nucleo.js";
-import { avisoPrueba, barras, ctxDatos, detalleTecnico, encabezado, enPrueba, hallazgo, vacio } from "../ui.js";
+import { avisoPrueba, ctxDatos, detalleTecnico, encabezado, enPrueba, hallazgo, vacio } from "../ui.js";
 
 const DECISIONES = { favorable: "favorable", inconcluso: "inconclusa", rechazado: "rechazada" };
 const TITULO = "Clientes que podrían dejar de comprar";
@@ -37,6 +37,55 @@ export function comparacionHtml(r) {
     <p class="muted">Error de Brier ${esc(d(m.brier))} frente a ${esc(d(r.constante?.brier))} de una tasa fija igual para todos (menos es mejor); una sola medida no basta para afirmar que el riesgo está bien calibrado${r.modelo_anterior ? `. Versión anterior: ${num(Math.round(r.modelo_anterior.precision_media_top10 * 100) / 10)} aciertos de cada 10` : ""}. Los datos son sintéticos y estos meses se revisaron al diseñar el modelo: la comparación es orientativa. Solo un piloto con datos reales puede confirmar si supera a la regla.</p>`;
 }
 
+/** Nivel de riesgo en palabras, siempre junto al porcentaje (nunca solo color). */
+const nivelRiesgo = p => p >= 0.6 ? { clase: "alto", texto: "Riesgo alto" } : p >= 0.3 ? { clase: "medio", texto: "Riesgo medio" } : { clase: "bajo", texto: "Riesgo bajo" };
+
+/** Recorrido de la cartera: al día → en riesgo (esta lista) → ya pausados. Una barra apilada con cifras escritas. */
+function recorridoHtml(c) {
+  const tramos = [
+    { key: "estructural", clase: "al-dia", titulo: "Al día", detalle: "Menos de 30 días sin comprar" },
+    { key: "aprendible", clase: "riesgo", titulo: "Podrían pausarse", detalle: "Entre 30 y 89 días: esta lista" },
+    { key: "ya_frio", clase: "pausado", titulo: "Ya pausados", detalle: "90 días o más: reactivación, en la cartera" },
+  ].filter(t => c[t.key] != null);
+  const otros = (c.sin_historial || 0) + (c.alta_posterior || 0);
+  const total = tramos.reduce((a, t) => a + (c[t.key] || 0), 0) + otros;
+  if (!total) return "";
+  const ancho = n => `${(n / total * 100).toFixed(2)}%`;
+  return `<section class="panel prev-recorrido" aria-labelledby="t-recorrido"><h2 id="t-recorrido">¿Dónde está cada cliente?</h2>
+    <p class="muted">Los ${num(total)} clientes, según los días que llevan sin comprar. Cada cliente está en un solo grupo.</p>
+    <div class="prev-barra" role="img" aria-label="${esc(tramos.map(t => `${t.titulo}: ${c[t.key] || 0}`).join("; "))}${otros ? `; sin base para estimar: ${otros}` : ""}">
+      ${tramos.map(t => c[t.key] ? `<span class="prev-tramo ${t.clase}" style="width:${ancho(c[t.key])}"></span>` : "").join("")}
+      ${otros ? `<span class="prev-tramo otros" style="width:${ancho(otros)}"></span>` : ""}
+    </div>
+    <ol class="prev-etapas">${tramos.map(t => `<li class="${t.clase}">
+      ${t.key === "ya_frio" && puede("cartera.ver") ? '<a href="#/agenda?frio=1">' : "<div>"}<span class="prev-muestra" aria-hidden="true"></span>
+      <span class="prev-n">${num(c[t.key] || 0)}</span><span><strong>${esc(t.titulo)}</strong><small>${esc(t.detalle)}</small></span>${t.key === "ya_frio" && puede("cartera.ver") ? "</a>" : "</div>"}</li>`).join("")}
+      ${otros ? `<li class="otros"><div><span class="prev-muestra" aria-hidden="true"></span><span class="prev-n">${num(otros)}</span><span><strong>Sin base para estimar</strong><small>Sin compras o dados de alta después</small></span></div></li>` : ""}</ol>
+  </section>`;
+}
+
+/** Una fila de la lista: quién, cuánto riesgo, cuánto le falta para 90 días y por qué. */
+function filaRiesgo(i) {
+  const n = nivelRiesgo(i.probabilidad), p = Math.round(i.probabilidad * 1000) / 10;
+  const faltan = Math.max(0, 90 - i.recencia_dias);
+  const avance = Math.min(100, i.recencia_dias / 90 * 100).toFixed(1);
+  const motivos = (i.motivos || []).slice(1);
+  return `<li class="prev-fila">
+    <div class="prev-quien"><span class="prev-puesto" aria-label="Puesto ${num(i.posicion)}">${num(i.posicion)}</span>
+      <div><strong class="prev-id">${esc(i.cliente_id)}</strong><small>Última compra el ${esc(fechaLarga(i.ultima_compra))}</small></div></div>
+    <div class="prev-riesgo ${n.clase}"><div class="prev-riesgo-cab"><span class="prev-pct">${esc(pct(i.probabilidad))}</span><span class="prev-nivel">${n.texto}</span></div>
+      <span class="prev-medidor" aria-hidden="true"><span style="width:${p}%"></span></span></div>
+    <div class="prev-reloj"><div class="prev-riesgo-cab"><span><strong>${num(i.recencia_dias)}</strong> días sin comprar</span></div>
+      <span class="prev-camino" aria-hidden="true"><span style="width:${avance}%"></span><i style="left:${(30 / 90 * 100).toFixed(1)}%"></i></span>
+      <small>${faltan ? `Le ${faltan === 1 ? "falta 1 día" : `faltan ${num(faltan)} días`} para llegar a 90` : "Llega a 90 días hoy"}</small></div>
+    <div class="prev-porque">${motivos.length ? `<ul>${motivos.map(m => `<li>${esc(m)}</li>`).join("")}</ul>` : '<span class="muted">Sin motivos adicionales.</span>'}
+      <small class="muted">Por días sin comprar estaría en el puesto ${num(i.posicion_mayor_recencia)}.</small></div>
+    <div class="prev-accion"><small>En la cartera</small><span>${esc(i.accion_c1 || "Sin acción")}</span>
+      ${i.episodio ? (i.episodio.tarea_id ? `<a href="#/tareas/${i.episodio.tarea_id}">${i.episodio.compartida ? "Motivo añadido a un seguimiento" : "Seguimiento de comprobación"}</a>` : '<small class="muted">Revisión abierta</small>') : ""}
+      ${puede("cartera.ver") ? `<a class="boton-sec" href="#/clientes/${encodeURIComponent(i.cliente_id)}?pestana=senales">Ver cliente<span class="oculto-visual"> ${esc(i.cliente_id)}</span></a>` : ""}</div>
+  </li>`;
+}
+
 export async function vistaPrevencion() {
   const { q } = ruta();
   const k = q.get("k") || "10";
@@ -51,42 +100,36 @@ export async function vistaPrevencion() {
   }
   const s = d.sombra, c = d.conteos || {};
   const difiere = d.cierre_activo?.coincide_corte === false;
-  const cohortes = [
-    ["aprendible", "Entre 30 y 89 días sin comprar", "se les estima el riesgo (esta lista)"],
-    ["ya_frio", "Ya llevan 90 días o más", "reactivación: están en la cartera, no aquí"],
-    ["estructural", "Menos de 30 días sin comprar", "riesgo cero por definición en 60 días"],
-    ["sin_historial", "Sin compras registradas", "sin base para estimar"],
-    ["alta_posterior", "Dados de alta después de la fecha", "fuera del cálculo"],
-  ].filter(([key]) => c[key] != null);
-  const total = cohortes.reduce((a, [key]) => a + (c[key] || 0), 0);
+  const niveles = { alto: 0, medio: 0, bajo: 0 };
+  d.items.forEach(i => niveles[nivelRiesgo(i.probabilidad).clase]++);
+  const urgentes = d.items.filter(i => 90 - i.recencia_dias <= 15).length;
+  const opciones = [10, 20, 50].filter(n => n <= Math.max(10, d.total_aprendibles));
   $vista.innerHTML = `${encabezado({ titulo: TITULO, estado: enPrueba(),
-    descripcion: "Clientes que todavía compran pero podrían llegar a 90 días sin comprar en los próximos 60 días. Sirve para revisar antes, no para reactivar a quien ya se pausó.",
+    descripcion: "Clientes que todavía compran pero podrían llegar a 90 días sin comprar en los próximos 60 días. Sirve para actuar antes, no para reactivar a quien ya se pausó.",
     contexto: [ctxDatos(s.corte, "Estimación con datos hasta"), { etiqueta: "Horizonte", valor: "próximos 60 días" }, s.importada_en ? { etiqueta: "Publicada", valor: esc(fechaHora(s.importada_en)) } : null] })}
   ${avisoPrueba("No cambia la cartera ni crea seguimientos automáticamente.")}
   ${difiere ? `<p class="aviso-cifras" role="note">Fechas distintas: la cartera usa datos hasta el ${esc(fechaLarga(d.cierre_activo.corte))} y esta estimación, hasta el ${esc(fechaLarga(s.corte))}. La acción de la cartera que ves en cada fila es la vigente; no las compares como si fueran del mismo día.</p>` : ""}
   ${hallazgo({
-    que: `<strong>${plural(d.total_aprendibles, "cliente lleva", "clientes llevan")} entre 30 y 89 días sin comprar.</strong> Se listan los ${num(d.items.length)} con mayor riesgo estimado.`,
-    porque: `Aún no se han pausado: revisarlos ahora es prevención. ${c.ya_frio != null ? `Otros ${plural(c.ya_frio, "cliente ya lleva", "clientes ya llevan")} 90 días o más; eso es reactivación y se atiende desde la cartera.` : ""}`,
-    accion: [d.items[0] && puede("cartera.ver") && `<a class="boton" href="#/clientes/${encodeURIComponent(d.items[0].cliente_id)}">Ver el cliente con más riesgo</a>`, puede("cartera.ver") && '<a class="boton-sec" href="#/agenda?frio=1">Ver quienes ya llevan 90 días</a>'].filter(Boolean).join(""),
+    que: `<strong>${plural(d.total_aprendibles, "cliente lleva", "clientes llevan")} entre 30 y 89 días sin comprar.</strong> Abajo están los ${num(d.items.length)} con más riesgo de pausarse${urgentes ? `; ${plural(urgentes, "llega", "llegan")} a 90 días en dos semanas o menos` : ""}.`,
+    porque: `Aún no se han pausado: hablar con ellos ahora es prevención. ${c.ya_frio != null ? `Otros ${plural(c.ya_frio, "cliente ya lleva", "clientes ya llevan")} 90 días o más; eso es reactivación y se atiende desde la cartera.` : ""}`,
+    accion: [d.items[0] && puede("cartera.ver") && `<a class="boton" href="#/clientes/${encodeURIComponent(d.items[0].cliente_id)}?pestana=senales">Ver el cliente con más riesgo</a>`, puede("cartera.ver") && '<a class="boton-sec" href="#/agenda?frio=1">Ver quienes ya llevan 90 días</a>'].filter(Boolean).join(""),
   })}
-  <div class="grid2 ancho-desigual">
-  <section class="panel" aria-labelledby="t-lista-prev"><h2 id="t-lista-prev">Lista para revisar</h2>
-    <form class="filtros" id="f-prev"><label>¿A cuántos clientes puede revisar tu equipo? <span class="ayuda">Es la capacidad de revisión, no un umbral de riesgo.</span><input name="k" type="number" min="1" max="200" value="${esc(k)}" inputmode="numeric"></label><button>Mostrar la lista</button></form>
-    ${d.items.length ? `<div class="tabla"><table class="apilable"><caption>Orden: mayor riesgo estimado primero. Entre paréntesis, el puesto que tendría con la regla de más días sin comprar.</caption>
-    <thead><tr><th scope="col">Puesto</th><th scope="col">Cliente</th><th scope="col" class="n">Riesgo estimado en 60 días</th><th scope="col">Por qué aparece</th><th scope="col">Acción en la cartera</th><th scope="col"><span class="oculto-visual">Abrir</span></th></tr></thead><tbody>
-    ${d.items.map(i => `<tr><td data-et="Puesto">${num(i.posicion)} <span class="muted">(regla: ${num(i.posicion_mayor_recencia)})</span></td><td data-et="Cliente"><strong>${esc(i.cliente_id)}</strong><span class="muted">${num(i.recencia_dias)} días sin comprar · última compra el ${esc(fechaLarga(i.ultima_compra))}</span></td>
-      <td class="n" data-et="Riesgo estimado en 60 días"><strong>${esc(pct(i.probabilidad))}</strong></td><td data-et="Por qué aparece"><span class="muted">${esc(i.motivos.slice(1).join(" · "))}</span></td>
-      <td data-et="Acción en la cartera">${esc(i.accion_c1 || "—")}${i.episodio ? (i.episodio.tarea_id ? `<span class="muted"><a href="#/tareas/${i.episodio.tarea_id}">${i.episodio.compartida ? "Motivo añadido a un seguimiento" : "Seguimiento de comprobación"}</a></span>` : '<span class="muted">Episodio abierto</span>') : ""}</td>
-      <td>${puede("cartera.ver") ? `<a class="boton-sec" href="#/clientes/${encodeURIComponent(i.cliente_id)}?pestana=senales">Ver cliente<span class="oculto-visual"> ${esc(i.cliente_id)}</span></a>` : ""}</td></tr>`).join("")}
-    </tbody></table></div>` : vacio("No hay clientes entre 30 y 89 días sin comprar en esta fecha.")}
+  ${recorridoHtml(c)}
+  <section class="panel" aria-labelledby="t-lista-prev">
+    <div class="prev-lista-cab"><div><h2 id="t-lista-prev">Lista para revisar</h2>
+      <p class="muted">Ordenada de mayor a menor riesgo estimado. ${d.items.length ? `${niveles.alto ? `<span class="prev-chip alto">${num(niveles.alto)} con riesgo alto</span>` : ""}${niveles.medio ? `<span class="prev-chip medio">${num(niveles.medio)} con riesgo medio</span>` : ""}${niveles.bajo ? `<span class="prev-chip bajo">${num(niveles.bajo)} con riesgo bajo</span>` : ""}` : ""}</p></div>
+      <form class="prev-capacidad" id="f-prev"><label for="k-prev">¿A cuántos puede revisar tu equipo?</label>
+        <div class="prev-capacidad-fila">${opciones.map(n => `<a class="prev-opcion${String(n) === String(d.k) ? " activo" : ""}" href="#/prevencion?k=${n}" ${String(n) === String(d.k) ? 'aria-current="true"' : ""}>${n}</a>`).join("")}
+          <input id="k-prev" name="k" type="number" min="1" max="200" value="${opciones.map(String).includes(String(d.k)) ? "" : esc(k)}" placeholder="Otro" inputmode="numeric" aria-describedby="k-ayuda"><button class="sec">Mostrar</button></div>
+        <small id="k-ayuda" class="muted">Es tu capacidad de revisión, no un límite de riesgo.</small></form></div>
+    ${d.items.length ? `<div class="prev-encabezados" aria-hidden="true"><span>Cliente</span><span>Riesgo en 60 días</span><span>Camino a 90 días</span><span>Por qué aparece</span><span>Qué hacer</span></div>
+      <ol class="prev-lista">${d.items.map(filaRiesgo).join("")}</ol>
+      <p class="muted prev-nota"><strong>Cómo leerlo:</strong> el porcentaje es la posibilidad estimada de que el cliente llegue a 90 días sin comprar en los próximos 60 días (alto desde 60 %, medio desde 30 %). La barra gris muestra cuánto camino lleva hacia los 90 días. Es una estimación para decidir a quién llamar primero, no una certeza.</p>`
+      : vacio("No hay clientes entre 30 y 89 días sin comprar en esta fecha.")}
   </section>
-  <section class="panel"><h2>¿Dónde está cada cliente?</h2>
-    <p class="muted">Grupos que no se solapan, sobre ${plural(total, "cliente", "clientes")}.</p>
-    ${barras(cohortes.map(([key, et, nota]) => ({ etiqueta: et, nota, valor: c[key] || 0, texto: `${plural(c[key] || 0, "cliente", "clientes")}`, href: key === "ya_frio" && puede("cartera.ver") ? "#/agenda?frio=1" : null })), { etiquetaAria: "Clientes por días sin comprar" })}
-  </section></div>
   <details class="panel"><summary>Cómo se obtuvo esta estimación</summary>
     <p>Estado: ${esc(s.estado_experimento)}${s.decision ? ` · decisión ${esc(DECISIONES[s.decision.decision] || s.decision.decision)}` : ""}. Modelo ${esc(s.version_modelo)}. ${esc(d.nota)} ${esc(d.precedencia_c1)} Seguimientos automáticos: ${d.tareas_automaticas ? "activados" : "desactivados"}.</p>
     ${comparacionHtml(s.decision?.resumen)}
     ${detalleTecnico(`<pre>${esc(JSON.stringify(s, null, 2))}</pre>`, "Publicación (datos originales)")}</details>`;
-  document.getElementById("f-prev").addEventListener("submit", e => { e.preventDefault(); ir(`#/prevencion?k=${new FormData(e.target).get("k")}`); });
+  document.getElementById("f-prev").addEventListener("submit", e => { e.preventDefault(); const n = new FormData(e.target).get("k"); if (n) ir(`#/prevencion?k=${n}`); else e.target.k.focus(); });
 }
