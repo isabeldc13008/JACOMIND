@@ -83,6 +83,24 @@ class PruebasServidor(ServidorReal):
             con.execute("UPDATE sesiones SET expira_en = '2000-01-01T00:00:00+00:00'")
         self.assertEqual(self.pedir(op, "GET", "/api/cierres")[0], 401)
 
+    def test_admin_debe_cambiar_clave_y_puede_crear_roles(self):
+        op = self.cliente()
+        st, cuerpo, _ = self.pedir(op, "POST", "/api/sesion", {"usuario": "admin", "password": "admin123"})
+        self.assertEqual(st, 200)
+        self.assertTrue(json.loads(cuerpo)["usuario"]["requiere_cambio_clave"])
+        self.assertEqual(self.pedir(op, "GET", "/api/usuarios")[0], 403)
+        st, _, _ = self.pedir(op, "POST", "/api/sesion/cambiar-clave", {"actual": "admin123", "nueva": "Admin-Temporal-9"})
+        self.assertEqual(st, 200)
+        st, _, _ = self.pedir(op, "POST", "/api/roles", {"id": "analista", "nombre": "Analista", "permisos": ["cartera.ver"]})
+        self.assertEqual(st, 200)
+        roles = json.loads(self.pedir(op, "GET", "/api/roles")[1])
+        self.assertIn("analista", {r["id"] for r in roles})
+
+    def test_perfiles_no_administrativos_no_crean_roles(self):
+        op = self.cliente()
+        self.pedir(op, "POST", "/api/sesion", {"identidad": "ops1"})
+        self.assertEqual(self.pedir(op, "GET", "/api/roles")[0], 403)
+
 
 class PruebasModoPractica(ServidorReal):
     practica = True

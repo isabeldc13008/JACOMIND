@@ -12,11 +12,11 @@ def preparar(db: BaseDatos, publicar_muestra: bool = True) -> dict:
     db.migrar()
     with db.transaccion() as con:
         sembrar_identidades(con)
-    sembrar_usuarios_configurados(db)
         hay_docs = con.execute("SELECT count(*) FROM documentos").fetchone()[0]
         hay_ben = con.execute("SELECT count(*) FROM beneficios").fetchone()[0]
         hay_pqrs = con.execute("SELECT count(*) FROM pqrs").fetchone()[0]
         hay_cierre = publicacion.cierre_activo(con)
+    sembrar_usuarios_configurados(db)
     sistema = Usuario("aten1", "Semilla", "GREEN", "interna", None, {"atencion"},
                       {"beneficios.editar", "beneficios.publicar"})
     resultado = {"cierre": hay_cierre}

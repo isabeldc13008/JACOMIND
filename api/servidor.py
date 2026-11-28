@@ -117,6 +117,12 @@ def r_login(c: Ctx):
     return _json({"usuario": u.como_dict()}, cabeceras={"Set-Cookie": cookie})
 
 
+@ruta("POST", "/api/sesion/cambiar-clave", "*")
+def r_cambiar_clave(c: Ctx):
+    u = auth.cambiar_clave(c.db, c.usuario.id, str(c.body.get("actual", "")), str(c.body.get("nueva", "")))
+    return {"usuario": u.como_dict()}
+
+
 @ruta("DELETE", "/api/sesion", "*")
 def r_logout(c: Ctx):
     auth.cerrar_sesion(c.db, c.headers.get("token") or "")
@@ -145,6 +151,26 @@ def r_crear_usuario(c: Ctx):
 def r_actualizar_usuario(c: Ctx):
     return auth.actualizar_usuario_local(c.db, c.params["identidad"], activo=c.body.get("activo"),
                                          rol=c.body.get("rol"), password=c.body.get("password"))
+
+
+@ruta("GET", "/api/roles", "usuarios.gestionar")
+def r_roles(c: Ctx):
+    return auth.listar_roles(c.db)
+
+
+@ruta("GET", "/api/permisos", "usuarios.gestionar")
+def r_permisos(c: Ctx):
+    return sorted(auth.MATRIZ)
+
+
+@ruta("POST", "/api/roles", "usuarios.gestionar")
+def r_crear_rol(c: Ctx):
+    return auth.crear_rol(c.db, str(c.body.get("id", "")), str(c.body.get("nombre", "")), list(c.body.get("permisos") or []))
+
+
+@ruta("PATCH", "/api/roles/{rol}", "usuarios.gestionar")
+def r_actualizar_rol(c: Ctx):
+    return auth.actualizar_rol(c.db, c.params["rol"], permisos=c.body.get("permisos"), activo=c.body.get("activo"))
 
 
 # ------------------------------------------------------------------ cierres y cartera (B02/B03)
@@ -730,6 +756,8 @@ class Aplicacion:
                 usuario = auth.resolver(self.db, token, cab.get("x-usuario-autenticado")) if permisos else None
                 if permisos:
                     auth.exigir(usuario)
+                    if usuario.requiere_cambio_clave and camino not in ("/api/sesion", "/api/sesion/cambiar-clave"):
+                        raise ErrorApi(403, "cambio_clave_requerido", "Debes cambiar tu contraseña antes de continuar")
                     if "*" not in permisos and not any(usuario.puede(p) for p in permisos):
                         raise ErrorApi(403, "sin_permiso", "Tu rol no permite esta operación")
                 body = {}

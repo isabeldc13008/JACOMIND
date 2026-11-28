@@ -76,7 +76,7 @@ python -m contratos.validar salida/agenda.json                        # contrato
 | Restauración | `respaldo` → acción posterior → `restaurar` | la acción previa aparece, la posterior no |
 ## Inicio de sesión local y usuarios
 
-Para el piloto en Azure, el administrador inicial se crea durante la migración usando variables de entorno fuera del repositorio:
+En una base nueva, el administrador inicial es `admin` con la contraseña temporal `admin123`. Debe cambiarla en el primer acceso. Para el piloto en Azure se recomienda reemplazarla mediante variables de entorno fuera del repositorio:
 
 ```text
 JACOMIND_LOGIN_LOCAL=1
@@ -84,4 +84,4 @@ JACOMIND_ADMIN_USUARIO=admin
 JACOMIND_ADMIN_PASSWORD=<clave-de-8-o-mas-caracteres>
 ```
 
-El administrador entra en **Administración → Usuarios** y crea las cuentas de Operaciones, Ventas, Finanzas, Atención, Gerencia o Empresa. Las contraseñas se guardan como hash PBKDF2; no se pueden consultar desde la aplicación. Para las cuentas ficticias de demostración se puede definir temporalmente `JACOMIND_DEMO_PASSWORD`; no se debe usar esa variable con datos reales.
+El administrador entra en **Administración** para crear usuarios y roles personalizados seleccionando permisos existentes. Las contraseñas se guardan como hash PBKDF2; no se pueden consultar desde la aplicación. Para las cuentas ficticias de demostración se puede definir temporalmente `JACOMIND_DEMO_PASSWORD`; no se debe usar esa variable con datos reales.

@@ -141,7 +141,7 @@ async function vistaInicio() {
   document.getElementById("ident")?.addEventListener("change", () => { document.getElementById("entrar").textContent = textoEntrar(); });
   document.getElementById("f-login-local")?.addEventListener("submit", async e => {
     e.preventDefault(); const b = e.target.querySelector("button"), msg = document.getElementById("msg-local"); b.disabled = true; b.textContent = "Entrando…";
-    try { const r = await api("POST", "/api/sesion", Object.fromEntries(new FormData(e.target))); S.usuario = r.usuario; S.fuente = "servidor"; localStorage.setItem("jacomind.fuente", "servidor"); ir(inicioDePerfil()); }
+    try { const r = await api("POST", "/api/sesion", Object.fromEntries(new FormData(e.target))); S.usuario = r.usuario; S.fuente = "servidor"; localStorage.setItem("jacomind.fuente", "servidor"); ir(r.usuario.requiere_cambio_clave ? "#/cambiar-clave" : inicioDePerfil()); }
     catch (err) { msg.innerHTML = errorHtml(err); b.disabled = false; b.textContent = "Entrar"; }
   });
   document.getElementById("f-entrar")?.addEventListener("submit", async e => {
@@ -154,6 +154,15 @@ async function vistaInicio() {
       try { localStorage.setItem("jacomind.fuente", "servidor"); } catch { /* sin almacenamiento */ }
       ir(inicioDePerfil());
     } catch (err) { document.getElementById("msg").innerHTML = errorHtml(err); b.disabled = false; b.textContent = textoEntrar(); }
+  });
+}
+
+async function vistaCambioClave() {
+  $vista.innerHTML = `${encabezado({ titulo: "Cambia tu contraseña", descripcion: "La contraseña inicial es temporal y debes reemplazarla antes de continuar." })}<section class="panel"><form id="f-cambio-clave" class="campos"><label>Contraseña actual <input name="actual" type="password" required autocomplete="current-password"></label><label>Nueva contraseña <input name="nueva" type="password" minlength="8" required autocomplete="new-password"></label><button>Guardar contraseña</button></form><div id="msg-cambio" aria-live="polite"></div></section>`;
+  document.getElementById("f-cambio-clave").addEventListener("submit", async e => {
+    e.preventDefault(); const b = e.target.querySelector("button"), msg = document.getElementById("msg-cambio"); b.disabled = true;
+    try { const r = await api("POST", "/api/sesion/cambiar-clave", Object.fromEntries(new FormData(e.target))); S.usuario = r.usuario; ir(inicioDePerfil()); }
+    catch (err) { msg.innerHTML = errorHtml(err); b.disabled = false; }
   });
 }
 
@@ -200,9 +209,11 @@ async function render() {
   const { partes } = ruta();
   const [v, a] = partes;
   try {
+    if (v === "cambiar-clave") return await vistaCambioClave();
     if (v === "inicio" || !S.fuente) return await vistaInicio();
     if (!enServidor() && v !== "agenda" && v !== "clientes") return ir("#/agenda");
     if (enServidor() && !S.usuario) return await vistaInicio();
+    if (S.usuario?.requiere_cambio_clave) return ir("#/cambiar-clave");
     const sinPermiso = () => { S.aviso = null; ir(inicioDePerfil()); };
     switch (v) {
       case "bienvenida": return await vistaBienvenida();
@@ -260,7 +271,7 @@ async function iniciar() {
   if (!S.apiDisponible && S.fuente === "servidor") S.fuente = null;
   if (S.apiDisponible && !S.fuente) S.fuente = "servidor";
   window.addEventListener("hashchange", render);
-  if (!location.hash && enServidor() && S.usuario) location.hash = inicioDePerfil();
+  if (!location.hash && enServidor() && S.usuario) location.hash = S.usuario.requiere_cambio_clave ? "#/cambiar-clave" : inicioDePerfil();
   else render();
 }
 iniciar();
