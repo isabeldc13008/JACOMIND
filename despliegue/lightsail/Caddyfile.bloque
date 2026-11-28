@@ -1,5 +1,9 @@
 	encode zstd gzip
-	reverse_proxy 127.0.0.1:8000
+	reverse_proxy 127.0.0.1:8000 {
+		# Durante un reinicio (despliegue) espera hasta 20 s a que la aplicación vuelva, en vez de responder 502.
+		lb_try_duration 20s
+		lb_try_interval 250ms
+	}
 	header {
 		Strict-Transport-Security "max-age=31536000"
 		-Server

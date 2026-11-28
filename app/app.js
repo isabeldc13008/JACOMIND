@@ -7,24 +7,21 @@ import {
 } from "./nucleo.js";
 import { activoEn, areasPara, icono } from "./navegacion.js";
 import { encabezado, vacio } from "./ui.js";
-import { vistaAgenda, vistaFicha } from "./vistas/cartera.js";
-import { vistaTableros } from "./vistas/tableros.js";
-import { vistaTareas } from "./vistas/seguimientos.js";
-import { vistaPqrs } from "./vistas/pqrs.js";
-import { vistaBeneficios } from "./vistas/beneficios.js";
-import { olvidarConversaciones, vistaAsistente } from "./vistas/asistente.js";
-import { vistaFinanzas } from "./vistas/finanzas.js";
-import { vistaDocumentos } from "./vistas/documentos.js";
-import { vistaOperacion } from "./vistas/operacion.js";
-import { vistaPrevencion } from "./vistas/prevencion.js";
-import { vistaIA } from "./vistas/ia.js";
-import { vistaProxima } from "./vistas/proxima.js";
-import { vistaVentaCruzada } from "./vistas/venta_cruzada.js";
-import { vistaDemanda } from "./vistas/demanda.js";
-import { vistaAnomalias } from "./vistas/anomalias.js";
-import { vistaMonitoreo } from "./vistas/monitoreo.js";
-import { vistaGuia } from "./vistas/guia.js";
-import { vistaAdmin } from "./vistas/admin.js";
+// Cada pantalla se descarga la primera vez que se abre (import dinámico); así el arranque solo trae el núcleo.
+const modulos = new Map();
+const cargar = archivo => { if (!modulos.has(archivo)) modulos.set(archivo, import(`./vistas/${archivo}.js`).catch(e => { modulos.delete(archivo); throw e; })); return modulos.get(archivo); };
+const vista = (archivo, nombre) => async (...args) => (await cargar(archivo))[nombre](...args);
+const vistaAgenda = vista("cartera", "vistaAgenda"), vistaFicha = vista("cartera", "vistaFicha");
+const vistaTableros = vista("tableros", "vistaTableros"), vistaTareas = vista("seguimientos", "vistaTareas");
+const vistaPqrs = vista("pqrs", "vistaPqrs"), vistaBeneficios = vista("beneficios", "vistaBeneficios");
+const vistaAsistente = vista("asistente", "vistaAsistente"), vistaFinanzas = vista("finanzas", "vistaFinanzas");
+const vistaDocumentos = vista("documentos", "vistaDocumentos"), vistaOperacion = vista("operacion", "vistaOperacion");
+const vistaPrevencion = vista("prevencion", "vistaPrevencion"), vistaIA = vista("ia", "vistaIA");
+const vistaProxima = vista("proxima", "vistaProxima"), vistaVentaCruzada = vista("venta_cruzada", "vistaVentaCruzada");
+const vistaDemanda = vista("demanda", "vistaDemanda"), vistaAnomalias = vista("anomalias", "vistaAnomalias");
+const vistaMonitoreo = vista("monitoreo", "vistaMonitoreo"), vistaGuia = vista("guia", "vistaGuia"), vistaAdmin = vista("admin", "vistaAdmin");
+/** Borra las conversaciones del asistente solo si su módulo ya se cargó (si no, no hay nada que borrar). */
+const olvidarConversaciones = () => { modulos.get("asistente")?.then(m => m.olvidarConversaciones()).catch(() => {}); };
 
 const ROLES = { admin: "Administrador", operaciones: "Operaciones", ventas: "Ventas", finanzas: "Finanzas", atencion: "Atención", gerencia: "Gerencia", empresa: "Empresa" };
 const menu = document.getElementById("menu"), botonMenu = document.getElementById("boton-menu");
@@ -258,11 +255,13 @@ window.addEventListener("hashchange", () => {
 async function iniciar() {
   aplicarPreferencias();
   pintarPreferencias();
-  try {
-    const r = await fetch("/api/estado", { cache: "no-store" });
-    if (r.ok) { S.estadoApi = await r.json(); S.apiDisponible = true; }
-  } catch { /* modo estático */ }
-  if (S.apiDisponible) S.usuario = (await api("GET", "/api/sesion").catch(() => null))?.usuario || null;
+  // Estado y sesión en paralelo: ahorra un viaje de ida y vuelta al servidor en cada arranque.
+  const [estado, sesion] = await Promise.all([
+    fetch("/api/estado", { cache: "no-store" }).then(r => r.ok ? r.json() : null).catch(() => null),   // null: modo estático
+    api("GET", "/api/sesion").catch(() => null),
+  ]);
+  if (estado) { S.estadoApi = estado; S.apiDisponible = true; }
+  if (S.apiDisponible) S.usuario = sesion?.usuario || null;
   if (!S.apiDisponible && S.fuente === "servidor") S.fuente = null;
   if (S.apiDisponible && !S.fuente) S.fuente = "servidor";
   window.addEventListener("hashchange", render);

@@ -738,7 +738,7 @@ class Aplicacion:
         url = urlparse(ruta_url)
         camino = url.path
         if not camino.startswith("/api/"):
-            return self.estatico(camino) if metodo in ("GET", "HEAD") else _json({"error": "metodo"}, 405)
+            return self.estatico(camino, {k.lower(): v for k, v in cabeceras.items()}) if metodo in ("GET", "HEAD") else _json({"error": "metodo"}, 405)
         cab = {k.lower(): v for k, v in cabeceras.items()}
         token = None
         if cab.get("cookie"):
@@ -779,7 +779,7 @@ class Aplicacion:
             traceback.print_exc()
             return _json({"error": "interno", "mensaje": f"Error interno ({type(e).__name__})"}, 500)
 
-    def estatico(self, camino: str) -> Respuesta:
+    def estatico(self, camino: str, cab: dict | None = None) -> Respuesta:
         if camino in ("/", ""):
             return Respuesta(302, b"", "text/plain", {"Location": "/app/"})
         if camino.startswith("/app"):
@@ -797,7 +797,14 @@ class Aplicacion:
         tipo = mimetypes.guess_type(p.name)[0] or "application/octet-stream"
         if tipo.startswith("text/") or tipo in ("application/javascript", "application/json"):
             tipo += "; charset=utf-8"
-        return Respuesta(200, p.read_bytes(), tipo, {"Cache-Control": "no-store"})
+        # Caché con revalidación: el navegador guarda el archivo y pregunta si cambió (ETag). Si no cambió, responde 304
+        # sin cuerpo; tras un despliegue el ETag cambia y se descarga la versión nueva. Nunca sirve código viejo.
+        st = p.stat()
+        etag = f'W/"{st.st_mtime_ns:x}-{st.st_size:x}"'
+        cabeceras = {"Cache-Control": "no-cache", "ETag": etag}
+        if (cab or {}).get("if-none-match") == etag:
+            return Respuesta(304, b"", tipo, cabeceras)
+        return Respuesta(200, p.read_bytes(), tipo, cabeceras)
 
 
 class Manejador(BaseHTTPRequestHandler):

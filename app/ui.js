@@ -153,6 +153,13 @@ export function graficoLinea(hist, proy = [], { marcas = [], titulo = "Serie men
   const vals = pts.flatMap(p => [p.valor, p.inferior, p.superior]).filter(v => v != null);
   const max = Math.max(1, ...vals) * 1.12;
   const x = i => m.l + (pts.length === 1 ? (W - m.l - m.r) / 2 : i * (W - m.l - m.r) / (pts.length - 1));
+  // Rótulos de la línea divisoria: «← Observado» a su izquierda y la proyección a su derecha. Si la zona proyectada es
+  // angosta y el texto no cabe a la derecha, la proyección sube a una fila propia (se agranda el margen superior) para
+  // que los dos rótulos nunca se solapen. Ancho aproximado: 0,58 × tamaño de letra (17) por carácter.
+  const etqProy = `${etiquetaEstimado} →`, anchoTexto = t => t.length * 17 * 0.58;
+  const sepPrevio = proy.length && hist.length ? x(hist.length - 1) + (x(hist.length) - x(hist.length - 1)) / 2 : null;
+  const proyEnFila = sepPrevio != null && sepPrevio + 8 + anchoTexto(etqProy) > W - 4;
+  if (proyEnFila) m.t = 64;
   const y = v => H - m.b - v / max * (H - m.t - m.b);
   const camino = (desde, hasta) => {
     let d = "", abierto = false;
@@ -186,7 +193,7 @@ export function graficoLinea(hist, proy = [], { marcas = [], titulo = "Serie men
   const svg = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(titulo)}. Los valores exactos están en la tabla «Ver valores exactos».">
     ${ticks.map(t => `<line x1="${m.l}" x2="${W - m.r}" y1="${y(t)}" y2="${y(t)}" stroke="var(--rejilla)"/><text x="${m.l - 10}" y="${y(t) + 5}" text-anchor="end" class="eje">${esc(etiquetaEje(t))}</text>`).join("")}
     ${banda}
-    ${sep != null ? `<line x1="${sep}" x2="${sep}" y1="${m.t - 6}" y2="${H - m.b}" stroke="var(--texto-3)" stroke-dasharray="3 4"/><text x="${W - 4}" y="${m.t - 12}" text-anchor="end" class="eje fuerte">${esc(etiquetaEstimado)} →</text><text x="${sep - 8}" y="${m.t - 12}" text-anchor="end" class="eje">← Observado</text>` : ""}
+    ${sep != null ? `<line x1="${sep}" x2="${sep}" y1="${m.t - 6}" y2="${H - m.b}" stroke="var(--texto-3)" stroke-dasharray="3 4"/>${proyEnFila ? `<text x="${W - 4}" y="${m.t - 38}" text-anchor="end" class="eje fuerte">${esc(etqProy)}</text>` : `<text x="${sep + 8}" y="${m.t - 12}" text-anchor="start" class="eje fuerte">${esc(etqProy)}</text>`}<text x="${sep - 8}" y="${m.t - 12}" text-anchor="end" class="eje">← Observado</text>` : ""}
     <path d="${camino(0, nh - 1)}" fill="none" stroke="var(--serie-obs)" stroke-width="3"/>
     ${proy.length ? `<path d="${camino(Math.max(0, nh - 1), pts.length - 1)}" fill="none" stroke="var(--serie-est)" stroke-width="3" stroke-dasharray="8 6"/>` : ""}
     ${pts.map((p, i) => p.valor == null
