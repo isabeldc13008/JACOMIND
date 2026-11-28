@@ -99,43 +99,36 @@ document.getElementById("saltar").addEventListener("click", e => { e.preventDefa
 
 // ---------------------------------------------------------------- V01 · acceso y origen de los datos
 async function vistaInicio() {
+  document.body.classList.add("pantalla-acceso");
   let ids = [];
   const elegido = S.fuente || (S.apiDisponible ? "servidor" : null);
   if (S.apiDisponible && S.estadoApi?.login_demo && elegido === "servidor" && !S.usuario) ids = await api("GET", "/api/identidades").catch(() => []);
-  const aviso = S.aviso ? `<div class="estado" role="status">${esc(S.aviso)}</div>` : "";
+  const aviso = S.aviso ? `<div class="acceso-aviso" role="status">${esc(S.aviso)}</div>` : "";
   S.aviso = null;
   const corte = S.estadoApi?.corte_activo;
-  const conjunto = !S.apiDisponible ? vacio("El servidor de JACOMIND no está disponible en este equipo.", "Puedes practicar con el ejemplo de ocho clientes o pedir a la persona encargada que inicie la aplicación (ver «Ayuda para la persona encargada»).")
-    : !corte ? vacio("Todavía no hay información publicada.", "Puedes entrar con tu perfil, pero las pantallas de clientes y finanzas estarán vacías hasta que Operaciones publique el cierre del mes.")
-    : `<dl class="contexto-datos"><div><dt>Información</dt><dd>datos hasta el ${esc(fechaLarga(corte))}</dd></div>${S.estadoApi.origen_activo === "sintetico" ? "<div><dt>Origen</dt><dd>datos de práctica (no son clientes reales)</dd></div>" : ""}</dl>`;
-  const opcion = k => {
-    const f = FUENTES[k], deshabilitado = k === "servidor" && !S.apiDisponible;
-    return `<label class="opcion-origen ${elegido === k ? "activa" : ""} ${deshabilitado ? "deshabilitada" : ""}">
-      <input type="radio" name="fuente" value="${k}" ${elegido === k ? "checked" : ""} ${deshabilitado ? "disabled" : ""}>
-      <strong>${esc(f.titulo)}</strong><span>${esc(f.explica)}${deshabilitado ? " No disponible ahora: el servidor no responde." : ""}</span></label>`;
-  };
-  const loginLocal = S.estadoApi?.login_local ? `<form id="f-login-local" class="campos"><h3>Iniciar sesión</h3><label>Usuario <input name="usuario" required autocomplete="username"></label><label>Contraseña <input name="password" type="password" required autocomplete="current-password"></label><button>Entrar</button></form><div id="msg-local" aria-live="polite"></div>` : "";
-  const loginDemo = S.estadoApi?.login_demo ? (ids.length ? `<p>También puedes entrar a la demostración con perfiles ficticios:</p><form id="f-entrar" class="filtros"><label>Perfil con el que quieres entrar <select id="ident">${ids.map(i => `<option value="${esc(i.id)}" data-rol="${esc(ROLES[i.rol] || i.rol)}">${esc(i.nombre)} — ${esc(ROLES[i.rol] || i.rol)}${i.organizacion && i.organizacion !== "GREEN" ? " (" + esc(i.organizacion) + ")" : ""}</option>`).join("")}</select></label><button id="entrar">Entrar como ${esc(ROLES[ids[0].rol] || ids[0].rol)}</button></form>` : vacio("No hay perfiles de demostración en esta base de datos.", "La persona encargada debe preparar la demostración (ver la ayuda de abajo). No se simula una sesión.")) : "";
-  const acceso = elegido === "servidor" && S.apiDisponible ? `<section class="panel" aria-labelledby="t-acceso"><h2 id="t-acceso">Entra con tu perfil</h2>${S.usuario ? `<p>Ya entraste como <strong>${esc(S.usuario.nombre)}</strong>.</p><a class="boton" href="${esc(inicioDePerfil())}">Ir a mi inicio</a>` : loginLocal + loginDemo}<div id="msg" aria-live="polite"></div></section>` : "";
-  $vista.innerHTML = `${encabezado({ titulo: "Te damos la bienvenida a JACOMIND", descripcion: "Decisiones comerciales con evidencia: qué pasó, a quién atender y cuál es el siguiente paso." })}
-  ${aviso}${conjunto}${acceso}
-  ${elegido && elegido !== "servidor" ? `<p><a class="boton" href="#/agenda">Abrir la lista de clientes</a></p>` : ""}
-  <details class="panel" ${elegido && elegido !== "servidor" ? "open" : ""}><summary>Otras formas de usar JACOMIND</summary>
-    <div class="opciones-origen" role="radiogroup" aria-label="Forma de entrar">${["servidor", "salida", "ejemplo"].map(opcion).join("")}</div></details>
-  <details class="tecnico"><summary>Ayuda para la persona encargada</summary>
-    <ul><li><strong>Demostración completa:</strong> <code>python -m api --db salida/demo_accesible_2026_11_24/demo.sqlite3 servir --puerto 8000</code>.</li>
-    <li><strong>Base nueva:</strong> <code>python -m api demo</code> y <code>python -m api servir --practica</code>.</li>
-    <li><strong>Agenda local:</strong> se lee de <code>/salida/agenda.json</code> (se genera con <code>python -m pipeline.generar</code>).</li>
-    <li><strong>Ejemplo de 8 clientes:</strong> <code>/app/fixtures/agenda.json</code>.</li></ul></details>`;
-  $vista.querySelectorAll("input[name=fuente]").forEach(r => r.addEventListener("change", e => {
-    S.fuente = e.target.value; S.local = null;
-    try { localStorage.setItem("jacomind.fuente", S.fuente); } catch { /* sin almacenamiento */ }
-    if (enServidor() && S.usuario) return ir(inicioDePerfil());
-    if (!enServidor()) return ir("#/agenda");
-    pintarCabecera(); vistaInicio();
-  }));
-  const textoEntrar = () => `Entrar como ${document.getElementById("ident").selectedOptions[0]?.dataset.rol || ""}`;
-  document.getElementById("ident")?.addEventListener("change", () => { document.getElementById("entrar").textContent = textoEntrar(); });
+  const metadatos = corte ? `<p class="acceso-meta"><span>Datos hasta el ${esc(fechaLarga(corte))}</span><span>${S.estadoApi.origen_activo === "sintetico" ? "Entorno de demostración" : "Green Services &amp; Solutions"}</span></p>` : `<p class="acceso-meta">Entorno listo para explorar</p>`;
+  const opciones = ids.length ? ids.map(i => `<option value="${esc(i.id)}" data-rol="${esc(ROLES[i.rol] || i.rol)}">${esc(i.nombre)} · ${esc(ROLES[i.rol] || i.rol)}${i.organizacion && i.organizacion !== "GREEN" ? " (" + esc(i.organizacion) + ")" : ""}</option>`).join("") : `<option value="">No hay perfiles disponibles</option>`;
+  const loginLocal = S.estadoApi?.login_local ? `<details class="acceso-local"><summary>Usar usuario y contraseña</summary><form id="f-login-local" class="acceso-local-form"><label>Usuario<input name="usuario" required autocomplete="username"></label><label>Contraseña<input name="password" type="password" required autocomplete="current-password"></label><button class="boton-sec">Iniciar sesión</button></form><div id="msg-local" aria-live="polite"></div></details>` : "";
+  const perfil = S.estadoApi?.login_demo ? `<form id="f-entrar" class="acceso-form"><label for="ident">Perfil de acceso</label><div class="acceso-select"><select id="ident" ${ids.length ? "" : "disabled"}>${opciones}</select><svg class="icono" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m6 9 6 6 6-6"/></svg></div><button id="entrar" class="acceso-submit" ${ids.length ? "" : "disabled"}>Ingresar a JACOMIND <span aria-hidden="true">→</span></button></form>` : loginLocal;
+  const accesoContenido = S.usuario ? `<p>Ya entraste como <strong>${esc(S.usuario.nombre)}</strong>.</p><a class="acceso-submit acceso-submit-link" href="${esc(inicioDePerfil())}">Ir a mi inicio <span aria-hidden="true">→</span></a>` : perfil;
+  $vista.innerHTML = `<div class="pantalla-acceso-grid">
+    <section class="acceso-hero" aria-labelledby="acceso-hero-title">
+      <div class="acceso-brand"><span class="acceso-brand-mark" aria-hidden="true">J</span><span>JACOMIND</span></div>
+      <div class="acceso-hero-copy"><p class="acceso-eyebrow">INTELIGENCIA PARA DECIDIR</p><h1 id="acceso-hero-title">De los datos a la acción.</h1><p>Inteligencia comercial y operativa para decisiones que generan valor.</p></div>
+      <svg class="acceso-chart" viewBox="0 0 600 250" role="img" aria-label="Visualización abstracta de tendencias y conexiones de datos"><defs><linearGradient id="linea-acceso" x1="0" x2="1"><stop stop-color="#C4B5FD" stop-opacity=".2"/><stop offset=".5" stop-color="#C4B5FD"/><stop offset="1" stop-color="#fff" stop-opacity=".65"/></linearGradient></defs><path class="chart-grid" d="M30 210H570M30 160H570M30 110H570M30 60H570"/><path class="chart-line chart-line-soft" d="M30 190C110 165 115 185 180 140S270 170 325 115s85-5 120-55 75 10 125-35"/><path class="chart-line" d="M30 205C90 205 118 170 170 178s70-70 120-48 80 35 118-4 70-8 90-47 40-22 72-48"/><g class="chart-nodes"><circle cx="170" cy="178" r="5"/><circle cx="290" cy="130" r="5"/><circle cx="408" cy="126" r="5"/><circle cx="498" cy="79" r="5"/></g></svg>
+      <div class="acceso-ind"><span class="ind-orb" aria-hidden="true">i</span><div><p class="acceso-ind-label">IND · AGENTE DE IA</p><p>Inteligencia que anticipa oportunidades.</p></div><span class="ind-pulse" aria-hidden="true"></span></div>
+    </section>
+    <section class="acceso-panel" aria-labelledby="acceso-title"><div class="acceso-panel-top"><span class="acceso-demo"><span></span>Modo demostración</span><details class="preferencias acceso-preferencias" id="preferencias-acceso"><summary aria-label="Configurar accesibilidad"><svg class="icono" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 19 9 5l5 14M6 14h6M15 19l3-8 3 8M16 16.5h4"/></svg><span class="oculto-visual">Accesibilidad</span></summary><div class="panel-preferencias" id="panel-preferencias-acceso"></div></details></div><div class="acceso-form-wrap"><div class="acceso-heading"><p class="acceso-kicker">ESPACIO DE TRABAJO</p><h2 id="acceso-title">Bienvenido a JACOMIND</h2><p>Accede a tu espacio de trabajo.</p></div>${aviso}${accesoContenido}<div id="msg" aria-live="polite"></div>${loginLocal && S.estadoApi?.login_demo ? loginLocal : ""}<div class="acceso-alternativas"><p>Otras opciones de acceso</p><a href="#/agenda" class="acceso-link" data-fuente="salida"><span class="acceso-link-icon">↗</span>Consultar agenda guardada</a><a href="#/agenda" class="acceso-link" data-fuente="ejemplo"><span class="acceso-link-icon">✦</span>Explorar ejemplo de práctica</a></div>${metadatos}</div><p class="acceso-footer">Desarrollado para Green Services &amp; Solutions</p></section>
+  </div>`;
+  const panelAcceso = document.getElementById("panel-preferencias-acceso");
+  if (panelAcceso) {
+    panelAcceso.innerHTML = document.getElementById("panel-preferencias").innerHTML;
+    panelAcceso.addEventListener("change", e => { if (e.target.name === "tamano" || e.target.name === "tema") cambiarPreferencia(e.target.name, e.target.value); });
+    panelAcceso.addEventListener("click", e => { if (e.target.id === "cerrar-preferencias") { const d = document.getElementById("preferencias-acceso"); d.open = false; d.querySelector("summary").focus(); } });
+  }
+  document.getElementById("preferencias-acceso")?.addEventListener("keydown", e => { if (e.key === "Escape") { const d = e.currentTarget; d.open = false; d.querySelector("summary").focus(); } });
+  $vista.querySelectorAll(".acceso-link").forEach(a => a.addEventListener("click", e => { e.preventDefault(); S.fuente = a.dataset.fuente; S.local = null; try { localStorage.setItem("jacomind.fuente", S.fuente); } catch { /* sin almacenamiento */ } ir("#/agenda"); }));
+  document.getElementById("ident")?.addEventListener("change", () => { document.getElementById("entrar").innerHTML = `Ingresar a JACOMIND <span aria-hidden="true">→</span>`; });
   document.getElementById("f-login-local")?.addEventListener("submit", async e => {
     e.preventDefault(); const b = e.target.querySelector("button"), msg = document.getElementById("msg-local"); b.disabled = true; b.textContent = "Entrando…";
     try { const r = await api("POST", "/api/sesion", Object.fromEntries(new FormData(e.target))); S.usuario = r.usuario; S.fuente = "servidor"; localStorage.setItem("jacomind.fuente", "servidor"); ir(r.usuario.requiere_cambio_clave ? "#/cambiar-clave" : inicioDePerfil()); }
@@ -143,14 +136,17 @@ async function vistaInicio() {
   });
   document.getElementById("f-entrar")?.addEventListener("submit", async e => {
     e.preventDefault();
-    const b = document.getElementById("entrar"); b.disabled = true; b.textContent = "Entrando…";
+    const b = document.getElementById("entrar"); b.disabled = true; b.textContent = "Ingresando…";
     try {
-      const r = await api("POST", "/api/sesion", { identidad: document.getElementById("ident").value });
+      const r = await Promise.race([
+        api("POST", "/api/sesion", { identidad: document.getElementById("ident").value }),
+        new Promise((_, reject) => setTimeout(() => reject(new Error("La solicitud tardó demasiado. Verifica que el servidor esté disponible e inténtalo de nuevo.")), 12000)),
+      ]);
       olvidarConversaciones();
       S.usuario = r.usuario; S.fuente = "servidor";
       try { localStorage.setItem("jacomind.fuente", "servidor"); } catch { /* sin almacenamiento */ }
       ir(inicioDePerfil());
-    } catch (err) { document.getElementById("msg").innerHTML = errorHtml(err); b.disabled = false; b.textContent = textoEntrar(); }
+    } catch (err) { document.getElementById("msg").innerHTML = errorHtml(err.message?.startsWith("La solicitud") ? { mensaje: err.message } : err); b.disabled = false; b.innerHTML = `Ingresar a JACOMIND <span aria-hidden="true">→</span>`; }
   });
 }
 
@@ -201,6 +197,7 @@ async function vistaBienvenida() {
 
 // ---------------------------------------------------------------- enrutado
 async function render() {
+  document.body.classList.remove("pantalla-acceso");
   pintarCabecera();
   menu.classList.remove("abierto"); botonMenu.setAttribute("aria-expanded", "false");
   const { partes } = ruta();
