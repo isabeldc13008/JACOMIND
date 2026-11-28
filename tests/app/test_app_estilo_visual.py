@@ -5,6 +5,7 @@ import unittest
 ROOT = Path(__file__).resolve().parents[2]
 CSS = (ROOT / "app" / "estilos.css").read_text(encoding="utf-8")
 APP = (ROOT / "app" / "app.js").read_text(encoding="utf-8")
+TABLEROS = (ROOT / "app" / "vistas" / "tableros.js").read_text(encoding="utf-8")
 
 
 class ContratoVisualGlobal(unittest.TestCase):
@@ -51,6 +52,17 @@ class ContratoVisualGlobal(unittest.TestCase):
         self.assertIn("--acento: #8564DC", CSS)
         self.assertIn("@media (prefers-reduced-motion: reduce)", CSS)
         self.assertIn("@media (max-width: 800px)", CSS)
+
+    def test_tableros_tienen_capa_visual_responsive_sin_cambiar_sus_datos(self):
+        self.assertIn('class="tablero-dashboard tablero-${rol}"', TABLEROS)
+        for selector in (
+            ".tablero-dashboard .hallazgo",
+            ".tablero-dashboard .indicadores",
+            ".tablero-dashboard .panel > h2",
+            ".tablero-dashboard .tabla tbody tr:hover",
+            ".tablero-dashboard .b-relleno",
+        ):
+            self.assertIn(selector, CSS)
 
 
 if __name__ == "__main__":

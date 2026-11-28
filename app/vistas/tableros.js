@@ -36,7 +36,7 @@ export async function vistaTableros(rolSel) {
   } catch (e) { if (vigente(turno)) $vista.innerHTML = `${encabezado({ titulo: TITULOS[rol] })}${errorHtml(e, { reintentar: true })}`; return; }
   if (!vigente(turno)) return;
   const cuerpo = rol === "ventas" ? tableroVentas(t, q, extra) : rol === "operaciones" ? tableroOperaciones(t, q) : tableroGerencia(t, q, extra);
-  $vista.innerHTML = `${encabezado({ titulo: TITULOS[rol], descripcion: DESCRIPCION[rol], contexto: [ctxDatos(t.cierre.corte), ctxOrigen(t.cierre.origen || undefined)] })}${cuerpo}`;
+  $vista.innerHTML = `${encabezado({ titulo: TITULOS[rol], descripcion: DESCRIPCION[rol], contexto: [ctxDatos(t.cierre.corte), ctxOrigen(t.cierre.origen || undefined)] })}<div class="tablero-dashboard tablero-${rol}">${cuerpo}</div>`;
   activarTooltips();
 }
 
