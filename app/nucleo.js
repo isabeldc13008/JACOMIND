@@ -12,7 +12,7 @@ export const FUENTES = {
 };
 
 // ---------------------------------------------------------------- preferencias de lectura (persistentes, sin datos sensibles)
-export const TAMANOS = { normal: "Normal", grande: "Grande", "muy-grande": "Muy grande" };
+export const TAMANOS = { "muy-pequena": "Muy pequeña", pequena: "Pequeña", normal: "Normal", grande: "Grande", "muy-grande": "Muy grande" };
 export const TEMAS = { claro: "Claro", oscuro: "Oscuro", sistema: "Según el equipo" };
 const leer = (k, def) => { try { return localStorage.getItem(k) || def; } catch { return def; } };
 const guardar = (k, v) => { try { localStorage.setItem(k, v); } catch { /* sin almacenamiento */ } };

@@ -60,6 +60,13 @@ class ContratoVisualGlobal(unittest.TestCase):
         self.assertIn("body { overflow-x: hidden; }", CSS)
         self.assertIn(".cabecera-acciones { width: 100%; margin-left: 0", CSS)
 
+    def test_accesibilidad_ofrece_tamanos_de_letra_pequenos_y_grandes(self):
+        nucleo = (ROOT / "app" / "nucleo.js").read_text(encoding="utf-8")
+        for size in ('"muy-pequena": "Muy pequeña"', 'pequena: "Pequeña"', 'normal: "Normal"', '"muy-grande": "Muy grande"'):
+            self.assertIn(size, nucleo)
+        self.assertIn('html[data-tamano="muy-pequena"] { font-size: 87.5%; }', CSS)
+        self.assertIn('html[data-tamano="pequena"] { font-size: 100%; }', CSS)
+
     def test_tableros_tienen_capa_visual_responsive_sin_cambiar_sus_datos(self):
         self.assertIn('class="tablero-dashboard tablero-${rol}"', TABLEROS)
         for selector in (

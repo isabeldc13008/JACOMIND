@@ -46,6 +46,8 @@
   }
 }
 html { font-size: 112.5%; -webkit-text-size-adjust: 100%; }
+html[data-tamano="muy-pequena"] { font-size: 87.5%; }
+html[data-tamano="pequena"] { font-size: 100%; }
 html[data-tamano="grande"] { font-size: 125%; }
 html[data-tamano="muy-grande"] { font-size: 140.625%; }
 
