@@ -1,11 +1,16 @@
-"""Datos de demostración ficticios: identidades, cierre de muestra, documentos, beneficios y PQRS."""
+"""Datos de demostración y carga inicial segura para el despliegue."""
 from __future__ import annotations
+
+from json import loads
+from pathlib import Path
 
 from .auth import Usuario, cargar_usuario, sembrar_identidades, sembrar_usuarios_configurados
 from .base import RAIZ, BaseDatos, ErrorApi
 from . import beneficios, documentos, pqrs, publicacion
 
 MUESTRA = RAIZ / "contratos" / "ejemplos" / "publicacion" / "demo-2026-10"
+DATOS_INICIALES = RAIZ / "datos" / "iniciales" / "Green_Services_Recursos_de_Prueba"
+CORTE_INICIAL = "2026-10-31"
 
 
 def preparar(db: BaseDatos, publicar_muestra: bool = True) -> dict:
@@ -42,4 +47,37 @@ def solo_permisos(db: BaseDatos) -> None:
         sembrar_identidades(con)
 
 
-__all__ = ["preparar", "solo_permisos", "ErrorApi"]
+def _es_muestra_demo(con, cierre_id: str | None) -> bool:
+    """Identifica únicamente la publicación ficticia que debe migrarse."""
+    if not cierre_id:
+        return True
+    fila = con.execute("SELECT manifiesto_json FROM cierres WHERE id = ?", (cierre_id,)).fetchone()
+    if not fila:
+        return False
+    manifiesto = loads(fila[0])
+    return manifiesto.get("cierre_id") == "demo-2026-10" or "muestra_ficticia" in manifiesto.get("huellas_entrada", {})
+
+
+def inicializar_datos_iniciales(db: BaseDatos) -> dict:
+    """Publica los datos del paquete inicial en una base nueva o de demo.
+
+    Es idempotente: un cierre real ya publicado no se reemplaza al reiniciar
+    el servidor. La muestra de 8 clientes sí se migra una sola vez al paquete
+    inicial para que el despliegue existente deje de pedir una carga manual.
+    """
+    db.migrar()
+    with db.conexion() as con:
+        activo = publicacion.cierre_activo(con)
+        debe_publicar = _es_muestra_demo(con, activo)
+    if not debe_publicar:
+        return {"estado": "existente", "cierre": activo}
+    if not DATOS_INICIALES.is_dir():
+        raise ErrorApi(500, "datos_iniciales_no_disponibles", f"No existe el paquete inicial: {DATOS_INICIALES}")
+    from .operacion import ejecutar_cierre
+    resultado = ejecutar_cierre(db, "programador", CORTE_INICIAL, datos=str(DATOS_INICIALES), reintentos=0)
+    if resultado["estado"] != "publicado":
+        raise ErrorApi(500, "datos_iniciales_no_publicados", "No se pudo publicar el paquete inicial", resultado)
+    return {"estado": "publicado", "cierre": resultado["ultimo_cierre_valido"], "resultado": resultado}
+
+
+__all__ = ["preparar", "solo_permisos", "inicializar_datos_iniciales", "DATOS_INICIALES", "CORTE_INICIAL", "ErrorApi"]

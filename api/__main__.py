@@ -69,9 +69,10 @@ def main(argv=None) -> int:
             from .demo import preparar
             imprimir(preparar(db, publicar_muestra=not a.sin_cierre))
         elif a.cmd == "servir":
-            from .demo import solo_permisos
+            from .demo import inicializar_datos_iniciales, solo_permisos
             from .servidor import Aplicacion, crear_servidor
             solo_permisos(db)
+            inicializar_datos_iniciales(db)
             srv = crear_servidor(Aplicacion(db, practica=a.practica, login_demo=not a.sin_login_demo), a.host, a.puerto)
             from . import narrativas
             db.migrar(); narrativas.iniciar_precalculo(db)   # textos de IA, poco a poco y dentro del cupo
