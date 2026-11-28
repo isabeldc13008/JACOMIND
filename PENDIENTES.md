@@ -1,6 +1,8 @@
-# Pendientes: despliegue en Lightsail y CI/CD
+# Pendientes: puesta en producción en Azure y CI/CD
 
-Lista de trabajo para quien termine la puesta en producción. Ya está hecho: aplicación (B01–B11), datos y modelos (A01–A11) integrados en `main` y scripts de despliegue en [`despliegue/lightsail/`](despliegue/lightsail/). Guía detallada: [docs/despliegue.md](docs/despliegue.md).
+Lista de trabajo para quien termine la puesta en producción. Ya está hecho: aplicación (B01–B11), datos y modelos (A01–A11) integrados en `main` y flujo de despliegue para Azure App Service. Guía detallada: [docs/despliegue-azure.md](docs/despliegue-azure.md). Los scripts de Lightsail se conservan como alternativa histórica.
+
+La URL pública existente (`https://jacomind-demo.duckdns.org`) debe asociarse al App Service de Azure; mientras no se actualice el DNS, puede mostrar una instancia anterior.
 
 Marca cada casilla al terminar y deja en el PR la evidencia indicada.
 
