@@ -108,9 +108,9 @@ def ruta() -> Path:
 
 def _con() -> sqlite3.Connection:
     p = ruta()
+    p.parent.mkdir(parents=True, exist_ok=True)
     con = sqlite3.connect(p, timeout=15, isolation_level=None)
     if str(p) not in _preparado:
-        p.parent.mkdir(parents=True, exist_ok=True)
         con.executescript("""
           PRAGMA journal_mode=WAL;
           CREATE TABLE IF NOT EXISTS solicitudes (id INTEGER PRIMARY KEY, ts REAL NOT NULL, dia TEXT NOT NULL, clave TEXT NOT NULL,

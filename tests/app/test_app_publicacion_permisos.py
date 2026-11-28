@@ -116,7 +116,7 @@ class PruebasMatrizAcceso(CasoBase):
         "auditoria.ver": ("GET", "/api/auditoria"),
         "eventos.exportar": ("GET", "/api/exportes/eventos"),
     }
-    IDENT = {"operaciones": "ops1", "ventas": "ventas1", "finanzas": "fin1", "atencion": "aten1", "gerencia": "ger1", "empresa": "cli_a"}
+    IDENT = {"admin": "admin", "operaciones": "ops1", "ventas": "ventas1", "finanzas": "fin1", "atencion": "aten1", "gerencia": "ger1", "empresa": "cli_a"}
 
     def test_cada_combinacion_rol_accion(self):
         for accion, (metodo, ruta) in self.RUTAS.items():
