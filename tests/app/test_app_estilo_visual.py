@@ -37,14 +37,14 @@ class ContratoVisualGlobal(unittest.TestCase):
         for text in (
             "De los datos a la acción.",
             "Inteligencia que anticipa oportunidades.",
-            "Ingresar a JACOMIND →",
+            "Ingresar a JACOMIND",
             "Consultar agenda guardada",
             "Explorar ejemplo de práctica",
         ):
             self.assertIn(text, APP)
         self.assertIn("Promise.race", APP)
         self.assertIn("b.disabled = false", APP)
-        self.assertIn("b.textContent = \"Ingresar a JACOMIND →\"", APP)
+        self.assertIn("b.innerHTML = `Ingresar a JACOMIND", APP)
 
     def test_tema_oscuro_y_movimiento_reducido_siguen_soportados(self):
         self.assertIn(':root[data-theme="dark"]', CSS)
