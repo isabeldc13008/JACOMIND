@@ -74,7 +74,9 @@ python -m modelos.cli revertir --estado operativo --a v1
 
 ## Despliegue
 
-Un servidor Amazon Lightsail (Ubuntu 24.04, plan de 7 USD/mes) con Caddy para HTTPS, systemd, respaldo diario y cierre mensual programado. Se instala con un solo comando; ver [docs/despliegue.md](docs/despliegue.md). Lo que falta para la puesta en producción (primer despliegue, CI y CD) está en [PENDIENTES.md](PENDIENTES.md).
+La ruta activa de despliegue es Azure App Service mediante GitHub Actions; ver
+[docs/despliegue-azure.md](docs/despliegue-azure.md). Los scripts de Lightsail se
+conservan como alternativa histórica y no se ejecutan desde el CD de Azure.
 
 ## Asistente con modelo de lenguaje (opcional)
 
