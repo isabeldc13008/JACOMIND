@@ -53,6 +53,12 @@ class ContratoVisualGlobal(unittest.TestCase):
         self.assertIn("--acento: #8564DC", CSS)
         self.assertIn("@media (prefers-reduced-motion: reduce)", CSS)
         self.assertIn("@media (max-width: 800px)", CSS)
+        self.assertIn("@media (max-width: 640px)", CSS)
+
+    def test_layout_movil_reinicia_menu_y_evitat_desbordamiento_horizontal(self):
+        self.assertIn(".lateral.abierto { max-height: calc(100vh - 4rem); overflow-y: auto", CSS)
+        self.assertIn("body { overflow-x: hidden; }", CSS)
+        self.assertIn(".cabecera-acciones { width: 100%; margin-left: 0", CSS)
 
     def test_tableros_tienen_capa_visual_responsive_sin_cambiar_sus_datos(self):
         self.assertIn('class="tablero-dashboard tablero-${rol}"', TABLEROS)

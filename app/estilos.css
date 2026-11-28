@@ -877,3 +877,39 @@ main { padding: clamp(1.25rem, 3vw, 2.5rem) clamp(1rem, 3vw, 3rem) 4rem; }
   .menu-perfil { margin-top: .25rem; }
   .lateral.abierto { box-shadow: 0 18px 32px rgba(23,21,47,.18); }
 }
+
+/* ---------------------------------------------------------------- ajuste fino para teléfonos y tablets */
+@media (max-width: 1023px) {
+  .lateral { height: auto; min-height: 0; max-height: none; overflow: visible; }
+  .lateral.abierto { max-height: calc(100vh - 4rem); overflow-y: auto; overscroll-behavior: contain; }
+  main { width: 100%; min-width: 0; }
+}
+@media (max-width: 640px) {
+  body { overflow-x: hidden; }
+  .barra { align-items: center; padding: .55rem .75rem; gap: .4rem .6rem; }
+  .boton-menu { flex: none; padding-inline: .7rem; }
+  .marca { flex: 1 1 auto; min-width: 0; font-size: .98rem; }
+  .marca svg { width: 1.25rem; height: 1.25rem; }
+  .cabecera-acciones { width: 100%; margin-left: 0; justify-content: flex-end; }
+  .cabecera-acciones > * { max-width: 100%; }
+  .preferencias > summary { padding-inline: .7rem; }
+  main { padding: 1rem .75rem 3rem; }
+  .encabezado-pagina { margin-bottom: 1.1rem; }
+  .titulo-fila { align-items: flex-start; gap: .6rem; }
+  .titulo-fila h1 { min-width: 0; overflow-wrap: anywhere; }
+  .contexto-datos { gap: .35rem; }
+  .contexto-datos > div { max-width: 100%; padding-inline: .65rem; }
+  .panel, .hallazgo { border-radius: 10px; }
+  .hallazgo > div { padding: 1rem; }
+  .tablero-dashboard .hallazgo h2 { font-size: .68rem; }
+  .tablero-dashboard .panel > h2 { align-items: flex-start; }
+  .tablero-dashboard .panel > h2::after { margin-top: .45rem; }
+  .tablero-dashboard .indicador { padding: .9rem 1rem; }
+  .tabla { max-width: 100%; }
+  .barras { max-width: 100%; }
+  .b-et { overflow-wrap: anywhere; }
+  .grafico-lienzo { margin-inline: -.25rem; }
+  .filtros { gap: .65rem; }
+  .filtros > label { min-width: 100%; }
+  .fila.dialogo-acciones > * { flex: 1 1 100%; }
+}
