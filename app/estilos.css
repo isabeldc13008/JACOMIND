@@ -544,6 +544,69 @@ dialog.dialogo h2 { margin-top: 0; }
   .prev-fila { grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr)); border: 1px solid var(--borde); border-radius: var(--r-panel); margin-bottom: var(--e2); }
 }
 
+/* ---------------------------------------------------------------- operaciones por revisar (V11) */
+.an-avance-cab { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: .5rem; }
+.an-avance-cab h2, .an-avance-cab p { margin: 0; }
+.an-avance-barra { height: .8rem; border-radius: 999px; background: var(--superficie-2); border: 1px solid var(--borde); overflow: hidden; margin: .7rem 0 var(--e2); }
+.an-avance-barra > span { display: block; height: 100%; background: var(--bueno); border-radius: 999px; min-width: 0; }
+.an-cifras { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 13rem), 1fr)); gap: var(--e2); margin: 0; }
+.an-cifras > div { padding: .7rem .9rem; border: 1px solid var(--borde); border-radius: var(--r-control); background: var(--superficie-2); }
+.an-cifras dt { font-size: var(--t-sec); color: var(--texto-2); font-weight: 600; }
+.an-cifras dd { margin: .1rem 0 0; font-size: 1.6rem; font-weight: 800; font-variant-numeric: tabular-nums; }
+.an-cifras dd.muted { font-size: var(--t-sec); font-weight: 400; }
+.an-filtros { padding-top: var(--e2); padding-bottom: var(--e2); }
+.an-rapidos { display: flex; flex-wrap: wrap; gap: .4rem; margin-bottom: .6rem; }
+.an-rapido { display: inline-flex; align-items: center; min-height: 2.5rem; padding: 0 1rem; border: 1.5px solid var(--borde-fuerte); border-radius: 999px; color: var(--texto); text-decoration: none; font-weight: 600; }
+.an-rapido:hover { border-color: var(--acento); }
+.an-rapido.activo { background: var(--acento); border-color: var(--acento); color: var(--sobre-acento); }
+.an-filtros details > summary { cursor: pointer; font-weight: 600; color: var(--acento-fuerte); }
+.an-filtros details[open] > summary { margin-bottom: .6rem; }
+.an-cuantos { font-size: var(--t-sec); font-weight: 400; margin-left: .4rem; }
+.an-cola { list-style: none; padding: 0; margin: 0; display: grid; gap: .6rem; }
+.an-caso { display: grid; grid-template-columns: minmax(11rem, 1fr) minmax(10rem, 1fr) minmax(16rem, 2.2fr) minmax(10rem, auto); gap: var(--e2); align-items: center; padding: var(--e2); margin: 0; border: 1px solid var(--borde); border-radius: var(--r-panel); background: var(--superficie); }
+.an-caso.alerta { border-left: 5px solid var(--critico); }
+.an-caso.revisado { background: var(--superficie-2); }
+.an-caso:hover { border-color: var(--borde-fuerte); }
+.an-prioridad { display: flex; gap: .6rem; align-items: center; }
+.an-num { display: grid; place-items: center; flex: none; width: 2.3rem; height: 2.3rem; border-radius: 50%; background: var(--critico); color: #fff; font-weight: 800; }
+.an-num.sec { background: var(--superficie-2); color: var(--texto-2); border: 1.5px solid var(--borde-fuerte); }
+.an-senal { font-size: var(--t-sec); color: var(--texto-2); line-height: 1.3; }
+.an-senal.alerta { color: var(--critico); font-weight: 700; }
+.an-quien { display: grid; gap: .05rem; }
+.an-quien strong { font-size: 1.1rem; }
+.an-quien span { font-size: var(--t-sec); }
+.an-desvio .an-que { margin: 0 0 .4rem; }
+.an-medidor { position: relative; display: block; height: .7rem; border-radius: 999px; background: linear-gradient(90deg, var(--superficie-2), var(--superficie-2)); border: 1px solid var(--borde); }
+.an-medidor-centro { position: absolute; left: 50%; top: -4px; bottom: -4px; width: 2px; background: var(--texto-2); transform: translateX(-1px); }
+.an-medidor-tramo { position: absolute; top: 0; bottom: 0; border-radius: 999px; opacity: .35; }
+.an-medidor-punto { position: absolute; top: 50%; width: 1rem; height: 1rem; border-radius: 50%; transform: translate(-50%, -50%); border: 2px solid var(--superficie); box-shadow: 0 0 0 1px var(--borde-fuerte); }
+.an-medidor-tramo.mas, .an-medidor-punto.mas { background: var(--critico); }
+.an-medidor-tramo.menos, .an-medidor-punto.menos { background: var(--serie-obs); }
+.an-medidor-tramo.igual, .an-medidor-punto.igual { background: var(--texto-3); }
+.an-medidor-escala { display: flex; justify-content: space-between; font-size: .78rem; color: var(--texto-3); margin-top: .2rem; }
+.an-valores { margin: .35rem 0 0; font-size: var(--t-sec); }
+.an-valores span { color: var(--texto-3); }
+.an-estado { display: grid; gap: .45rem; justify-items: end; }
+.an-estado-chip { font-size: var(--t-sec); font-weight: 700; padding: .1rem .65rem; border-radius: 999px; border: 1.5px solid var(--borde-fuerte); color: var(--texto-2); }
+.an-estado-chip.error_confirmado { color: var(--critico); border-color: var(--critico); background: var(--critico-suave); }
+.an-estado-chip.cambio_legitimo { color: var(--bueno); border-color: var(--bueno); background: var(--bueno-suave); }
+.an-estado-chip.informacion_insuficiente { color: var(--aviso); border-color: var(--aviso-borde); background: var(--aviso-suave); }
+@media (max-width: 1100px) {
+  .an-caso { grid-template-columns: repeat(auto-fit, minmax(min(100%, 13rem), 1fr)); }
+  .an-estado { justify-items: start; }
+}
+
+/* ---------------------------------------------------------------- modelos: método y variables (V25) */
+.ia-fichas { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr)); gap: var(--e2); }
+.ia-ficha { border: 1px solid var(--borde); border-radius: var(--r-panel); padding: var(--e2) var(--e3); background: var(--superficie); }
+.ia-ficha h3 { margin: 0 0 .5rem; font-size: 1.1rem; }
+.ia-ficha.en-detalle { background: var(--superficie-2); margin: var(--e2) 0; }
+.ia-metodo { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; margin: 0 0 .5rem; }
+.ia-metodo strong { font-size: 1.05rem; }
+.ia-variables { margin: .3rem 0 .6rem; padding-left: 1.2rem; }
+.ia-variables li { margin: .15rem 0; }
+.ia-tecnico { font-size: var(--t-sec); overflow-wrap: anywhere; }
+
 /* ---------------------------------------------------------------- anchos medianos y móvil */
 @media (max-width: 1100px) {
   .grid2.ancho-desigual, .grid-maestro { grid-template-columns: minmax(0, 1fr); }

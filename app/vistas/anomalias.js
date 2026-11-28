@@ -1,7 +1,7 @@
 // V11 Operaciones por revisar (M6, en prueba) y V12 Detalle del caso. Compara el valor observado con su referencia;
 // el puntaje es rareza: no es probabilidad de fraude ni porcentaje de error, y revisar un caso no cambia importes.
 import { $vista, api, clave, cop, errorHtml, esc, estadoHtml, fechaHora, fechaLarga, ir, mesLargo, nuevoTurno, num, plural, ruta, vigente } from "../nucleo.js";
-import { avisoPrueba, barras, ctxDatos, detalleTecnico, encabezado, enPrueba, filtrosActivos, hallazgo, indicadores, pestanas, tablaHtml, vacio } from "../ui.js";
+import { avisoPrueba, barras, ctxDatos, detalleTecnico, encabezado, enPrueba, filtrosActivos, hallazgo, pestanas, tablaHtml, vacio } from "../ui.js";
 
 const UNIVERSO = { venta: "Ventas confirmadas", compra: "Compras a proveedores" };
 const ESTADO = { pendiente: "Pendiente de revisar", error_confirmado: "Error confirmado", cambio_legitimo: "Cambio legítimo",
@@ -11,7 +11,24 @@ const METODO = { isolation_forest: "Isolation Forest (IA)", mediana_mad: "Median
 const EVENTO = { apertura: "Se abrió el caso", correccion_datos: "Corrección de datos", revision: "Revisión registrada", evidencia_actualizada: "Nueva publicación" };
 const TITULO = "Operaciones por revisar";
 const valor = (x, moneda) => x == null ? "—" : moneda === "COP" ? cop(x) : `${num(Math.round(x * 100) / 100)} ${esc(moneda)}`;
-const veces = x => x == null ? "" : `${num(Math.round(x * 100) / 100)} veces la referencia`;
+/** Cuánto se aparta de lo habitual, en palabras: «3,4 veces lo habitual», «78 % menos que lo habitual» o «Similar a lo habitual». */
+const desvioTexto = r => r == null ? "Sin referencia" : r >= 1.5 ? `${num(Math.round(r * 10) / 10)} veces lo habitual` : r <= 0.67 ? `${num(Math.round((1 - r) * 100))} % menos que lo habitual` : "Similar a lo habitual";
+const desvioCorto = r => r == null ? "—" : r >= 1.5 ? `×${num(Math.round(r * 10) / 10)}` : r <= 0.67 ? `−${num(Math.round((1 - r) * 100))} %` : "≈";
+/** Medidor en escala logarítmica de 1/10 a 10 veces: el centro es lo habitual. Siempre acompañado de texto. */
+function medidorDesvio(r) {
+  if (r == null) return "";
+  const pos = Math.min(100, Math.max(0, (Math.log10(r) + 1) / 2 * 100));
+  const lado = r >= 1.5 ? "mas" : r <= 0.67 ? "menos" : "igual";
+  return `<span class="an-medidor" aria-hidden="true"><span class="an-medidor-centro"></span>
+    <span class="an-medidor-tramo ${lado}" style="left:${Math.min(50, pos)}%;width:${Math.abs(pos - 50)}%"></span><span class="an-medidor-punto ${lado}" style="left:${pos}%"></span></span>
+    <span class="an-medidor-escala" aria-hidden="true"><span>Mucho menos</span><span>Lo habitual</span><span>Mucho más</span></span>`;
+}
+/** La medida que más se aparta (precio o cantidad), para mostrarla primero. */
+const principal = i => {
+  const d = x => x == null ? -1 : Math.abs(Math.log(x));
+  return d(i.razon_valor_unitario) >= d(i.razon_cantidad) ? { que: "Precio por unidad", r: i.razon_valor_unitario, obs: valor(i.valor_unitario, i.moneda), ref: valor(i.referencia_valor_unitario, i.moneda), otra: { que: "Cantidad", r: i.razon_cantidad } }
+    : { que: "Cantidad", r: i.razon_cantidad, obs: `${num(i.cantidad)} ${esc(i.unidad || "")}`, ref: `${num(i.referencia_cantidad == null ? null : Math.round(i.referencia_cantidad * 100) / 100)} ${esc(i.unidad || "")}`, otra: { que: "Precio por unidad", r: i.razon_valor_unitario } };
+};
 
 const pp = x => `${x >= 0 ? "+" : "−"}${num(Math.round(Math.abs(x) * 1000) / 10)} puntos`;
 function motivoDecision(dc) {
@@ -28,35 +45,43 @@ function motivoDecision(dc) {
 function filtros(d, q) {
   const f = d.filtros, o = d.opciones;
   const sel = (n, etiqueta, ops, actual, txt = x => x) => `<label>${etiqueta} <select name="${n}"><option value="">Todos</option>${ops.map(x => `<option value="${esc(x)}"${x === actual ? " selected" : ""}>${esc(txt(x))}</option>`).join("")}</select></label>`;
-  const enlace = cambio => { const n = new URLSearchParams(q); n.delete("caso"); for (const [a, b] of Object.entries(cambio)) b ? n.set(a, b) : n.delete(a); return `#/anomalias?${n}`; };
+  const enlace = cambio => { const n = new URLSearchParams(q); n.delete("caso"); n.delete("guardado"); for (const [a, b] of Object.entries(cambio)) b ? n.set(a, b) : n.delete(a); return `#/anomalias?${n}`; };
   const activos = [f.periodo && { texto: `Mes: ${mesLargo(f.periodo)}`, quitar: enlace({ periodo: "" }) }, f.producto && { texto: `Producto: ${f.producto}`, quitar: enlace({ producto: "" }) },
     f.moneda && { texto: `Moneda: ${f.moneda}`, quitar: enlace({ moneda: "" }) }, f.estado && { texto: `Estado: ${ESTADO[f.estado] || f.estado}`, quitar: enlace({ estado: "" }) },
     f.vista && f.vista !== "cola" && { texto: f.vista === "todas" ? "Todas las operaciones" : "Sin historia suficiente", quitar: enlace({ vista: "" }) }].filter(Boolean);
-  return `<section class="panel"><h2>Filtrar la cola</h2><form class="filtros" id="f-an"><input type="hidden" name="universo" value="${esc(d.universo)}">
+  const rapidos = [["", "Todos"], ["pendiente", "Pendientes"], ["error_confirmado", "Errores"], ["cambio_legitimo", "Legítimos"], ["informacion_insuficiente", "Sin datos suficientes"]];
+  return `<section class="panel an-filtros"><div class="an-rapidos" role="group" aria-label="Mostrar por estado de revisión">
+      ${rapidos.map(([k, t]) => `<a class="an-rapido${(f.estado || "") === k ? " activo" : ""}" href="${esc(enlace({ estado: k }))}" ${(f.estado || "") === k ? 'aria-current="true"' : ""}>${t}</a>`).join("")}</div>
+    <details${f.periodo || f.producto || f.moneda || (f.vista && f.vista !== "cola") ? " open" : ""}><summary>Más filtros</summary>
+    <form class="filtros" id="f-an"><input type="hidden" name="universo" value="${esc(d.universo)}"><input type="hidden" name="estado" value="${esc(f.estado || "")}">
     ${sel("periodo", "Mes", o.periodos, f.periodo, mesLargo)}${sel("producto", "Producto", o.productos, f.producto)}${sel("moneda", "Moneda", o.monedas, f.moneda)}
-    ${sel("estado", "Estado de revisión", Object.keys(ESTADO), f.estado, x => ESTADO[x])}
     <label>Qué mostrar <select name="vista">${[["cola", "Cola para revisar"], ["todas", "Todas las operaciones"], ["sin_historia", "Sin historia suficiente"]].map(([k, v]) => `<option value="${k}"${k === f.vista ? " selected" : ""}>${v}</option>`).join("")}</select></label>
-    <button>Aplicar filtros</button></form>
-    ${filtrosActivos(activos, `#/anomalias?universo=${esc(d.universo)}`)}
-    ${d.puede_exportar ? `<p><a class="boton-sec" href="/api/anomalias/exportar.csv?universo=${esc(d.universo)}" download>Descargar la cola (CSV)</a> <span class="muted">Descarga todas las operaciones publicadas de ${esc(UNIVERSO[d.universo].toLowerCase())}; no aplica los filtros de pantalla.</span></p>` : ""}</section>`;
+    <button class="sec">Aplicar</button></form>
+    ${d.puede_exportar ? `<p class="muted"><a href="/api/anomalias/exportar.csv?universo=${esc(d.universo)}" download>Descargar todas las operaciones publicadas (CSV)</a>; no aplica los filtros de pantalla.</p>` : ""}</details>
+    ${activos.length ? filtrosActivos(activos, `#/anomalias?universo=${esc(d.universo)}`) : ""}</section>`;
 }
 
 function senal(i) {
-  return i.estado_puntuacion !== "puntuada" ? '<span class="sello sello-practica">Sin historia suficiente</span>'
-    : i.alerta ? `<span class="sello sello-alerta">Para revisar · prioridad ${num(i.prioridad)} de ${num(i.cupo_periodo)}</span>`
-      : i.fuera_de_cupo ? '<span class="sello sello-prueba">Señalada fuera del cupo</span>' : `<span class="chip">Prioridad ${num(i.prioridad)}</span>`;
+  return i.estado_puntuacion !== "puntuada" ? '<span class="an-senal">Sin historia suficiente</span>'
+    : i.alerta ? `<span class="an-senal alerta">Prioridad ${num(i.prioridad)} de ${num(i.cupo_periodo)} en ${esc(mesLargo(i.periodo || i.fecha.slice(0, 7)))}</span>`
+      : i.fuera_de_cupo ? '<span class="an-senal">Señalada por reglas, fuera de la capacidad</span>' : '<span class="an-senal">Muestra de control</span>';
 }
 
 function fila(i, q) {
   const n = new URLSearchParams(q); n.delete("guardado"); n.set("universo", i.tipo_operacion); n.set("caso", i.operacion_id);
   const contraparte = i.tipo_operacion === "venta" ? `Cliente ${esc(i.cliente_id)}` : `Proveedor ${esc(i.proveedor_id)}`;
-  return `<tr><td data-et="Operación"><strong>${esc(i.operacion_id)}</strong><span class="muted">${esc(fechaLarga(i.fecha))} · ${contraparte}</span></td>
-    <td data-et="Producto">${esc(i.producto_id)}<span class="muted">${esc(i.moneda)} · ${esc(i.unidad)}</span></td>
-    <td data-et="Señal principal">${senal(i)}<span>${esc((i.motivos || [])[0] || "—")}</span><span class="muted">${num(i.soporte)} operaciones anteriores de referencia</span></td>
-    <td class="n" data-et="Precio unitario">${valor(i.valor_unitario, i.moneda)}<span class="muted">referencia ${valor(i.referencia_valor_unitario, i.moneda)}</span></td>
-    <td class="n" data-et="Cantidad">${num(i.cantidad)}<span class="muted">referencia ${num(i.referencia_cantidad == null ? null : Math.round(i.referencia_cantidad * 100) / 100)}</span></td>
-    <td data-et="Revisión">${esc(ESTADO[i.estado_revision] || i.estado_revision)}</td>
-    <td><a class="boton-sec" href="#/anomalias?${n}">Revisar caso<span class="oculto-visual"> ${esc(i.operacion_id)}</span></a></td></tr>`;
+  const pendiente = !i.estado_revision || i.estado_revision === "pendiente";
+  const puntuada = i.estado_puntuacion === "puntuada";
+  const m = puntuada ? principal(i) : null;
+  return `<li class="an-caso${i.alerta ? " alerta" : ""}${pendiente ? "" : " revisado"}">
+    <div class="an-prioridad">${i.alerta ? `<span class="an-num" aria-hidden="true">${num(i.prioridad)}</span>` : '<span class="an-num sec" aria-hidden="true">·</span>'}${senal(i)}</div>
+    <div class="an-quien"><strong>${esc(i.operacion_id)}</strong><span>${esc(fechaLarga(i.fecha))}</span><span class="muted">${contraparte} · ${esc(i.producto_id)}</span></div>
+    ${m ? `<div class="an-desvio"><p class="an-que">${m.que}: <strong>${esc(desvioTexto(m.r))}</strong></p>${medidorDesvio(m.r)}
+      <p class="muted an-valores">${m.obs} <span>frente a</span> ${m.ref} habitual${m.otra.r != null && desvioTexto(m.otra.r) !== "Similar a lo habitual" ? ` · ${m.otra.que}: ${esc(desvioTexto(m.otra.r).toLowerCase())}` : ""}</p></div>`
+      : `<div class="an-desvio"><p class="an-que"><strong>No se pudo comparar</strong></p><p class="muted">${esc((i.motivos || [])[0] || "Pocas operaciones anteriores del producto.")}</p></div>`}
+    <div class="an-estado"><span class="an-estado-chip ${esc(i.estado_revision || "pendiente")}">${esc(ESTADO[i.estado_revision] || i.estado_revision || "Pendiente de revisar")}</span>
+      <a class="${pendiente && i.alerta ? "boton" : "boton-sec"}" href="#/anomalias?${n}">${pendiente ? "Revisar" : "Ver caso"}<span class="oculto-visual"> ${esc(i.operacion_id)}</span></a></div>
+  </li>`;
 }
 
 async function detalleCaso(d, q) {
@@ -84,7 +109,7 @@ async function detalleCaso(d, q) {
     descripcion: `${esc(UNIVERSO[tipo])} · ${esc(fechaLarga(p.fecha))} · ${tipo === "venta" ? `cliente ${esc(p.cliente_id)}` : `proveedor ${esc(p.proveedor_id)}`} · producto ${esc(p.producto_id)}`,
     contexto: [{ etiqueta: "Estado de revisión", valor: esc(v ? ESTADO[v.estado] : "Sin caso") }, ctxDatos(d.corte, "Publicación con datos hasta")] })}
   <div id="msg-an" role="status" tabindex="-1">${q.get("guardado") ? '<div class="estado ok"><strong>Revisión guardada.</strong> Aparece en «Qué ha pasado con este caso».</div>' : ""}</div>
-  ${hallazgo({ que: esc((p.motivos || [])[0] || "Operación señalada para revisar."), porque: "Se aparta de lo habitual para este producto. Una señal no confirma un error ni un fraude: hace falta revisarla.", accion: c.puede_revisar ? '<button type="button" data-ir-a="f-rev-titulo">Registrar la revisión</button>' : "" })}
+  ${hallazgo({ que: p.estado_puntuacion === "puntuada" ? (() => { const m = principal(p); return `<strong>${m.que}: ${esc(desvioTexto(m.r).toLowerCase())}.</strong> ${m.obs} frente a ${m.ref} habitual.`; })() : esc((p.motivos || [])[0] || "Operación señalada para revisar."), porque: "Se aparta de lo habitual para este producto. Una señal no confirma un error ni un fraude: hace falta revisarla.", accion: c.puede_revisar ? '<button type="button" data-ir-a="f-rev-titulo">Registrar la revisión</button>' : "" })}
   <div class="grid2">
     <section class="panel"><h2>Esta operación frente a su referencia</h2>
       ${comparar(`Precio unitario (${esc(p.moneda)})`, p.valor_unitario, p.referencia_valor_unitario, x => valor(x, p.moneda))}
@@ -92,7 +117,7 @@ async function detalleCaso(d, q) {
       <p class="muted">Cada medida tiene su propia escala. Referencia: ${plural(p.soporte, "operación anterior", "operaciones anteriores")} del mismo producto${p.antecedentes ? `, del ${esc(fechaLarga(p.antecedentes[0]))} al ${esc(fechaLarga(p.antecedentes[1]))}` : ""}.</p>
       ${(p.motivos || []).length > 1 ? `<h3>Todas las señales</h3><ul>${p.motivos.map(m => `<li>${esc(m)}</li>`).join("")}</ul>` : ""}
       <dl class="cifras"><div><dt>Importe en pesos</dt><dd>${p.importe_cop_oculto ? "Restringido a Finanzas" : p.estado_trm === "ausente" ? "Sin TRM: no convertible" : cop(p.importe_cop)}</dd></div>
-        <div><dt>Diferencia de precio</dt><dd>${esc(veces(p.razon_valor_unitario) || "—")}</dd></div><div><dt>Diferencia de cantidad</dt><dd>${esc(veces(p.razon_cantidad) || "—")}</dd></div></dl></section>
+        <div><dt>Precio por unidad</dt><dd>${esc(desvioTexto(p.razon_valor_unitario))}</dd></div><div><dt>Cantidad</dt><dd>${esc(desvioTexto(p.razon_cantidad))}</dd></div></dl></section>
     <section class="panel"><h2 id="f-rev-titulo" tabindex="-1">Registrar la revisión</h2>${form}</section>
   </div>
   <section class="panel"><h2>Qué ha pasado con este caso</h2>${hist ? `<ol class="historial">${hist}</ol>` : '<p class="muted">Sin movimientos: la operación todavía no tiene caso de revisión.</p>'}
@@ -137,16 +162,18 @@ export async function vistaAnomalias() {
     porque: `${plural(r.alertas, "operación quedó", "operaciones quedaron")} para revisar dentro de la capacidad del equipo (${num(r.capacidad_revision)}). Otras ${num(r.exceso_sobre_cupo)} se señalaron por reglas, fuera de esa capacidad.`,
     accion: d.items[0] ? `<a class="boton" href="#/anomalias?${new URLSearchParams({ universo: u, caso: d.items[0].operacion_id })}">Revisar el primer caso</a>` : "",
   })}
-  ${indicadores([
-    { etiqueta: "Pendientes de revisar", valor: num(r.casos_pendientes), detalle: `${num(r.casos_revisados)} ya revisados` },
-    { etiqueta: "Para revisar este periodo", valor: num(r.alertas), detalle: `capacidad acordada: ${num(r.capacidad_revision)} · ${num(r.alertas_por_100_validas)} por cada 100 operaciones` },
-    { etiqueta: "Operaciones evaluadas", valor: `${num(r.puntuadas)} de ${num(r.validas)}`, detalle: `${plural(r.abstenciones, "sin historia suficiente", "sin historia suficiente")}; no se evaluaron` },
-  ])}
+  ${(() => {
+    const tot = r.casos_pendientes + r.casos_revisados, hecho = tot ? Math.round(r.casos_revisados / tot * 100) : 0;
+    return `<section class="panel an-avance" aria-labelledby="t-avance"><div class="an-avance-cab"><h2 id="t-avance">Avance de la revisión</h2><p><strong>${num(r.casos_revisados)} de ${num(tot)}</strong> casos revisados</p></div>
+      <div class="an-avance-barra" role="progressbar" aria-valuemin="0" aria-valuemax="${tot}" aria-valuenow="${r.casos_revisados}" aria-label="Casos revisados"><span style="width:${hecho}%"></span></div>
+      <dl class="an-cifras"><div><dt>Pendientes</dt><dd>${num(r.casos_pendientes)}</dd></div>
+        <div><dt>Prioritarias este periodo</dt><dd>${num(r.alertas)}</dd><dd class="muted">Las más raras, hasta la capacidad del equipo (${num(r.capacidad_revision)})</dd></div>
+        <div><dt>Operaciones comparadas</dt><dd>${num(r.puntuadas)} de ${num(r.validas)}</dd><dd class="muted">${r.abstenciones ? `${plural(r.abstenciones, "sin historia suficiente para comparar", "sin historia suficiente para comparar")}` : "Todas tenían con qué compararse"}</dd></div></dl></section>`;
+  })()}
   ${filtros(d, q)}
-  <section class="panel"><h2>Cola para revisar</h2>
-    ${d.items.length ? `<div class="tabla"><table class="apilable"><caption>Ordenada por mes y prioridad (1 = más rara dentro de su mes y tipo). Incluye las de la capacidad, las señaladas fuera de ella, la muestra de revisión y los casos abiertos.</caption>
-      <thead><tr><th scope="col">Operación</th><th scope="col">Producto</th><th scope="col">Señal principal</th><th scope="col" class="n">Precio unitario</th><th scope="col" class="n">Cantidad</th><th scope="col">Revisión</th><th scope="col"><span class="oculto-visual">Abrir</span></th></tr></thead>
-      <tbody>${d.items.map(i => fila(i, q)).join("")}</tbody></table></div>` : vacio("No hay operaciones con estos filtros.", "", `<a class="boton-sec" href="#/anomalias?universo=${esc(u)}">Quitar filtros</a>`)}
+  <section class="panel"><h2>Cola para revisar <span class="muted an-cuantos">${plural(d.items.length, "operación", "operaciones")}</span></h2>
+    <p class="muted">Primero las más raras de cada mes (prioridad 1). El medidor muestra cuánto se aparta la operación de lo habitual para ese producto.</p>
+    ${d.items.length ? `<ol class="an-cola">${d.items.map(i => fila(i, q)).join("")}</ol>` : vacio("No hay operaciones con estos filtros.", "", `<a class="boton-sec" href="#/anomalias?universo=${esc(u)}">Quitar filtros</a>`)}
   </section>
   <details class="panel"><summary>Cómo se evaluó y qué queda sin evaluar</summary>
     <p><strong>Método publicado:</strong> ${esc(METODO[d.metodo] || d.metodo)}. Candidato de IA: ${esc(d.candidato === "isolation_forest" ? "Isolation Forest" : "en abstención")}. Decisión de la prueba: ${dec}. ${esc(d.politica_alertas?.convencion || "")}</p>
