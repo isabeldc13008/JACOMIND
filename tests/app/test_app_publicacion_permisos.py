@@ -98,6 +98,11 @@ class PruebasPublicacion(CasoBase):
 
 class PruebasMatrizAcceso(CasoBase):
     # Una ruta representativa por acción (GET salvo indicación).
+    def setUp(self):
+        super().setUp()
+        from api.auth import crear_usuario_local
+        crear_usuario_local(self.db, "admin", "Administrador de prueba", "admin", "Clave-Admin-1")
+
     RUTAS = {
         "cartera.ver": ("GET", "/api/cierres/activo/agenda"),
         "cartera.exportar": ("GET", "/api/cierres/activo/agenda.csv"),
@@ -116,7 +121,7 @@ class PruebasMatrizAcceso(CasoBase):
         "auditoria.ver": ("GET", "/api/auditoria"),
         "eventos.exportar": ("GET", "/api/exportes/eventos"),
     }
-    IDENT = {"operaciones": "ops1", "ventas": "ventas1", "finanzas": "fin1", "atencion": "aten1", "gerencia": "ger1", "empresa": "cli_a"}
+    IDENT = {"admin": "admin", "operaciones": "ops1", "ventas": "ventas1", "finanzas": "fin1", "atencion": "aten1", "gerencia": "ger1", "empresa": "cli_a"}
 
     def test_cada_combinacion_rol_accion(self):
         for accion, (metodo, ruta) in self.RUTAS.items():
