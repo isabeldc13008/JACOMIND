@@ -33,6 +33,7 @@ class ContratoVisualGlobal(unittest.TestCase):
         self.assertIn(".lateral a[aria-current=\"page\"] { background: var(--morado-secundario)", CSS)
         self.assertIn(".barra { background: var(--superficie)", CSS)
         self.assertIn(".panel { background: var(--superficie)", CSS)
+        self.assertIn("height: calc(100vh - 4.5rem)", CSS)
 
     def test_acceso_conserva_modalidades_y_recupera_errores_de_carga(self):
         for text in (
