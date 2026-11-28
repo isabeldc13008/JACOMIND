@@ -4,7 +4,7 @@
 # Variables opcionales: AZURE_RESOURCE_GROUP, AZURE_WEBAPP_NAME, URL_PUBLICA.
 # Si no existen en el entorno «produccion», se usan los valores del App Service
 # de staging documentado para que el flujo no quede omitido silenciosamente.
-# Secretos: AZURE_CREDENTIALS, JACOMIND_ADMIN_PASSWORD.
+# Secreto: AZURE_WEBAPP_PUBLISH_PROFILE (descargado desde Azure App Service).
 name: Despliegue
 
 on:
@@ -43,39 +43,14 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: ${{ env.COMMIT }}
-      - name: Iniciar sesión en Azure
-        uses: azure/login@v2
-        with:
-          creds: ${{ secrets.AZURE_CREDENTIALS }}
-      - name: Configurar App Service
-        run: |
-          az webapp config appsettings set \
-            --resource-group "$RESOURCE_GROUP" \
-            --name "$WEBAPP_NAME" \
-            --settings JACOMIND_LOGIN_LOCAL=1 JACOMIND_ADMIN_USUARIO=admin "JACOMIND_ADMIN_PASSWORD=$ADMIN_PASSWORD"
-          az webapp config set \
-            --resource-group "$RESOURCE_GROUP" \
-            --name "$WEBAPP_NAME" \
-            --startup-file 'python -m api migrar && exec python -m api servir --host 0.0.0.0 --puerto $PORT'
-      - name: Empaquetar la aplicación
-        run: zip -qr /tmp/jacomind.zip . -x '.git/*'
       - name: Publicar en Azure
-        uses: azure/cli@v2
-        env:
-          ZIP_PATH: /tmp/jacomind.zip
+        uses: azure/webapps-deploy@v3
         with:
-          inlineScript: |
-            az webapp deploy \
-              --resource-group "$RESOURCE_GROUP" \
-              --name "$WEBAPP_NAME" \
-              --src-path "$ZIP_PATH" \
-              --type zip \
-              --clean true
+          app-name: ${{ env.WEBAPP_NAME }}
+          publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
+          package: .
       - name: Comprobar desde Internet
         run: |
           for i in $(seq 1 20); do curl -fsS "$PUBLIC_URL/api/estado" && exit 0; sleep 5; done
           echo "La aplicación no responde en $PUBLIC_URL" >&2
           exit 1
-      - name: Cerrar sesión en Azure
-        if: always()
-        run: az logout || true
