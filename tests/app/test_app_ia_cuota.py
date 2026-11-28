@@ -34,6 +34,13 @@ class ConCuotaTemporal(unittest.TestCase):
 
 
 class PruebasCuota(ConCuotaTemporal):
+    def test_crea_la_carpeta_de_la_base_de_cuota(self):
+        ruta = self.dir / "no-existe" / "anidada" / "c.sqlite3"
+        with mock.patch.dict(os.environ, {"JACOMIND_LLM_CUOTA_DB": str(ruta)}):
+            estado = cuota_llm.estado()
+        self.assertIn("uso", estado)
+        self.assertTrue(ruta.exists())
+
     def test_dos_claves_sin_exponerlas(self):
         huellas = [h for h, _ in cuota_llm.claves()]
         self.assertEqual(len(huellas), 2)

@@ -13,6 +13,7 @@ def preparar(db: BaseDatos, publicar_muestra: bool = True) -> dict:
     with db.transaccion() as con:
         sembrar_identidades(con)
     sembrar_usuarios_configurados(db)
+    with db.conexion() as con:
         hay_docs = con.execute("SELECT count(*) FROM documentos").fetchone()[0]
         hay_ben = con.execute("SELECT count(*) FROM beneficios").fetchone()[0]
         hay_pqrs = con.execute("SELECT count(*) FROM pqrs").fetchone()[0]
