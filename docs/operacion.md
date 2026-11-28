@@ -76,7 +76,7 @@ python -m contratos.validar salida/agenda.json                        # contrato
 | Restauración | `respaldo` → acción posterior → `restaurar` | la acción previa aparece, la posterior no |
 ## Inicio de sesión local y usuarios
 
-En una base nueva, el administrador inicial es `admin` con la contraseña temporal `admin123`. Debe cambiarla en el primer acceso. Para el piloto en Azure se recomienda reemplazarla mediante variables de entorno fuera del repositorio:
+En una base nueva, el administrador inicial es `admin` con la contraseña temporal `admin123`. Debe cambiarla en el primer acceso. En un servidor accesible desde Internet hay que fijarla antes del primer arranque, con variables de entorno fuera del repositorio (`/etc/jacomind/jacomind.env` en Lightsail, Configuración de la aplicación en Azure):
 
 ```text
 JACOMIND_LOGIN_LOCAL=1

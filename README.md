@@ -74,9 +74,15 @@ python -m modelos.cli revertir --estado operativo --a v1
 
 ## Despliegue
 
-La ruta activa de despliegue es Azure App Service mediante GitHub Actions; ver
-[docs/despliegue-azure.md](docs/despliegue-azure.md). Los scripts de Lightsail se
-conservan como alternativa histórica y no se ejecutan desde el CD de Azure.
+| Destino | Cuándo se despliega | Dónde | Documentación |
+|---|---|---|---|
+| **AWS Lightsail** (demo pública) | Automático: cada push a `main` cuyo CI termina bien | https://jacomind-demo.duckdns.org | [despliegue/lightsail](despliegue/lightsail) |
+| **Azure App Service** (staging) | Solo manual: Actions → Despliegue → Run workflow → destino `azure` | https://jacomind-stg-211126.azurewebsites.net | [docs/despliegue-azure.md](docs/despliegue-azure.md) |
+
+Flujo: push o pull request → **CI** (`.github/workflows/ci.yml`: aplicación, integración y
+modelos) → si es un push a `main` y todo pasa → **Despliegue** (`.github/workflows/despliegue.yml`).
+Un pull request solo ejecuta el CI; nunca despliega. Si la aplicación no responde tras
+desplegar en Lightsail, el servidor vuelve solo al commit anterior.
 
 ## Asistente con modelo de lenguaje (opcional)
 

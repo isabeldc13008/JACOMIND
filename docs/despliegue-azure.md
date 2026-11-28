@@ -1,45 +1,41 @@
 # Despliegue en Azure App Service
 
-JACOMIND se publica en Azure App Service para Linux desde GitHub Actions. El flujo
-`.github/workflows/despliegue.yml` se ejecuta después del CI de `main` o manualmente.
+Azure App Service es el entorno de **staging** y se despliega **solo a mano**. La demo
+pública sigue en AWS Lightsail, que se actualiza sola tras cada CI correcto de `main`.
+
+Para desplegar en Azure: **Actions → Despliegue → Run workflow**, destino `azure`. Se
+publica el commit de la rama elegida.
 
 ## Configuración única en GitHub
 
-En **Settings → Environments → produccion** crea estas variables:
+| Tipo | Nombre | Contenido |
+|---|---|---|
+| Secreto del repositorio | `AZURE_WEBAPP_PUBLISH_PROFILE` | Perfil de publicación descargado del App Service (**Descargar perfil de publicación**) |
 
-| Variable | Valor para el entorno actual |
-|---|---|
-| `AZURE_RESOURCE_GROUP` | `rg-jacomind-staging` |
-| `AZURE_WEBAPP_NAME` | `jacomind-stg-211126` |
-| `URL_PUBLICA` | `https://jacomind-stg-211126.azurewebsites.net` |
+El trabajo usa el entorno de GitHub `azure-staging`, separado de `produccion` (Lightsail).
 
-Añade estos secretos:
+## Configuración en el App Service
 
-| Secreto | Contenido |
-|---|---|
-| `AZURE_CREDENTIALS` | JSON de una identidad de despliegue con permisos sobre el App Service |
-| `JACOMIND_ADMIN_PASSWORD` | Contraseña inicial del usuario `admin` |
-
-`AZURE_CREDENTIALS` puede ser un service principal con el rol **Contributor**
-limitado al grupo `rg-jacomind-staging`. No se debe guardar en el repositorio.
+- **Comando de inicio** (Configuración → General): `python despliegue/arranque_demo.py`
+- **Configuración de la aplicación** (variables de entorno, nunca en el repositorio):
+  `JACOMIND_ADMIN_PASSWORD` con una clave propia de 8 o más caracteres. Sin ella no se crea
+  el administrador local: la URL es pública y la clave por defecto `admin123` la podría
+  usar cualquiera.
 
 ## Puesta en marcha
 
 1. En Azure crea o conserva el App Service Linux `jacomind-stg-211126` dentro de
    `rg-jacomind-staging`, en una región permitida por la suscripción.
-2. Configura Python 3.12 y deja que el workflow establezca el comando de inicio.
-3. Define las tres variables y los dos secretos del entorno `produccion`.
-4. Ejecuta **Actions → Despliegue → Run workflow** para una primera publicación.
+2. Configura la pila Python 3.12.
+3. Define el comando de inicio, `JACOMIND_ADMIN_PASSWORD` y el secreto del perfil de publicación.
+4. Ejecuta **Actions → Despliegue → Run workflow** con destino `azure`.
 5. Comprueba `https://jacomind-stg-211126.azurewebsites.net/api/estado` y entra en
    `/app/` con el usuario `admin`.
 
-El workflow activa el inicio de sesión local, ejecuta las migraciones al arrancar,
-configura el administrador y publica únicamente el commit aprobado por CI. La
-contraseña nunca se escribe en un archivo del repositorio.
+Al arrancar se ejecutan las migraciones y se prepara la demo. La contraseña nunca se
+escribe en un archivo del repositorio.
 
 ## Dominio DuckDNS
 
-El dominio `jacomind-demo.duckdns.org` debe apuntar al App Service para mostrar esta
-versión. En Azure se puede añadir como **Dominio personalizado** y validar el registro
-DNS solicitado. Hasta completar esa asociación, el dominio y la URL
-`azurewebsites.net` pueden servir despliegues distintos.
+`jacomind-demo.duckdns.org` apunta a Lightsail. No lo cambies a Azure mientras Lightsail
+sea la demo pública.

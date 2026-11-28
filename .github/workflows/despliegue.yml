@@ -76,11 +76,8 @@ jobs:
       url: https://jacomind-stg-211126.azurewebsites.net/app/
     env:
       COMMIT: ${{ github.event.workflow_run.head_sha || github.sha }}
-      RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP || 'rg-jacomind-staging' }}
       WEBAPP_NAME: ${{ vars.AZURE_WEBAPP_NAME || 'jacomind-stg-211126' }}
-      PUBLIC_URL: https://jacomind-stg-211126.azurewebsites.net
       AZURE_VERIFY_URL: ${{ vars.AZURE_VERIFY_URL || 'https://jacomind-stg-211126.azurewebsites.net' }}
-      ADMIN_PASSWORD: ${{ secrets.JACOMIND_ADMIN_PASSWORD }}
     steps:
       - name: Descargar el commit aprobado
         uses: actions/checkout@v4
