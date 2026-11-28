@@ -53,76 +53,125 @@ export function pestanasModelos(activa) {
 }
 
 /**
- * Qué modelo usa cada capacidad y con qué datos, según las fichas técnicas de docs/ (método publicado hoy).
- * «probado» resume el candidato evaluado que no se publicó, para no presentarlo como el que está en uso.
+ * Modelo de IA de cada capacidad, según las fichas técnicas de docs/: qué algoritmo es, con qué aprende, qué variables
+ * usa (con su significado) y qué entrega. «hoy» aclara cuando la pantalla usa además o en su lugar un cálculo sin IA.
  */
 export const FICHAS = {
   compra_30d: {
-    tipo: "Modelo de IA", metodo: "Regresión logística",
-    como: "Aprende de las compras pasadas qué combinación de señales precede a una compra y da a cada cliente una probabilidad de comprar en 30 días. Da más peso a los meses recientes (semivida de 180 días) y ajusta el nivel a la tasa del último mes completo.",
-    variables: ["Días desde la última compra", "Compras en los últimos 30 días", "Compras en los últimos 90 días", "Número total de compras de su historial"],
+    ia: true, modelo: "Regresión logística",
+    queEs: "Un modelo de aprendizaje supervisado que aprende, a partir de miles de ejemplos del pasado, cuánto pesa cada señal del cliente en la posibilidad de que vuelva a comprar. Combina las señales en una suma ponderada y la convierte en una probabilidad entre 0 % y 100 %.",
+    aprende: "Toma una «fotografía» de cada cliente al cierre de cada mes y la compara con lo que pasó después: si compró o no en los 30 días siguientes. Da más peso a los meses recientes (semivida de 180 días) y ajusta el nivel general a la tasa de compra del último mes completo, sin cambiar el orden entre clientes.",
+    variables: [
+      ["Días desde la última compra", "Cuánto hace que el cliente compró por última vez. Se usa en escala logarítmica: pasar de 5 a 10 días pesa más que pasar de 200 a 205."],
+      ["Compras en los últimos 30 días", "Número de operaciones del último mes: indica si el cliente está activo ahora."],
+      ["Compras en los últimos 90 días", "Número de operaciones del último trimestre: muestra su ritmo reciente."],
+      ["Compras totales de su historial", "Cuántas operaciones lleva desde que es cliente, en escala logarítmica: separa a los clientes nuevos de los de siempre."],
+    ],
+    resultado: "La probabilidad de que el cliente compre en los próximos 30 días. Desde el 40 % la cartera sugiere «Revisar oportunidad de recompra».",
     noUsa: "No usa el identificador del cliente, la ciudad, el sector, el canal ni las coberturas.",
-    tecnico: "compra_30d-m13-P · scikit-learn LogisticRegression (L2, C = 10) · umbral 40 %", ficha: "docs/modelo-compra.md",
+    tecnico: "compra_30d-m13-P · scikit-learn LogisticRegression (L2, C = 10) · variables escaladas con media y desviación del entrenamiento · umbral 40 %",
+    ficha: "docs/modelo-compra.md",
   },
   inactividad_60d: {
-    tipo: "Modelo estadístico", metodo: "Ritmo de compra (Poisson)",
-    como: "Calcula cada cuánto compra el cliente en los últimos 180 días y, con ese ritmo, la probabilidad de que no compre en los días que le faltan para llegar a 90 sin comprar. A los clientes con poca historia los acerca al ritmo medio de la cartera.",
-    variables: ["Días de compra en los últimos 180 días", "Días que lleva sin comprar (y cuántos le faltan para 90)", "Tiempo observado del cliente", "Ritmo medio de toda la cartera (para suavizar)"],
-    probado: "También se probó una regresión logística con variables de ritmo de compra (frecuencias, intervalos entre compras, importe en 90 días); no superó a la regla de más días sin comprar.",
-    tecnico: "m21-poisson-180 · p = e^(−λ·w), λ suavizado con m = 180 días", ficha: "docs/modelo-inactividad.md",
+    ia: true, modelo: "Regresión logística",
+    queEs: "El mismo tipo de modelo de aprendizaje supervisado que M1, entrenado para otra pregunta: de los clientes que llevan entre 30 y 89 días sin comprar, cuáles llegarán a 90 días sin compra en los próximos 60.",
+    aprende: "Con fotografías mensuales de clientes que estaban entre 30 y 89 días sin comprar, marcadas según si después llegaron o no a 90 días sin compra. Se probaron 6 configuraciones (dos grupos de variables × tres niveles de regularización) y se eligió la que mejor ordenaba a los 10 primeros.",
+    variables: [
+      ["Días desde la última compra", "Cuánto lleva sin comprar (escala logarítmica). Es la señal más fuerte."],
+      ["Días con compra en 30, 90 y 180 días", "En cuántos días distintos compró en cada ventana: mide su actividad a corto y largo plazo."],
+      ["Días de compra totales", "En cuántos días distintos ha comprado desde el inicio (escala logarítmica)."],
+    ],
+    probado: "También se entrenó una versión ampliada que suma el cambio de actividad, el intervalo habitual entre compras y su irregularidad, el retraso frente a su ciclo y el importe de 90 días; no mejoró a la versión básica.",
+    resultado: "Una probabilidad de llegar a 90 días sin comprar en los próximos 60, y una lista ordenada de mayor a menor riesgo.",
+    hoy: "La lista que ves hoy se ordena con un cálculo del ritmo de compra de los últimos 180 días (Poisson), que en la comparación con datos de práctica acertó igual o mejor que la regresión.",
+    tecnico: "scikit-learn LogisticRegression (L2, lbfgs; mejor configuración: variables básicas, C = 0,1) · variables inactividad_60d-variables-v1 · selección por precisión media a 10",
+    ficha: "docs/modelo-inactividad.md",
   },
   proxima_compra: {
-    tipo: "Modelo de IA", metodo: "Modelo de supervivencia de Cox",
-    como: "Estima, día a día, cómo crece la posibilidad de que el cliente vuelva a comprar y publica la ventana entre el 10 % y el 50 % de esa posibilidad. Si un cliente no tiene datos suficientes, usa la curva de toda la cartera.",
-    variables: ["Días desde la última compra", "Días de compra en los últimos 90 y 180 días", "Días de compra totales", "Intervalo habitual entre compras (mediana)", "Qué tan irregulares son esos intervalos (dispersión)", "Si tiene poca historia", "Importe en pesos de los últimos 90 días"],
-    tecnico: "Cox con regularización L2 (scikit-survival) · respaldo: Kaplan–Meier poblacional", ficha: "docs/modelo-proxima-compra.md",
+    ia: true, modelo: "Modelo de supervivencia de Cox (con regularización)",
+    queEs: "Un modelo de aprendizaje que no predice «sí o no», sino cuándo: estima, día a día, cómo crece la posibilidad de que el cliente vuelva a comprar. Es el tipo de modelo que se usa para estimar tiempos hasta un evento, y sabe aprovechar a los clientes que todavía no han vuelto a comprar (casos «censurados») sin descartarlos.",
+    aprende: "De la historia de compras: para cada fotografía mensual mide cuántos días pasaron hasta la siguiente compra. Aprende cómo cada variable acelera o retrasa esa compra respecto de una curva base de toda la cartera. La regularización (α = 0,1) evita que se ajuste de más a pocos clientes.",
+    variables: [
+      ["Días desde la última compra", "Cuánto lleva sin comprar."],
+      ["Días con compra en 90 y 180 días", "Su actividad reciente y de medio plazo: más actividad adelanta la próxima compra."],
+      ["Días de compra totales", "Cuánta historia tiene."],
+      ["Intervalo habitual entre compras", "Cada cuántos días suele comprar (mediana)."],
+      ["Irregularidad de esos intervalos", "Cuánto varían: es la variable más estable del modelo; los clientes irregulares tienden a tardar más."],
+      ["Historia insuficiente", "Si tiene muy pocas compras para medir intervalos."],
+      ["Importe de los últimos 90 días", "Cuánto compró en pesos en el último trimestre."],
+    ],
+    resultado: "Una curva de probabilidad acumulada por cliente. De ella sale la ventana de contacto: desde la fecha en que la compra llega al 10 % de posibilidad hasta la fecha en que llega al 50 %.",
+    hoy: "Si un cliente no tiene datos suficientes, se usa la curva de toda la cartera (Kaplan–Meier), igual para todos.",
+    tecnico: "scikit-survival CoxPHSurvivalAnalysis (L2, α = 0,1, empates de Breslow) · variables proxima_compra-variables-v1 · mejora el Brier integrado un 10,3 % frente a la curva poblacional",
+    ficha: "docs/modelo-proxima-compra.md",
   },
   venta_cruzada: {
-    tipo: "Reglas de referencia", metodo: "Popularidad filtrada por compatibilidad",
-    como: "Ordena los productos que el cliente todavía no tiene según cuántos clientes los compran, y descarta los que no son compatibles con lo que ya tiene. Muestra hasta tres.",
-    variables: ["Productos que el cliente ya compró", "Popularidad de cada producto (clientes distintos que lo tienen)", "Reglas de compatibilidad del catálogo"],
-    probado: "También se probó una regresión logística con datos del cliente (recencia, días de compra, importe en 90 días, número de productos) y del producto (popularidad, afinidad y coocurrencia); no superó a la popularidad, así que se conservó la referencia.",
-    tecnico: "compat-v1 · candidato evaluado: regresión logística L2 (HitRate@1)", ficha: "docs/modelo-venta-cruzada.md",
+    ia: true, modelo: "Regresión logística de ranking",
+    queEs: "Un modelo de aprendizaje supervisado que puntúa cada par cliente–producto: cuanto más alto el puntaje, más encaja ese producto con ese cliente. Con los puntajes ordena los productos que el cliente todavía no tiene y propone los tres primeros.",
+    aprende: "De los productos que los clientes compraron por primera vez después de cada cierre: aprende qué rasgos del cliente y del producto anticipan esa primera compra. Un solo modelo sirve para todos los productos, con una señal propia para cada uno.",
+    variables: [
+      ["Actividad del cliente", "Días desde su última compra, días con compra (totales, en 90 y en 180 días) e importe de los últimos 90 días."],
+      ["Amplitud del cliente", "Cuántos productos distintos tiene ya."],
+      ["Popularidad relativa del producto", "Qué tan comprado es el producto entre todos los clientes."],
+      ["Afinidad máxima", "Qué tanto suelen comprar este producto los clientes que tienen alguno de los productos de este cliente."],
+      ["Coocurrencia relativa", "Con qué frecuencia aparece el producto junto a los que ya tiene el cliente."],
+      ["Identidad del producto", "Una señal por producto que recoge su atractivo propio."],
+    ],
+    resultado: "Un puntaje por producto (sin convertirlo en probabilidad) y el orden de las tres propuestas, siempre entre productos compatibles que el cliente aún no tiene.",
+    noUsa: "No usa el identificador del cliente, información posterior al cierre, precios de las operaciones ni coberturas futuras.",
+    hoy: "En la comprobación con datos de práctica el modelo acertó un poco más que la popularidad en la primera propuesta (13,3 % frente a 12,1 %), pero la diferencia no fue concluyente; por eso las propuestas que ves hoy se ordenan por popularidad filtrada por compatibilidad.",
+    tecnico: "Regresión logística L2 compartida (variables básicas, C = 0,1) · métrica HitRate@1 · respaldo por popularidad para productos con menos de 10 compras",
+    ficha: "docs/modelo-venta-cruzada.md",
   },
   demanda: {
-    tipo: "Modelo estadístico", metodo: "Series de tiempo (suavizamiento exponencial)",
-    como: "Para cada familia y producto elige el método que menos se equivocó en meses anteriores: repetir el último mes, el promedio de los últimos 3 meses, suavizamiento exponencial simple o Holt con tendencia amortiguada. El total es la suma de las familias.",
-    variables: ["Ventas mensuales de cada familia (en pesos)", "Unidades mensuales de cada producto", "Al menos 12 meses de historia para los métodos de suavizamiento"],
-    noUsa: "No usa clientes, precios futuros ni estacionalidad.",
-    tecnico: "SES y Holt amortiguado frente a referencias; selección por menor MAE por serie y horizonte", ficha: "docs/modelo-demanda.md",
+    ia: false, modelo: "Series de tiempo (sin modelo de IA)",
+    queEs: "El pronóstico no usa un modelo de IA: proyecta cada serie con métodos de series de tiempo (suavizamiento exponencial simple y Holt con tendencia amortiguada) o con referencias simples, y elige por serie el que menos se equivocó en meses anteriores.",
+    variables: [["Historia mensual de cada serie", "Ventas en pesos por familia y unidades por producto; al menos 12 meses para los métodos de suavizamiento."]],
+    resultado: "Las ventas esperadas de los próximos 1 a 3 meses, con el margen de error de meses anteriores.",
+    tecnico: "SES y Holt amortiguado frente a referencias (último mes, media de 3 meses) · selección por menor MAE",
+    ficha: "docs/modelo-demanda.md",
   },
   anomalias: {
-    tipo: "Reglas estadísticas", metodo: "Comparación con lo habitual (mediana y MAD)",
-    como: "Compara cada venta o compra con hasta 60 operaciones anteriores del mismo producto, moneda y unidad. Señala las que se apartan mucho y prioriza las más raras hasta la capacidad de revisión del equipo.",
-    variables: ["Precio por unidad frente a su mediana habitual", "Cantidad frente a su mediana habitual", "Importe de la operación frente a su mediana habitual", "Número de operaciones anteriores (mínimo 5)"],
-    noUsa: "No usa la TRM ni el importe en pesos, ni identificadores de cliente, proveedor o producto.",
-    probado: "También se probó Isolation Forest (un bosque de 200 árboles de IA); no aportó valor demostrable frente a las reglas.",
-    tecnico: "mediana_mad · señal si |z| ≥ 3,5, precio fuera de 0,67–1,5 veces o cantidad fuera de 0,2–3 veces", ficha: "docs/modelo-anomalias.md",
+    ia: true, modelo: "Isolation Forest (bosque de aislamiento)",
+    queEs: "Un modelo de aprendizaje no supervisado para detectar rarezas: no necesita ejemplos marcados de errores. Construye 200 árboles que parten los datos al azar; las operaciones raras quedan aisladas en muy pocos cortes, y eso se convierte en un puntaje de rareza.",
+    aprende: "De todas las ventas y compras válidas, un bosque para ventas y otro para compras. Cada operación se describe frente a su propio historial (mismo producto, moneda y unidad), así que el modelo aprende qué combinaciones de desvíos son poco habituales.",
+    variables: [
+      ["Desvío del precio por unidad", "Cuánto se aparta el precio de la mediana de las operaciones anteriores del mismo producto, en escala logarítmica y medido en desviaciones típicas robustas."],
+      ["Desvío de la cantidad", "Lo mismo para la cantidad."],
+      ["Desvío del importe", "Lo mismo para el importe total de la operación (en una de las dos configuraciones)."],
+    ],
+    resultado: "Un puntaje de rareza por operación. Las más raras de cada mes, hasta la capacidad de revisión del equipo, pasan a la cola «Operaciones por revisar».",
+    noUsa: "No usa la TRM ni el importe en pesos (un cambio solo de tipo de cambio no altera el puntaje), ni identificadores de cliente, proveedor o producto.",
+    hoy: "La cola que ves hoy prioriza con reglas sobre esos mismos desvíos (mediana y MAD), porque el bosque no mostró una ventaja clara en la evaluación.",
+    tecnico: "scikit-learn IsolationForest (200 árboles, sin bootstrap, max_features = 1, submuestra 64 o 128) · puntaje = −score_samples",
+    ficha: "docs/modelo-anomalias.md",
   },
 };
 
-const SELLO_TIPO = t => /IA/.test(t) ? "sello-ia" : "sello-practica";
-
-/** Bloque «Qué modelo usa y qué datos mira» de una capacidad. */
+/** Bloque del modelo de IA de una capacidad. */
 export function fichaModeloHtml(id, { titulo = true } = {}) {
   const f = FICHAS[id];
   if (!f) return "";
   return `${titulo ? `<h3>${esc(CAPACIDAD[id] || id)}</h3>` : ""}
-    <p class="ia-metodo"><span class="sello ${SELLO_TIPO(f.tipo)}">${esc(f.tipo)}</span> <strong>${esc(f.metodo)}</strong></p>
-    <p>${esc(f.como)}</p>
-    <p class="etiqueta-datos">Variables que utiliza</p>
-    <ul class="ia-variables">${f.variables.map(v => `<li>${esc(v)}</li>`).join("")}</ul>
+    <p class="ia-metodo"><span class="sello ${f.ia ? "sello-ia" : "sello-practica"}">${f.ia ? "Modelo de IA" : "Sin IA"}</span> <strong>${esc(f.modelo)}</strong></p>
+    <p>${esc(f.queEs)}</p>
+    ${f.aprende ? `<p class="etiqueta-datos">Cómo aprende</p><p>${esc(f.aprende)}</p>` : ""}
+    <p class="etiqueta-datos">Variables que usa</p>
+    <dl class="ia-variables">${f.variables.map(([n, d]) => `<div><dt>${esc(n)}</dt><dd>${esc(d)}</dd></div>`).join("")}</dl>
+    <p class="etiqueta-datos">Qué entrega</p><p>${esc(f.resultado)}</p>
     ${f.noUsa ? `<p class="muted">${esc(f.noUsa)}</p>` : ""}
     ${f.probado ? `<p class="muted">${esc(f.probado)}</p>` : ""}
-    <p class="muted ia-tecnico">Nombre técnico: <code>${esc(f.tecnico)}</code> · Ficha: <a href="https://github.com/isabeldc13008/JACOMIND/blob/main/${esc(f.ficha)}" target="_blank" rel="noopener">${esc(f.ficha)}<span class="oculto-visual"> (se abre en una pestaña nueva)</span></a></p>`;
+    ${f.hoy ? `<p class="ia-hoy">${esc(f.hoy)}</p>` : ""}
+    <details class="ia-tecnico"><summary>Detalle técnico</summary><p><code>${esc(f.tecnico)}</code></p>
+      <p><a href="https://github.com/isabeldc13008/JACOMIND/blob/main/${esc(f.ficha)}" target="_blank" rel="noopener">Ficha completa: ${esc(f.ficha)}<span class="oculto-visual"> (se abre en una pestaña nueva)</span></a></p></details>`;
 }
 
 /** Tarjetas de todas las capacidades visibles. */
 function fichasHtml(ids) {
   const visibles = ORDEN.filter(id => ids.has(id) && FICHAS[id]);
   if (!visibles.length) return "";
-  return `<section class="panel" aria-labelledby="t-fichas"><h2 id="t-fichas">Qué modelo usa cada uno y qué datos mira</h2>
-    <p class="muted">El método que está publicado hoy y las variables con las que calcula. «Modelo de IA» aprende de los datos; «modelo estadístico» y «reglas» siguen una fórmula fija.</p>
+  return `<section class="panel" aria-labelledby="t-fichas"><h2 id="t-fichas">Los modelos de IA y sus variables</h2>
+    <p class="muted">Qué modelo de inteligencia artificial responde cada pregunta, cómo aprende, qué variables mira y qué entrega. Un modelo de IA aprende de las compras pasadas; sus resultados son estimaciones que apoyan la decisión de una persona.</p>
     <div class="ia-fichas">${visibles.map(id => `<article class="ia-ficha" id="ficha-${esc(id)}">${fichaModeloHtml(id)}</article>`).join("")}</div></section>`;
 }
 
@@ -144,7 +193,7 @@ function evaluacionHtml(m) {
     <p><strong>Pregunta que responde:</strong> ${esc(m.pregunta)}</p>
     <p><strong>Dónde se usa:</strong> ${esc(m.uso)} ${enlace ? `<a href="${enlace[0]}">${esc(enlace[1])}</a>` : ""}</p>
     <ul>${m.lectura.map(l => `<li>${esc(l)}</li>`).join("")}</ul>
-    ${FICHAS[m.modelo_id] ? `<div class="ia-ficha en-detalle"><h3>Qué modelo usa y qué datos mira</h3>${fichaModeloHtml(m.modelo_id, { titulo: false })}</div>` : ""}
+    ${FICHAS[m.modelo_id] ? `<div class="ia-ficha en-detalle"><h3>El modelo de IA y sus variables</h3>${fichaModeloHtml(m.modelo_id, { titulo: false })}</div>` : ""}
     <h3>Cómo se evaluó</h3>
     ${tablaMetodos(m)}
     <p class="muted">Medido en ${num(m.casos)} casos de ${esc(periodo(m.periodo))} (${num(m.eventos)} con el resultado buscado). Versión ${esc(m.version)}. Estado: ${esc(m.estado)}.</p></details>`;
