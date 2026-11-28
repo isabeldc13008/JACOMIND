@@ -96,6 +96,10 @@ legend { font-weight: 650; padding: 0 .4rem; }
 .fila { display: flex; flex-wrap: wrap; gap: .75rem; align-items: center; }
 .filtros { display: flex; flex-wrap: wrap; gap: var(--e2); align-items: end; margin: 0 0 var(--e2); }
 .filtros > label { min-width: min(100%, 13rem); }
+/* Dos campos lado a lado con la misma estructura (título, ayuda, control, error): quedan alineados fila a fila. */
+.campos-par { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr)); gap: var(--e2); align-items: start; }
+.campos-par > label { grid-template-rows: auto auto var(--control) minmax(1.2em, auto); }
+input[type="month"] { font-variant-numeric: tabular-nums; }
 .campos { display: grid; gap: var(--e2); max-width: 46rem; }
 .campos-accion { display: grid; gap: var(--e2); max-width: 46rem; }
 .error-campo { color: var(--critico); font-weight: 600; font-size: var(--t-sec); }

@@ -46,13 +46,20 @@ export async function vistaOperacion() {
 }
 
 // ---------------------------------------------------------------- V28 · cargar y validar
+/** Mes actual en formato AAAA-MM (tope del calendario: no se cargan meses futuros). */
+const mesActual = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`; };
+
 function seccionCargar(op) {
   return `<ol class="pasos" aria-label="Pasos de la carga"><li aria-current="step">Elegir el archivo</li><li>Revisar la calidad</li><li>Confirmar el lote</li></ol>
   <section class="panel"><h2>Elegir y validar un archivo</h2>
   <p>Validar no cambia lo que ven los usuarios. Al confirmar, el archivo queda guardado para el próximo cierre.</p>
   <form id="carga" class="campos" novalidate><div id="resumen-errores" tabindex="-1"></div>
-    <div class="filtros"><label for="periodo-carga">Mes de los datos <span class="ayuda">Año y mes: por ejemplo 2026-10.</span><input id="periodo-carga" name="periodo" required pattern="\\d{4}-\\d{2}" inputmode="numeric" value="${esc(cargaEnCurso?.periodo || "")}" aria-describedby="err-periodo"><span class="error-campo" id="err-periodo"></span></label>
-    <label for="tabla-carga">Qué datos contiene <select id="tabla-carga" name="tabla">${Object.entries(TABLAS).map(([k, t]) => `<option value="${k}" ${cargaEnCurso?.tabla === k ? "selected" : ""}>${t}</option>`).join("")}</select></label></div>
+    <div class="campos-par">
+      <label for="periodo-carga"><span>Mes de los datos</span><span class="ayuda" id="ayuda-periodo">Elige el mes en el calendario.</span>
+        <input id="periodo-carga" type="month" name="periodo" required pattern="\d{4}-\d{2}" placeholder="2026-10" max="${mesActual()}" value="${esc(cargaEnCurso?.periodo || "")}" aria-describedby="ayuda-periodo err-periodo"><span class="error-campo" id="err-periodo"></span></label>
+      <label for="tabla-carga"><span>Qué datos contiene</span><span class="ayuda" id="ayuda-tabla">El tipo de información del archivo.</span>
+        <select id="tabla-carga" name="tabla" aria-describedby="ayuda-tabla">${Object.entries(TABLAS).map(([k, t]) => `<option value="${k}" ${cargaEnCurso?.tabla === k ? "selected" : ""}>${t}</option>`).join("")}</select><span class="error-campo" aria-hidden="true"></span></label>
+    </div>
     <label for="archivo-carga">Archivo CSV o Excel <input id="archivo-carga" type="file" name="archivo" accept=".csv,.xlsx" aria-describedby="err-archivo"><span class="error-campo" id="err-archivo"></span></label>
     ${cargaEnCurso ? `<p class="muted">Archivo actual: ${esc(cargaEnCurso.archivo.name)} (elige otro para reemplazarlo).</p>` : ""}
     <p class="muted" id="esperadas">${esc(columnasEsperadas(op, cargaEnCurso?.tabla || "ventas"))}</p>
@@ -170,7 +177,7 @@ function enlazar(op) {
     const fd = new FormData(e.target), archivo = fd.get("archivo");
     const nuevo = archivo && archivo.size ? archivo : cargaEnCurso?.archivo;
     const per = document.getElementById("periodo-carga"), malPer = !/^\d{4}-\d{2}$/.test(fd.get("periodo") || "");
-    per.setAttribute("aria-invalid", String(malPer)); document.getElementById("err-periodo").textContent = malPer ? "Escribe el año y el mes, por ejemplo 2026-10." : "";
+    per.setAttribute("aria-invalid", String(malPer)); document.getElementById("err-periodo").textContent = malPer ? "Elige el mes de los datos en el calendario." : "";
     document.getElementById("err-archivo").textContent = nuevo ? "" : "Elige un archivo CSV o Excel.";
     if (malPer) return per.focus();
     if (!nuevo) return document.getElementById("archivo-carga").focus();
