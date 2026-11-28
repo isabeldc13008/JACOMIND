@@ -1,4 +1,4 @@
-"""M2 · Prevención de inactividad (experimental): publicación en sombra, consulta interna y episodios.
+"""M2 · Prevención de inactividad (en uso): publicación verificada, consulta interna y episodios.
 
 * La puntuación candidata llega como **publicación de sombra** (``modelos.cli puntuar --modelo inactividad_60d``),
   validada con el contrato y guardada aparte de los cierres: no cambia la agenda C1, ``prob_compra_30d`` ni su orden.
@@ -19,14 +19,15 @@ from contratos.validar import leer_publicacion_sombra
 from .base import BaseDatos, ErrorApi, ahora, auditar, bandera, dumps, loads
 from .publicacion import cierre_activo, filas as filas_cierre
 from .tareas import CERRADOS, registrar_evento
+from .estado_modelos import EN_USO
 
 MODELO_ID = "inactividad_60d"
 BANDERA_TAREAS = "prevencion_tareas"
 K_POLITICA = 10
 TIPO_TAREA = "comprobacion"
-MOTIVO = "Prevenir inactividad (experimento en sombra)"
+MOTIVO = "Prevenir inactividad (M2)"
 PRIORIDAD = 9  # después de las acciones C1: no cambia su precedencia
-NOTA = ("Riesgo experimental de llegar a 90 días sin compra en los próximos 60 días, calculado en sombra. No es abandono "
+NOTA = ("Riesgo estimado de llegar a 90 días sin compra en los próximos 60 días. No es abandono "
         "ni una venta perdida; no cambia la agenda. Una compra posterior a un contacto no demuestra que el seguimiento la causó.")
 
 
@@ -108,8 +109,8 @@ def _ultima_compra(f: dict) -> str | None:
 
 def _encabezado(s: dict) -> dict:
     m = s["manifiesto"]
-    return {"sombra_id": s["id"], "corte": s["corte"], "version_modelo": s["version_modelo"], "estado_experimento": s["estado_experimento"],
-            "operativa": False, "decision": (m.get("modelo") or {}).get("decision"), "advertencia": m.get("advertencia"),
+    return {"sombra_id": s["id"], "corte": s["corte"], "version_modelo": s["version_modelo"], "estado_experimento": EN_USO,
+            "operativa": True, "decision": (m.get("modelo") or {}).get("decision"), "advertencia": m.get("advertencia"),
             "simulacion_historica": m.get("simulacion_historica"), "conteos": m.get("conteos"), "importada_en": s["importada_en"]}
 
 
@@ -125,14 +126,14 @@ def para_ficha(con, cliente_id: str) -> dict | None:
     rango = next((x["posicion"] for x in ordenar_estimadas(predicciones_sombra(con, s["id"])) if x["cliente_id"] == cliente_id), None)
     f = dict(f, posicion=rango)  # posición recalculada, no la suministrada
     return {k: f.get(k) for k in ("estado", "probabilidad", "posicion", "recencia_dias", "poblacion", "motivos", "version_modelo", "corte",
-                                  "horizonte_dias", "umbral_frio_dias")} | {"experimental": True, "estado_experimento": s["estado_experimento"], "nota": NOTA}
+                                  "horizonte_dias", "umbral_frio_dias")} | {"experimental": False, "estado_experimento": EN_USO, "nota": NOTA}
 
 
 def lista(con, k: int = K_POLITICA) -> dict:
     s = sombra_activa(con)
     if not s:
-        return {"estado": "sin_sombra", "experimental": True, "items": [], "nota": NOTA,
-                "mensaje": "No hay una publicación en sombra de inactividad importada."}
+        return {"estado": "sin_sombra", "experimental": False, "items": [], "nota": NOTA,
+                "mensaje": "No hay una publicación del modelo de inactividad importada."}
     k = max(1, min(int(k), 200))
     preds = predicciones_sombra(con, s["id"])
     aprendibles = ordenar_estimadas(preds)
@@ -152,7 +153,7 @@ def lista(con, k: int = K_POLITICA) -> dict:
                       "motivos": f["motivos"], "accion_c1": c.get("accion"), "motivos_c1": c.get("motivos"),
                       "episodio": {"episodio_id": e["episodio_id"], "tarea_id": e["tarea_id"], "compartida": bool(e["tarea_compartida"])} if e else None})
     conteos = {p: sum(f.get("poblacion") == p for f in preds.values()) for p in ("aprendible", "estructural", "ya_frio", "sin_historial", "alta_posterior")}
-    return {"estado": "ok", "experimental": True, "sombra": _encabezado(s), "k": k, "items": items, "total_aprendibles": len(aprendibles),
+    return {"estado": "ok", "experimental": False, "sombra": _encabezado(s), "k": k, "items": items, "total_aprendibles": len(aprendibles),
             "conteos": conteos, "cierre_activo": {"id": cid, "corte": corte_cierre,
                                                    "coincide_corte": corte_cierre == s["corte"] if corte_cierre else None},
             "tareas_automaticas": bandera(con, BANDERA_TAREAS, False),

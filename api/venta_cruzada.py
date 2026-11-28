@@ -1,4 +1,4 @@
-"""M4 · Venta cruzada (experimental): recomendaciones en sombra, revisión de Ventas, episodios y revisión comercial.
+"""M4 · Venta cruzada (en uso): recomendaciones, revisión de Ventas, episodios y revisión comercial.
 
 * La publicación llega en sombra (``modelos.cli puntuar --modelo venta_cruzada``), verificada (sello, huellas, contrato y
   coherencia) y separada de los cierres: no cambia la agenda C1 ni los resultados de M1, M2 y M3.
@@ -18,6 +18,7 @@ from contratos.validar import leer_publicacion_sombra
 from .base import BaseDatos, ErrorApi, ahora, auditar, bandera, dumps, loads
 from .publicacion import cierre_activo
 from .tareas import CERRADOS, registrar_evento
+from .estado_modelos import EN_USO
 
 MODELO_ID = "venta_cruzada"
 BANDERA = "venta_cruzada_tareas"
@@ -25,7 +26,7 @@ TIPO_TAREA = "venta_cruzada"
 PRIORIDAD = 9
 ACCIONES = {"aceptar": "aceptada", "aplazar": "aplazada", "descartar": "descartada", "revisar": "en_revision"}
 ESTADOS_REVISION = ("pertinente", "ya_cubierto", "incompatible", "sin_necesidad", "informacion_insuficiente")
-NOTA = ("Recomendación experimental para revisión de Ventas, calculada en sombra: no es una oferta ni una tarea, no cambia la agenda, "
+NOTA = ("Recomendación para revisión de Ventas: no es una oferta ni una tarea, no cambia la agenda, "
         "y una compra posterior no prueba que la recomendación la causara.")
 ORIGEN = {"modelo": "modelo de IA (puntaje de ranking)", "popularidad": "popularidad filtrada", "coocurrencia": "coocurrencia filtrada",
           "popularidad_sin_soporte": "popularidad (el modelo no tiene soporte para este producto)"}
@@ -104,7 +105,7 @@ def _item(con, f: dict) -> dict:
 def lista(con, filtro: str | None = None) -> dict:
     s = sombra_activa(con)
     if not s:
-        return {"estado": "sin_sombra", "experimental": True, "items": [], "nota": NOTA, "mensaje": "No hay una publicación en sombra de venta cruzada importada."}
+        return {"estado": "sin_sombra", "experimental": False, "items": [], "nota": NOTA, "mensaje": "No hay una publicación del modelo de venta cruzada importada."}
     cob = _cobertura(con, s["id"])
     recs = _recs(con, s["id"])
     items = [_item(con, f) for f in recs if not filtro or f["estado_compatibilidad"] == filtro]
@@ -113,11 +114,11 @@ def lista(con, filtro: str | None = None) -> dict:
     for c in cob.values():
         conteo[c["estado"]] = conteo.get(c["estado"], 0) + 1
     m = s["manifiesto"]
-    return {"estado": "ok", "experimental": True, "nota": NOTA, "items": items, "sin_recomendacion": sorted(sin, key=lambda x: x["cliente_id"]),
+    return {"estado": "ok", "experimental": False, "nota": NOTA, "items": items, "sin_recomendacion": sorted(sin, key=lambda x: x["cliente_id"]),
             "conteos": conteo, "compatibilidad_pendiente": sum(f["estado_compatibilidad"] == "pendiente_revision" for f in recs),
-            "sombra": {"sombra_id": s["id"], "corte": s["corte"], "version": s["version_modelo"], "estado_experimento": s["estado_experimento"],
+            "sombra": {"sombra_id": s["id"], "corte": s["corte"], "version": s["version_modelo"], "estado_experimento": EN_USO,
                        "sistema_publicado": (m.get("modelo") or {}).get("sistema_publicado"), "decision": (m.get("modelo") or {}).get("decision"),
-                       "versiones": m.get("versiones"), "operativa": False},
+                       "versiones": m.get("versiones"), "operativa": True},
             "tareas_automaticas": bandera(con, BANDERA, False),
             "separacion": "Venta cruzada propone productos NO adquiridos; la recompra y la renovación siguen en la agenda C1 y no cambian."}
 
@@ -127,7 +128,7 @@ def para_ficha(con, cliente_id: str) -> dict | None:
     if not s:
         return None
     cob = _cobertura(con, s["id"], cliente_id).get(cliente_id)
-    return {"experimental": True, "corte": s["corte"], "estado_experimento": s["estado_experimento"], "nota": NOTA,
+    return {"experimental": False, "corte": s["corte"], "estado_experimento": EN_USO, "nota": NOTA,
             "items": [_item(con, f) for f in _recs(con, s["id"], cliente_id)],
             "cobertura": {"estado": cob["estado"], "motivo": cob["motivo"], "n_candidatos": cob["n_candidatos"]} if cob else None}
 

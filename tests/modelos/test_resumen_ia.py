@@ -47,7 +47,7 @@ class ConstruirTests(unittest.TestCase):
         met = json.loads((RAIZ / "salida/experimentos/compra_30d_m13/ejecucion-001/metricas_comprobacion_historica.json").read_text(encoding="utf-8"))
         rec = next(f for f in compra["filas"] if f["tipo"] == "regla")
         self.assertEqual(rec["aciertos_top10"], met["resultados"]["recencia"]["elegible"]["agregado"]["aciertos_top10"])
-        self.assertIn("experimental", inact["estado"])
+        self.assertTrue(inact["estado"].startswith("operativo"))   # en uso; la decisión de la evaluación se conserva
         self.assertTrue(all(f["metodo"] != "M2.1" or f["actual"] for f in inact["filas"]))
 
 

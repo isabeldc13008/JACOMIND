@@ -316,7 +316,7 @@ def _pct(x) -> str:
     return "—" if x is None else f"{round(x * 100)} %"
 
 
-EXPERIMENTAL = "Estimación EXPERIMENTAL en sombra (datos de práctica): es para revisión humana, no un hecho ni una tarea."
+EXPERIMENTAL = "Estimación de un modelo en uso (datos de práctica): apoya la decisión de una persona; no es un hecho ni una tarea."
 
 
 def herramienta_modelos(con, usuario, cierre, intencion: str, p: dict) -> dict:

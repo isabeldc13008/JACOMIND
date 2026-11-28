@@ -1,4 +1,4 @@
-"""M3 · Próxima compra (experimental): ventana estimada en sombra, consulta interna y recordatorios desactivados.
+"""M3 · Próxima compra (en uso): ventana estimada, consulta interna y recordatorios configurables.
 
 * La puntuación llega como **publicación de sombra** (``modelos.cli puntuar --modelo proxima_compra``), verificada (sello,
   huellas, contrato y coherencia) y guardada aparte de los cierres: no cambia la agenda C1, ``prob_compra_30d``, el riesgo
@@ -18,13 +18,14 @@ from .base import BaseDatos, ErrorApi, ahora, auditar, bandera, dumps, loads
 from .prevencion import importar_sombra as _importar, predicciones_sombra, sombra_activa
 from .publicacion import cierre_activo
 from .tareas import CERRADOS, registrar_evento
+from .estado_modelos import EN_USO
 
 MODELO_ID = "proxima_compra"
 BANDERA = "proxima_recordatorios"
-MOTIVO = "Ventana estimada de próxima compra (experimento en sombra)"
+MOTIVO = "Ventana estimada de próxima compra (M3)"
 TIPO_TAREA = "comprobacion"
 PRIORIDAD = 9  # después de las acciones C1
-NOTA = ("Ventana estimada por comportamiento de compra, calculada en sombra: no es una fecha contractual ni un vencimiento de "
+NOTA = ("Ventana estimada por comportamiento de compra: no es una fecha contractual ni un vencimiento de "
         "cobertura, no cambia la agenda y no garantiza una compra.")
 LIMITACIONES = ["Datos sintéticos de práctica: resultados orientativos.",
                 "Si el límite superior no se alcanza en 60 días no hay ventana: no se inventa una fecha.",
@@ -61,7 +62,7 @@ def para_ficha(con, cliente_id: str) -> dict | None:
     f = predicciones_sombra(con, s["id"], cliente_id).get(cliente_id)
     if not f:
         return None
-    return _campos(f) | {"etiqueta": "ventana estimada", "experimental": True, "estado_experimento": s["estado_experimento"],
+    return _campos(f) | {"etiqueta": "ventana estimada", "experimental": False, "estado_experimento": EN_USO,
                          "nota": NOTA, "limitaciones": LIMITACIONES, "ultima_compra": _ultima_compra(f)}
 
 
@@ -81,8 +82,8 @@ def lista(con, dias: int = 30) -> dict:
     """Seguimiento en sombra: ventanas que empiezan en los próximos ``dias`` desde el corte (y el resto de estados, contados)."""
     s = sombra_activa(con, MODELO_ID)
     if not s:
-        return {"estado": "sin_sombra", "experimental": True, "items": [], "nota": NOTA,
-                "mensaje": "No hay una publicación en sombra de próxima compra importada."}
+        return {"estado": "sin_sombra", "experimental": False, "items": [], "nota": NOTA,
+                "mensaje": "No hay una publicación del modelo de próxima compra importada."}
     dias = max(1, min(int(dias), 60))
     preds = predicciones_sombra(con, s["id"])
     limite = (date.fromisoformat(s["corte"]) + timedelta(days=dias)).isoformat()
@@ -109,9 +110,9 @@ def lista(con, dias: int = 30) -> dict:
         clave = "ventana_utilizable" if f.get("ventana_utilizable") else f.get("estado")
         conteo[clave] = conteo.get(clave, 0) + 1
     m = s["manifiesto"]
-    return {"estado": "ok", "experimental": True, "etiqueta": "ventana estimada", "dias": dias, "items": items,
-            "sombra": {"sombra_id": s["id"], "corte": s["corte"], "version_modelo": s["version_modelo"], "estado_experimento": s["estado_experimento"],
-                       "tipo": (m.get("modelo") or {}).get("tipo"), "decision": (m.get("modelo") or {}).get("decision"), "operativa": False},
+    return {"estado": "ok", "experimental": False, "etiqueta": "ventana estimada", "dias": dias, "items": items,
+            "sombra": {"sombra_id": s["id"], "corte": s["corte"], "version_modelo": s["version_modelo"], "estado_experimento": EN_USO,
+                       "tipo": (m.get("modelo") or {}).get("tipo"), "decision": (m.get("modelo") or {}).get("decision"), "operativa": True},
             "conteos": conteo, "recordatorios_automaticos": bandera(con, BANDERA, False), "nota": NOTA, "limitaciones": LIMITACIONES,
             "precedencia_c1": "La acción C1, la probabilidad de compra a 30 días y el riesgo de inactividad no cambian."}
 

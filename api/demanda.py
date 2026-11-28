@@ -1,4 +1,4 @@
-"""M5 · Pronóstico de demanda (experimental): publicación en sombra y panel interno.
+"""M5 · Pronóstico de demanda (en uso): publicación verificada y panel interno.
 
 * La publicación llega en sombra (``modelos.cli puntuar --modelo demanda``), verificada y separada de los cierres: las
   ``series_mensuales`` operativas (A08) y sus consumidores no cambian.
@@ -13,9 +13,10 @@ from pathlib import Path
 from contratos.validar import leer_publicacion_sombra
 
 from .base import BaseDatos, ErrorApi, ahora, auditar, dumps, loads
+from .estado_modelos import EN_USO
 
 MODELO_ID = "demanda"
-NOTA = ("Proyección experimental en sombra: no es ingreso realizado, margen, orden de compra ni predicción de TRM. "
+NOTA = ("Proyección: no es ingreso realizado, margen, orden de compra ni predicción de TRM. "
         "Las series mensuales operativas del cierre no cambian.")
 
 
@@ -61,7 +62,7 @@ def _permitida(usuario, serie_id: str) -> bool:
 def panel(con, usuario, serie_id: str | None = None) -> dict:
     r = con.execute("SELECT * FROM sombra_publicaciones WHERE modelo_id = ? AND activa = 1", (MODELO_ID,)).fetchone()
     if not r:
-        return {"estado": "sin_sombra", "experimental": True, "series": [], "nota": NOTA, "mensaje": "No hay una publicación en sombra de demanda importada."}
+        return {"estado": "sin_sombra", "experimental": False, "series": [], "nota": NOTA, "mensaje": "No hay una publicación del modelo de demanda importada."}
     man = loads(r["manifiesto_json"])
     disponibles = sorted({x[0] for x in con.execute("SELECT DISTINCT serie_id FROM sombra_pronosticos WHERE sombra_id = ?", (r["id"],))
                           if _permitida(usuario, x[0])})
@@ -86,6 +87,6 @@ def panel(con, usuario, serie_id: str | None = None) -> dict:
         calendario = sorted((loads(x[0]) for x in con.execute("SELECT datos_json FROM sombra_calendario_demanda WHERE sombra_id = ? AND serie_id = ?", (r["id"], serie_id))),
                             key=lambda c: c["periodo"])
     dec = ((man.get("modelo") or {}).get("decision") or {}).get("decisiones", {}).get(serie_id, {})
-    return {"estado": "ok", "experimental": True, "nota": NOTA, "serie_id": serie_id, "series": disponibles, "origen": man["origen"], "corte": man["corte"],
-            "estado_experimento": r["estado_experimento"], "version": r["version_modelo"], "calendario": calendario, "pronosticos": pron, "decisiones": dec,
+    return {"estado": "ok", "experimental": False, "nota": NOTA, "serie_id": serie_id, "series": disponibles, "origen": man["origen"], "corte": man["corte"],
+            "estado_experimento": EN_USO, "version": r["version_modelo"], "calendario": calendario, "pronosticos": pron, "decisiones": dec,
             "advertencia": man.get("advertencia")}

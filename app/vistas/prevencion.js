@@ -1,11 +1,11 @@
-// V07 Clientes que podrían dejar de comprar (M2, en prueba). Separa prevenir de reactivar; no cambia la cartera ni crea tareas.
+// V07 Clientes que podrían dejar de comprar (M2, en uso). Separa prevenir de reactivar; no cambia la cartera ni crea tareas.
 import { $vista, api, errorHtml, esc, estadoHtml, fechaHora, fechaLarga, ir, nuevoTurno, num, pct, plural, puede, ruta, vigente } from "../nucleo.js";
 import { avisoPrueba, ctxDatos, detalleTecnico, encabezado, enPrueba, hallazgo, vacio } from "../ui.js";
 
 const DECISIONES = { favorable: "favorable", inconcluso: "inconclusa", rechazado: "rechazada" };
 const TITULO = "Clientes que podrían dejar de comprar";
 
-/** Bloque para la ficha del cliente: estimación en prueba, sin alterar la acción de la cartera. */
+/** Bloque para la ficha del cliente: estimación del modelo M2, sin alterar la acción de la cartera. */
 export function inactividadFichaHtml(s) {
   if (!s) return "";
   const texto = s.estado === "estimado" ? `<strong>${esc(pct(s.probabilidad))}</strong> de riesgo estimado de llegar a 90 días sin comprar en los próximos 60 días. Ocupa el puesto ${num(s.posicion)} de la lista de prevención.`

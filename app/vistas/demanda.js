@@ -1,4 +1,4 @@
-// V14 Pronóstico de demanda (M5, en prueba): histórico observado y estimación de los próximos meses, con banda solo cuando
+// V14 Pronóstico de demanda (M5, en uso): histórico observado y estimación de los próximos meses, con banda solo cuando
 // la publicación la trae. Distingue meses incompletos o no observables (huecos, nunca cero) y no presenta MAE como confianza.
 import { $vista, cop, api, errorHtml, esc, estadoHtml, ir, mesLargo, millones, nuevoTurno, num, plural, puede, ruta, vigente } from "../nucleo.js";
 import { pestanasFinanzas } from "./finanzas.js";

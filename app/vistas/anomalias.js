@@ -1,4 +1,4 @@
-// V11 Operaciones por revisar (M6, en prueba) y V12 Detalle del caso. Compara el valor observado con su referencia;
+// V11 Operaciones por revisar (M6, en uso) y V12 Detalle del caso. Compara el valor observado con su referencia;
 // el puntaje es rareza: no es probabilidad de fraude ni porcentaje de error, y revisar un caso no cambia importes.
 import { $vista, api, clave, cop, errorHtml, esc, estadoHtml, fechaHora, fechaLarga, ir, mesLargo, nuevoTurno, num, plural, ruta, vigente } from "../nucleo.js";
 import { avisoPrueba, barras, ctxDatos, detalleTecnico, encabezado, enPrueba, filtrosActivos, hallazgo, pestanas, tablaHtml, vacio } from "../ui.js";

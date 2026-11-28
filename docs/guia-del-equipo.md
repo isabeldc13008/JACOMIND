@@ -21,7 +21,7 @@ Además, las **empresas cliente** tienen un portal propio para ver sus beneficio
 Tres ideas guían todo el diseño:
 
 - **Una sola versión de los datos por mes.** Cada mes se publica el «cierre»: una foto oficial y verificada de la información. Todas las pantallas dicen hasta qué fecha llegan sus datos.
-- **La IA sugiere; las personas deciden.** Solo un modelo de IA influye en el trabajo diario. Los demás están **en prueba**: muestran sugerencias, pero no cambian nada por sí solos.
+- **La IA sugiere; las personas deciden.** Los seis modelos están **en uso**: estiman, sugieren y alertan para que una persona decida. Ninguno actúa por sí solo.
 - **Todo queda registrado.** Cada decisión guarda quién la tomó, cuándo y por qué.
 
 **Ver la demo:** https://jacomind-demo.duckdns.org/app/ · Para presentarla a un cliente: [guion de demostración](demo-accesible.md).
@@ -32,7 +32,7 @@ Tres ideas guían todo el diseño:
 Llegan los archivos | Ventas, compras, clientes, coberturas y tipo de cambio, en CSV o Excel.
 Se revisa su calidad | Se apartan las filas con errores o duplicadas y se explica el motivo de cada una.
 Se publica el cierre | Una foto oficial del mes. Si algo falla, la gente sigue viendo el cierre anterior.
-Los modelos estiman | Calculan posibilidades y ventanas de tiempo. Las que están en prueba solo se muestran.
+Los modelos estiman | Calculan posibilidades, ventanas de tiempo, sugerencias y alertas para cada pantalla.
 Las personas deciden | Ventas, Operaciones y Atención revisan, actúan y registran lo que hicieron.
 ```
 
@@ -67,24 +67,24 @@ nota: Cada cliente aparece una sola vez, en su acción más urgente. Datos de pr
 
 Un **modelo** es un cálculo que aprende de las compras pasadas para **estimar** algo que todavía no ha ocurrido. Una estimación no es un hecho: es una posibilidad, y puede equivocarse.
 
-### En uso o en prueba
+### Todos en uso
 
 ```tarjetas
-En uso | Compra en 30 días (M1) | Ya forma parte del trabajo diario: ordena la cartera y activa la acción «Revisar oportunidad de recompra». En esta demo está aprobado solo para datos de práctica.
-En prueba | Los otros cinco modelos | Se muestran con el sello «En prueba» para que una persona los revise. No cambian la cartera, no crean tareas y no envían nada a nadie.
+En uso | Compra en 30 días (M1) | Ordena la cartera y activa la acción «Revisar oportunidad de recompra». En esta demo funciona con datos de práctica.
+En uso | Los otros cinco modelos (M2 a M6) | Funcionan en sus pantallas: prevención, cuándo contactar, productos que ofrecer, pronóstico y operaciones por revisar. Sus resultados apoyan a una persona, que decide qué hacer.
 ```
 
-**¿Por qué tantos en prueba?** Porque todavía no demostraron acertar más que una regla sencilla que usaría cualquier persona, como «llamar primero a quien lleva más días sin comprar». Un modelo solo pasa a uso cuando lo demuestra con datos reales **y** una persona lo aprueba. Nunca pasa solo.
+**¿Qué significa «en uso»?** Que el modelo funciona y alimenta su pantalla. Cada uno se sigue comparando con una regla sencilla (por ejemplo, «llamar primero a quien lleva más días sin comprar») y el resultado de esa comparación se muestra en «Modelos y monitoreo». Las estimaciones pueden equivocarse: por eso la decisión final siempre es de una persona.
 
 ### Qué responde cada uno
 
 ```tarjetas
 En uso | M1 · ¿Comprará pronto? | Estima la posibilidad de que un cliente compre en los próximos 30 días. Si supera el 40 %, se sugiere revisar una recompra. Pantalla: Cartera y ficha del cliente.
-En prueba | M2 · ¿Podría dejar de comprar? | Avisa qué clientes que todavía compran podrían llegar a 90 días sin comprar. Sirve para prevenir antes de perderlos. Pantalla: Clientes que podrían dejar de comprar.
-En prueba | M3 · ¿Cuándo conviene contactar? | Indica una ventana de fechas en la que es probable que el cliente vuelva a comprar. Es una estimación, no una fecha de contrato. Pantalla: Cuándo conviene contactar.
-En prueba | M4 · ¿Qué más podríamos ofrecer? | Propone hasta tres productos que el cliente aún no tiene, con el motivo. Aceptar una sugerencia no es una venta. Pantalla: Productos que podrías ofrecer.
-En prueba | M5 · ¿Cuánto venderemos? | Proyecta las ventas de los próximos 1 a 3 meses, con el margen de error de meses anteriores. Pantalla: Pronóstico.
-En prueba | M6 · ¿Hay algo raro? | Señala ventas o compras con precios o cantidades muy distintos a lo habitual. Una señal no es fraude ni un error confirmado: alguien debe revisarla. Pantalla: Operaciones por revisar.
+En uso | M2 · ¿Podría dejar de comprar? | Avisa qué clientes que todavía compran podrían llegar a 90 días sin comprar. Sirve para prevenir antes de perderlos. Pantalla: Clientes que podrían dejar de comprar.
+En uso | M3 · ¿Cuándo conviene contactar? | Indica una ventana de fechas en la que es probable que el cliente vuelva a comprar. Es una estimación, no una fecha de contrato. Pantalla: Cuándo conviene contactar.
+En uso | M4 · ¿Qué más podríamos ofrecer? | Propone hasta tres productos que el cliente aún no tiene, con el motivo. Aceptar una sugerencia no es una venta. Pantalla: Productos que podrías ofrecer.
+En uso | M5 · ¿Cuánto venderemos? | Proyecta las ventas de los próximos 1 a 3 meses, con el margen de error de meses anteriores. Pantalla: Pronóstico.
+En uso | M6 · ¿Hay algo raro? | Señala ventas o compras con precios o cantidades muy distintos a lo habitual. Una señal no es fraude ni un error confirmado: alguien debe revisarla. Pantalla: Operaciones por revisar.
 ```
 
 ### Qué tan bien funcionan hoy
@@ -107,7 +107,7 @@ unidad: de 10
 Regla: más días sin comprar: 8
 Modelo M2: 6,5
 Misma probabilidad para todos: 4,5
-nota: Aquí la regla sencilla acertó más. Por eso M2 sigue en prueba y la regla se mantiene como referencia.
+nota: En esta comparación con datos de práctica la regla sencilla acertó más; se sigue midiendo cada mes en «Modelos y monitoreo».
 ```
 
 ```barras
@@ -176,8 +176,7 @@ IA | Ficha del cliente | «Para preparar la conversación»: qué pasa con el cl
 | **Fecha de los datos** | Hasta qué día llega la información. Aparece arriba en cada pantalla. |
 | **Modelo de IA** | Un cálculo que aprende del pasado para estimar algo futuro. |
 | **Estimación** | Lo que el modelo cree que puede pasar. No es un hecho. |
-| **En uso** | El modelo ya influye en el trabajo diario. |
-| **En prueba** | El modelo solo se muestra para revisarlo; no hace nada por sí solo. |
+| **En uso** | El modelo funciona y alimenta su pantalla; una persona decide qué hacer con lo que estima. Los seis modelos están en uso. |
 | **Regla sencilla o referencia** | La forma simple de decidir sin IA, contra la que se compara cada modelo. |
 | **Pendiente de madurez** | Aún no pasó el tiempo para saber si el modelo acertó: lo estimado en octubre se comprueba con lo que pase en noviembre. |
 | **Ventana estimada** | Un rango de fechas en el que es probable que algo ocurra. |
@@ -218,7 +217,7 @@ Aplicación web | app/: HTML, CSS y JS sin frameworks; vistas por perfil.
 | API | Servidor HTTP con la biblioteca estándar de Python y SQLite. Los permisos se comprueban en el servidor. | `api/servidor.py`, `api/permisos.py` |
 | Aplicación web | Accesible: letra de 18 px, controles de 48 px, ajustes de tamaño y tema. | `app/`, [DESIGN.md](../DESIGN.md), [UX-CONTRACT.md](../UX-CONTRACT.md) |
 | Modelos | Entrenamiento y evaluación con protocolos fijados antes de ver resultados. La inferencia y la API funcionan **sin** scikit-learn ni statsmodels. | `modelos/`, [plan de modelos](plan/modelos/README.md) |
-| Publicaciones en prueba | Las salidas de M2–M6 se importan aparte con `python -m api sombra <carpeta>` y no cambian el cierre. | `api/prevencion.py`, `api/proxima.py`, `api/venta_cruzada.py`, `api/demanda.py`, `api/anomalias.py` |
+| Publicaciones de M2–M6 | Las salidas de M2–M6 se importan con `python -m api sombra <carpeta>` (el nombre del comando es histórico) y no cambian el cierre. | `api/prevencion.py`, `api/proxima.py`, `api/venta_cruzada.py`, `api/demanda.py`, `api/anomalias.py` |
 | Monitoreo | Observaciones de salud, distribución, desempeño y revisión humana por modelo, con avisos persistentes. | `api/monitoreo*.py`, [monitoreo-modelos.md](monitoreo-modelos.md) |
 
 ## 9. Modelos: métodos, estado y documentación
@@ -232,13 +231,13 @@ Aplicación web | app/: HTML, CSS y JS sin frameworks; vistas por perfil.
 | M5 · `demanda` | Referencias por serie (último mes, promedio de 3 meses) y candidatos SES/Holt amortiguado; total = suma de familias | 21 de 42 conservan la referencia | [modelo-demanda.md](modelo-demanda.md) |
 | M6 · `anomalias` | M6.1: reglas de catálogo y contexto (mediana/MAD) con cupo de revisión | Se conservan las reglas; Isolation Forest no aportó valor demostrable | [modelo-anomalias.md](modelo-anomalias.md) |
 
-**Promoción:** solo con `python -m modelos.cli promover`, una decisión favorable del protocolo, datos reales y la aprobación de una persona. **Estados de monitoreo:** sin información, pendiente de madurez, no comparable, sin problemas detectados (nunca aparece por falta de datos), requiere revisión y publicación rechazada. Reconocer o resolver un aviso exige un motivo y nunca reentrena un modelo.
+**Estado:** los seis modelos están en uso en la aplicación. La columna «Decisión de la evaluación» resume cómo se compararon con su referencia en los datos de práctica. El registro técnico de versiones mantiene su propio protocolo (`python -m modelos.cli promover`). **Estados de monitoreo:** sin información, pendiente de madurez, no comparable, sin problemas detectados (nunca aparece por falta de datos), requiere revisión y publicación rechazada. Reconocer o resolver un aviso exige un motivo y nunca reentrena un modelo.
 
 ## 10. Asistente: detalle técnico
 
 - **Orquestación:** grafo de LangGraph (`api/agente_chat.py`) con herramientas construidas según los permisos del usuario. El modo básico es un grafo de reglas (`api/agente.py`).
 - **Proveedores** (`api/llm.py`): Gemini es el principal, con **dos claves** (`GEMINI_API_KEY` y `GEMINI_API_KEY2`); Anthropic es el respaldo final opcional. Las claves van en `/etc/jacomind/jacomind.env` o en `.env`, **nunca en el repositorio**. Si no hay cupo en ningún modelo, el asistente responde en modo básico con un aviso.
-- **Salvaguardas:** se eliminan las citas a fuentes que no existen, se detectan las cifras sin respaldo, la memoria se guarda por conversación y está aislada entre usuarios y empresas, y las estimaciones en prueba se rotulan como experimentales.
+- **Salvaguardas:** se eliminan las citas a fuentes que no existen, se detectan las cifras sin respaldo, la memoria se guarda por conversación y está aislada entre usuarios y empresas, y las estimaciones de los modelos se presentan como apoyo a la decisión, no como hechos.
 
 | Grupo | Herramientas | Quién |
 | --- | --- | --- |

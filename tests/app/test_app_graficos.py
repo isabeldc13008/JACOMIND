@@ -85,7 +85,7 @@ class PruebasGraficos(unittest.TestCase):
         self.assertEqual(self.r["estimacion"], ["Sin compras registradas", "Hay compras, pero falta la estimación", "El modelo estimó 0 %"])
 
     def test_estado_de_modelos_nunca_verde_por_omision(self):
-        self.assertEqual(self.r["disponibilidad"], ["En uso (modo demostración)", "En prueba", "No publicado"])
+        self.assertEqual(self.r["disponibilidad"], ["En uso (modo demostración)", "En uso", "No publicado"])
         self.assertTrue(self.r["validacion"][0].startswith("Validación inconclusa"))
         self.assertEqual(self.r["validacion"][1], "Sin evaluación publicada")
 

@@ -18,6 +18,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
 
+from .estado_modelos import estado_resumen
 from . import (__version__, agente, atencion, auth, beneficios, consultas, documentos, finanzas, llm, operacion,
                pqrs, prevencion, proxima, publicacion, tareas, venta_cruzada, demanda, anomalias, monitoreo, narrativas, cuota_llm)
 from .base import DIR_SALIDA, DIR_VAR, RAIZ, BaseDatos, ErrorApi
@@ -252,10 +253,11 @@ def r_ia(c: Ctx):
         raise ErrorApi(500, "resumen_ia_invalido", "El resumen de resultados de los modelos no se pudo leer")
     if doc.get("version") != 1 or not isinstance(doc.get("modelos"), list):
         raise ErrorApi(500, "resumen_ia_invalido", "El resumen de resultados de los modelos tiene un formato desconocido")
+    doc["modelos"] = [m | {"estado": estado_resumen(m.get("estado"))} for m in doc["modelos"]]  # los seis modelos están en uso
     return {"estado": "ok", **doc}
 
 
-# ------------------------------------------------------------------ prevención de inactividad (M2, en sombra)
+# ------------------------------------------------------------------ prevención de inactividad (M2)
 @ruta("GET", "/api/prevencion", "prevencion.ver")
 def r_prevencion(c: Ctx):
     with c.db.conexion() as con:

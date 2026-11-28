@@ -492,13 +492,14 @@ class PrevencionApiTests(CasoBase):
         self.assertEqual(self.http("GET", "/api/prevencion")[0], 401)
         self.sombra("s1", date(2026, 11, 30))
         st, d = self.http("GET", "/api/prevencion", como="ventas1")
-        self.assertTrue(d["experimental"])
-        self.assertIn("sombra", d["sombra"]["estado_experimento"])
+        self.assertFalse(d["experimental"])                       # los seis modelos están en uso
+        self.assertEqual(d["sombra"]["estado_experimento"], "En uso")
+        self.assertTrue(d["sombra"]["operativa"])
         self.assertEqual([i["cliente_id"] for i in d["items"]], ["DEMO05", "DEMO06", "DEMO07", "DEMO02", "DEMO03"])
         self.assertEqual(d["items"][0]["accion_c1"], "Seguimiento habitual")  # la acción C1 no cambia
         _, f = self.http("GET", "/api/cierres/activo/clientes/DEMO05", como="ventas1")
         self.assertEqual(f["inactividad_sombra"]["probabilidad"], 0.74)
-        self.assertTrue(f["inactividad_sombra"]["experimental"])
+        self.assertFalse(f["inactividad_sombra"]["experimental"])
         _, a = self.http("GET", "/api/cierres/activo/agenda?q=DEMO05", como="ventas1")
         self.assertNotIn("inactividad", json.dumps(a))
         _, portal = self.http("GET", "/api/portal/beneficios", como="cli_a")

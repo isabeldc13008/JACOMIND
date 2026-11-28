@@ -24,7 +24,7 @@ export const ctxDatos = (corte, etiqueta = "Datos hasta") => corte ? { etiqueta,
 // cuando la pantalla muestra un origen distinto del publicado (p. ej. un cierre anterior real).
 export const ctxOrigen = (origen = S.estadoApi?.origen_activo) => origen && origen !== S.estadoApi?.origen_activo ? { etiqueta: "Origen", valor: origen === "sintetico" ? "Datos de práctica" : esc(origen) } : null;
 
-/** Los mensajes «En prueba» se retiraron de la interfaz; se conservan las funciones para no tocar cada vista. */
+/** Todos los modelos están en uso: el sello y el aviso «En prueba» ya no se muestran; las funciones quedan para no tocar cada vista. */
 export const enPrueba = () => "";
 export const avisoPrueba = () => "";
 

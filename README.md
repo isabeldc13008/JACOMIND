@@ -45,11 +45,11 @@ Con el paquete de práctica junto al clon (o con `JACOMIND_DATOS`) y los modelos
 python -m modelos.cli resumen-ia                       # resultados de los modelos para la página «Modelos de IA»
 python -m api demo --sin-cierre                        # base con identidades ficticias
 python -m api cierre --corte 2026-10-31 --datos ../Green_Services_Recursos_de_Prueba   # agenda con el modelo de compra operativo (M1.3 «P»)
-python -m api sombra salida/sombra/inactividad_60d_m21/2026-10-31-con-resumen          # lista de prevención (M2.1, experimental)
-python -m api sombra salida/sombra/proxima_compra_m31/2026-10-31                       # ventana de próxima compra (M3.1, experimental)
-python -m api sombra salida/sombra/venta_cruzada/2026-10-31                            # venta cruzada (M4: popularidad filtrada, experimental)
-python -m api sombra salida/sombra/demanda/2026-10                                     # pronóstico de demanda a 1-3 meses (M5, experimental)
-python -m api sombra salida/sombra/anomalias_m61/2026-10-31                            # cola de operaciones atípicas (M6.1, experimental)
+python -m api sombra salida/sombra/inactividad_60d_m21/2026-10-31-con-resumen          # lista de prevención (M2.1)
+python -m api sombra salida/sombra/proxima_compra_m31/2026-10-31                       # ventana de próxima compra (M3.1)
+python -m api sombra salida/sombra/venta_cruzada/2026-10-31                            # venta cruzada (M4: popularidad filtrada)
+python -m api sombra salida/sombra/demanda/2026-10                                     # pronóstico de demanda a 1-3 meses (M5)
+python -m api sombra salida/sombra/anomalias_m61/2026-10-31                            # cola de operaciones atípicas (M6.1)
 python -m api monitoreo recalcular                                                     # monitoreo de M1–M6 de lo publicado
 python -m api monitoreo resultados --datos salida/a01                                  # desempeño con resultados maduros (los de octubre aún no maduran)
 python -m api servir

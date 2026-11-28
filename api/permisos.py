@@ -12,17 +12,17 @@ MATRIZ: dict[str, set[str]] = {
     "usuarios.gestionar": {"admin"},
     "cartera.ver": {"operaciones", "ventas", "gerencia"},
     "cartera.exportar": {"operaciones", "gerencia"},
-    "prevencion.ver": {"operaciones", "ventas", "gerencia"},      # M2 experimental: mismos roles que la cartera
+    "prevencion.ver": {"operaciones", "ventas", "gerencia"},      # M2: mismos roles que la cartera
     "prevencion.sincronizar": {"operaciones"},
-    "proxima.ver": {"operaciones", "ventas", "gerencia"},          # M3 experimental: ventana estimada, roles de la cartera
+    "proxima.ver": {"operaciones", "ventas", "gerencia"},          # M3: ventana estimada, roles de la cartera
     "proxima.sincronizar": {"operaciones"},
-    "venta_cruzada.ver": {"operaciones", "ventas", "gerencia"},   # M4 experimental: recomendaciones para revisión interna
+    "venta_cruzada.ver": {"operaciones", "ventas", "gerencia"},   # M4: recomendaciones para revisión interna
     "venta_cruzada.decidir": {"ventas"},                            # aceptar, aplazar o descartar con motivo
     "venta_cruzada.revisar": {"ventas", "operaciones"},             # revisión comercial de la muestra
     "venta_cruzada.sincronizar": {"operaciones"},
     "demanda.ver_cop": {"finanzas", "gerencia"},                  # M5: proyecciones de ingresos (mismos roles que finanzas.ver)
     "demanda.ver_unidades": {"operaciones", "finanzas", "gerencia"},  # M5: unidades por producto (preparación operativa)
-    "anomalias.ver": {"operaciones", "finanzas", "gerencia"},      # M6 experimental: cola de operaciones atípicas (importe COP solo con finanzas.ver)
+    "anomalias.ver": {"operaciones", "finanzas", "gerencia"},      # M6: cola de operaciones atípicas (importe COP solo con finanzas.ver)
     "anomalias.revisar": {"operaciones", "finanzas"},              # confirmar error, cambio legítimo o información insuficiente (motivo obligatorio)
     "anomalias.exportar": {"operaciones", "finanzas", "gerencia"},
     "monitoreo.ver": {"operaciones", "finanzas", "gerencia"},     # monitoreo de modelos: además exige el permiso de cada modelo (y COP en M5)

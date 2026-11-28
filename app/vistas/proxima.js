@@ -1,4 +1,4 @@
-// V08 Cuándo conviene contactar (M3, en prueba): ventanas estimadas de próxima compra. No son fechas de contrato ni de compra.
+// V08 Cuándo conviene contactar (M3, en uso): ventanas estimadas de próxima compra. No son fechas de contrato ni de compra.
 import { $vista, api, errorHtml, esc, estadoHtml, fechaLarga, ir, nuevoTurno, num, pct, plural, puede, ruta, vigente } from "../nucleo.js";
 import { activarTooltips, avisoPrueba, ctxDatos, detalleTecnico, encabezado, enPrueba, graficoRangos, hallazgo, vacio } from "../ui.js";
 

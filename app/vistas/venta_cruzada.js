@@ -1,4 +1,4 @@
-// V09 Productos que podrías ofrecer (M4): sugerencias para revisión de Ventas. No son ofertas ni mensajes, no
+// V09 Productos que podrías ofrecer (M4, en uso): sugerencias para revisión de Ventas. No son ofertas ni mensajes, no
 // cambian la cartera y no muestran porcentajes: el modelo publica un orden sin calibrar.
 import { $vista, S, api, clave, errorHtml, esc, estadoHtml, fechaLarga, ir, nuevoTurno, num, plural, puede, ruta, vigente } from "../nucleo.js";
 import { avisoPrueba, barras, ctxDatos, detalleTecnico, encabezado, enPrueba, hallazgo, pestanas, vacio } from "../ui.js";

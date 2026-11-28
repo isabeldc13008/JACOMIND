@@ -31,16 +31,16 @@ from .publicacion import cierre_activo, publicar_ruta
 
 IMPORTADOR_A = os.environ.get("JACOMIND_IMPORTADOR", "pipeline.importar:importar_archivo")
 BANDERAS = {"asistente": "Asistente de consultas y del portal", "modelo_compra": "Probabilidad de compra a 30 días en agenda y fichas",
-            "prevencion_tareas": "Tareas automáticas de prevención de inactividad (experimento M2 en sombra)",
-            "proxima_recordatorios": "Recordatorios por ventana estimada de próxima compra (experimento M3 en sombra)",
-            "venta_cruzada_tareas": "Seguimientos de venta cruzada para propuestas aceptadas por Ventas (experimento M4 en sombra)"}
+            "prevencion_tareas": "Tareas automáticas de prevención de inactividad (M2)",
+            "proxima_recordatorios": "Recordatorios por ventana estimada de próxima compra (M3)",
+            "venta_cruzada_tareas": "Seguimientos de venta cruzada para propuestas aceptadas por Ventas (M4)"}
 BANDERAS_DEFECTO = {"prevencion_tareas": False, "proxima_recordatorios": False, "venta_cruzada_tareas": False}  # desactivadas salvo que Operaciones las active
 EFECTO_BANDERAS = {
     "asistente": "Si lo desactivas, el asistente interno y el del portal responden que no están disponibles. Tareas, PQRS y beneficios siguen funcionando.",
     "modelo_compra": "Si lo desactivas, la agenda y las fichas muestran «Hay compras, pero falta la estimación», el orden pasa a ser acción e ID y las reglas siguen marcando reactivación, cobertura y primera compra.",
     "venta_cruzada_tareas": "Si la activas, sincronizar la venta cruzada crea un seguimiento (o añade el motivo a uno abierto) solo para propuestas que Ventas aceptó. Desactivada, las propuestas quedan fuera de la cola operativa.",
     "proxima_recordatorios": "Si la activas, sincronizar la próxima compra crea un seguimiento de comprobación con fecha de inicio de la ventana estimada (o añade el motivo a un seguimiento abierto), solo para clientes con ventana utilizable. Desactivada, solo se muestra la consulta.",
-    "prevencion_tareas": "Si la activas, sincronizar la prevención crea seguimientos de comprobación para los 10 primeros de la lista experimental (o añade el motivo a un seguimiento abierto). Desactivada, solo se muestra la lista.",
+    "prevencion_tareas": "Si la activas, sincronizar la prevención crea seguimientos de comprobación para los 10 primeros de la lista (o añade el motivo a un seguimiento abierto). Desactivada, solo se muestra la lista.",
 }
 
 # Diccionario de datos del paquete (columnas, clave y tipos) para la validación preliminar.

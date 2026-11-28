@@ -1,4 +1,4 @@
-"""M6 · Operaciones atípicas (experimental): cola de revisión en sombra para Operaciones y Finanzas.
+"""M6 · Operaciones atípicas (en uso): cola de revisión para Operaciones y Finanzas.
 
 * La publicación llega en sombra (``modelos.cli puntuar --modelo anomalias``), verificada (sello, huellas, contrato y
   coherencia). Un rechazo de integridad no se importa y queda como aviso persistente.
@@ -20,11 +20,12 @@ from contratos.validar import leer_publicacion_sombra
 
 from . import monitoreo as M
 from .base import BaseDatos, ErrorApi, ahora, auditar, dumps, loads
+from .estado_modelos import EN_USO
 
 MODELO_ID = "anomalias"
 ESTADOS = ("pendiente", "error_confirmado", "cambio_legitimo", "informacion_insuficiente")
 DECISIONES = ("error_confirmado", "cambio_legitimo", "informacion_insuficiente")
-NOTA = ("Cola experimental en sombra para revisión humana. El puntaje indica rareza frente a operaciones comparables anteriores: "
+NOTA = ("Cola de revisión humana. El puntaje indica rareza frente a operaciones comparables anteriores: "
         "no es una probabilidad de fraude ni demuestra un error. La cola no modifica importes, no anula operaciones ni afecta al cliente; "
         "una corrección contable se hace en el flujo de datos (nueva carga A01).")
 METODO = {"isolation_forest": "Isolation Forest (candidato IA)", "mediana_mad": "Mediana/MAD contextual (referencia)"}
@@ -161,7 +162,7 @@ def lista(con, usuario, universo: str = "venta", periodo: str | None = None, pro
           estado: str | None = None, vista: str = "cola") -> dict:
     r = _activa(con)
     if not r:
-        return {"estado": "sin_sombra", "experimental": True, "nota": NOTA, "mensaje": "No hay una publicación en sombra de operaciones atípicas importada."}
+        return {"estado": "sin_sombra", "experimental": False, "nota": NOTA, "mensaje": "No hay una publicación del modelo de operaciones atípicas importada."}
     if universo not in ("venta", "compra"):
         raise ErrorApi(400, "universo_invalido", "El universo debe ser venta o compra")
     if estado and estado not in ESTADOS + ("sin_caso",):
@@ -204,8 +205,8 @@ def lista(con, usuario, universo: str = "venta", periodo: str | None = None, pro
                "nota_cobertura": None if universo == "venta" else (man.get("cobertura_por_universo") or {}).get("compra", {}).get("motivo"),
                "distribucion_puntaje": mon.get("distribucion_puntaje"), "alertas_por_100_validas": mon.get("alertas_por_100_validas")}
     decision = ((man.get("modelo") or {}).get("decision") or {}).get("decisiones", {}).get(universo)
-    return {"estado": "ok", "experimental": True, "nota": NOTA, "advertencia": man.get("advertencia"), "universo": universo, "sombra_id": r["id"],
-            "corte": man["corte"], "desde": man.get("desde"), "version": r["version_modelo"], "estado_experimento": r["estado_experimento"],
+    return {"estado": "ok", "experimental": False, "nota": NOTA, "advertencia": man.get("advertencia"), "universo": universo, "sombra_id": r["id"],
+            "corte": man["corte"], "desde": man.get("desde"), "version": r["version_modelo"], "estado_experimento": EN_USO,
             "metodo": man["modelo"]["metodos_publicados"][universo], "metodo_texto": METODO.get(man["modelo"]["metodos_publicados"][universo]),
             "candidato": man["modelo"]["candidato_por_universo"][universo], "decision": decision, "politica_alertas": man.get("politica_alertas"),
             "emision": man.get("emision"), "resumen": resumen, "cobertura": cob, "opciones": opciones,
@@ -238,7 +239,7 @@ def detalle(con, usuario, tipo: str, operacion_id: str) -> dict:
         c.pop("ultima_evidencia_json", None)
     ids = [c["caso_id"] for c in casos]
     eventos = [dict(e) for e in con.execute(f"SELECT * FROM eventos_anomalia WHERE caso_id IN ({','.join('?' * len(ids))}) ORDER BY id", ids)] if ids else []
-    return {"tipo_operacion": tipo, "operacion_id": operacion_id, "experimental": True, "nota": NOTA,
+    return {"tipo_operacion": tipo, "operacion_id": operacion_id, "experimental": False, "nota": NOTA,
             "publicaciones": [_visible(p, usuario) for p in pubs], "casos": casos, "eventos": eventos,
             "caso_vigente": next((c for c in reversed(casos) if not c["reemplazado_por"]), None), "puede_revisar": usuario.puede("anomalias.revisar")}
 
@@ -295,4 +296,4 @@ def panel_monitoreo(con) -> dict:
         pubs.append({"sombra_id": r["id"], "corte": r["corte"], "version": r["version_modelo"], "activa": bool(r["activa"]), "importada_en": r["importada_en"],
                      "monitoreo": man.get("monitoreo"), "duracion_puntuacion_s": (man.get("volatiles") or {}).get("duracion_puntuacion_s")})
     estados = {e: n for e, n in con.execute("SELECT estado, count(*) FROM casos_anomalia WHERE reemplazado_por IS NULL GROUP BY estado")}
-    return {"publicaciones": pubs, "casos_por_estado": estados, "avisos": M.avisos(con, MODELO_ID), "experimental": True}  # vista global: /api/monitoreo
+    return {"publicaciones": pubs, "casos_por_estado": estados, "avisos": M.avisos(con, MODELO_ID), "experimental": False}  # vista global: /api/monitoreo

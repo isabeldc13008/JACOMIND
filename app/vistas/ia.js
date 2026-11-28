@@ -32,7 +32,7 @@ const SELLO = { sin_informacion: "sello-practica", pendiente_madurez: "sello-pra
 /** Disponibilidad en palabras a partir del estado publicado; nunca verde por ausencia de evaluación. */
 export function disponibilidad(estado = "") {
   if (/operativo/.test(estado)) return /demostraci/.test(estado) ? "En uso (modo demostración)" : "En uso";
-  if (/sombra|experimental/.test(estado)) return "En prueba";
+  if (/sombra|experimental/.test(estado)) return "En uso";   // los seis modelos están en uso
   if (/desactiv/.test(estado)) return "Desactivado";
   return estado ? estado : "No publicado";
 }
@@ -169,7 +169,7 @@ export function matrizModelos(ia, mon) {
         ...(conMon ? [f.mon ? `<span class="sello ${SELLO[f.mon.estado] || "sello-practica"}">${esc(f.mon.estado_texto)}</span>${f.mon.avisos_activos.length ? `<span class="muted"><a href="#/monitoreo?modelo=${encodeURIComponent(f.id)}">${num(f.mon.avisos_activos.length)} ${f.mon.avisos_activos.length === 1 ? "aviso" : "avisos"}</a></span>` : '<span class="muted">Sin avisos activos</span>'}` : '<span class="muted">Sin acceso o sin observaciones</span>'] : []),
         enlace ? `<a href="${enlace[0]}">${esc(enlace[1])}</a>` : "—"];
     }),
-  }, { leyenda: "Capacidades analíticas visibles para tu perfil. «En prueba» significa que ayuda a revisar, pero no actúa por sí sola." });
+  }, { leyenda: "Capacidades analíticas visibles para tu perfil. Todas están en uso: sus resultados apoyan la decisión de una persona." });
 }
 
 export async function vistaIA() {
@@ -183,12 +183,12 @@ export async function vistaIA() {
   const conAviso = monOk ? monOk.modelos.filter(m => m.avisos_activos.length).length : 0;
   // Capacidades que el perfil puede ver: las publicadas, las monitoreadas y las que tienen pantalla autorizada.
   const idsVisibles = new Set([...(d.modelos || []).map(m => m.modelo_id), ...(monOk?.modelos || []).map(m => m.modelo_id), ...ORDEN.filter(id => ENLACES[id]?.())]);
-  $vista.innerHTML = `${encabezado({ titulo, descripcion: "Qué estima cada modelo, si está en uso o en prueba, con qué datos y si tiene avisos. Las métricas técnicas están en el detalle de cada uno.",
+  $vista.innerHTML = `${encabezado({ titulo, descripcion: "Qué estima cada modelo, con qué datos, cómo se evaluó y si tiene avisos. Las métricas técnicas están en el detalle de cada uno.",
     contexto: [d.generado_en ? { etiqueta: "Evaluación generada", valor: esc(fechaHora(d.generado_en)) } : null, { etiqueta: "Origen de la evaluación", valor: d.origen_datos === "sintetico" ? "datos de práctica" : esc(d.origen_datos || "—") }] })}
   ${pestanasModelos("ia")}
   ${d.estado !== "ok" ? vacio("Aún no se ha generado el resumen de los modelos.", `${esc(d.mensaje || "")} Se genera con <code>${esc(d.comando || "")}</code>.`) + fichasHtml(idsVisibles) : `
   ${hallazgo({
-    que: `<strong>${num(d.modelos.length + (monOk && !d.modelos.some(m => m.modelo_id === "demanda") && monOk.modelos.some(m => m.modelo_id === "demanda") ? 1 : 0))} capacidades analíticas</strong> visibles para tu perfil: ${(() => { const uso = d.modelos.filter(m => disponibilidad(m.estado).startsWith("En uso")); return uso.length ? `${num(uso.length)} en uso (${esc(uso.map(m => m.titulo).join(", "))}) y el resto en prueba` : "todas en prueba"; })()}.`,
+    que: `<strong>${num(d.modelos.length + (monOk && !d.modelos.some(m => m.modelo_id === "demanda") && monOk.modelos.some(m => m.modelo_id === "demanda") ? 1 : 0))} capacidades analíticas</strong> visibles para tu perfil: todas en uso.`,
     porque: esc(d.advertencia),
     accion: monOk ? `<a class="boton-sec" href="#/monitoreo">${conAviso ? `Ver avisos (${num(conAviso)} ${conAviso === 1 ? "modelo" : "modelos"} con avisos)` : "Ver el seguimiento"}</a>` : "",
   })}
