@@ -1,7 +1,7 @@
 # Despliegue continuo en Azure App Service.
 # La autenticación de Azure y la contraseña inicial del administrador se guardan
 # como secretos del entorno «produccion»; no se versionan en el repositorio.
-# Variables opcionales: AZURE_RESOURCE_GROUP, AZURE_WEBAPP_NAME, URL_PUBLICA.
+# Variables opcionales: AZURE_RESOURCE_GROUP, AZURE_WEBAPP_NAME, URL_PUBLICA, AZURE_VERIFY_URL.
 # Si no existen en el entorno «produccion», se usan los valores del App Service
 # de staging documentado para que el flujo no quede omitido silenciosamente.
 # Secreto: AZURE_WEBAPP_PUBLISH_PROFILE (descargado desde Azure App Service).
@@ -37,6 +37,7 @@ jobs:
       RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP || 'rg-jacomind-staging' }}
       WEBAPP_NAME: ${{ vars.AZURE_WEBAPP_NAME || 'jacomind-stg-211126' }}
       PUBLIC_URL: ${{ vars.URL_PUBLICA || 'https://jacomind-stg-211126.azurewebsites.net' }}
+      AZURE_VERIFY_URL: ${{ vars.AZURE_VERIFY_URL || 'https://jacomind-stg-211126.azurewebsites.net' }}
       ADMIN_PASSWORD: ${{ secrets.JACOMIND_ADMIN_PASSWORD }}
     steps:
       - name: Descargar el commit aprobado
@@ -51,6 +52,6 @@ jobs:
           package: .
       - name: Comprobar desde Internet
         run: |
-          for i in $(seq 1 20); do curl -fsS "$PUBLIC_URL/api/estado" && exit 0; sleep 5; done
-          echo "La aplicación no responde en $PUBLIC_URL" >&2
+          for i in $(seq 1 20); do curl --retry 0 --connect-timeout 5 --max-time 15 -fsS "$AZURE_VERIFY_URL/api/estado" && exit 0; sleep 5; done
+          echo "La aplicación no responde en $AZURE_VERIFY_URL" >&2
           exit 1
