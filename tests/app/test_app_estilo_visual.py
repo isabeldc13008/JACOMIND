@@ -67,6 +67,11 @@ class ContratoVisualGlobal(unittest.TestCase):
         self.assertIn('html[data-tamano="muy-pequena"] { font-size: 87.5%; }', CSS)
         self.assertIn('html[data-tamano="pequena"] { font-size: 100%; }', CSS)
 
+    def test_tamano_muy_grande_reorganiza_sin_ocultar_contenido(self):
+        self.assertIn('html[data-tamano="muy-grande"] .marco { grid-template-columns: minmax(0, 1fr); }', CSS)
+        self.assertIn('html[data-tamano="muy-grande"] .lateral {', CSS)
+        self.assertIn('html[data-tamano="muy-grande"] .pantalla-acceso-grid { grid-template-columns: minmax(0, 1fr); min-height: auto; }', CSS)
+
     def test_tableros_tienen_capa_visual_responsive_sin_cambiar_sus_datos(self):
         self.assertIn('class="tablero-dashboard tablero-${rol}"', TABLEROS)
         for selector in (

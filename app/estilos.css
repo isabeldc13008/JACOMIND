@@ -915,3 +915,27 @@ main { padding: clamp(1.25rem, 3vw, 2.5rem) clamp(1rem, 3vw, 3rem) 4rem; }
   .filtros > label { min-width: 100%; }
   .fila.dialogo-acciones > * { flex: 1 1 100%; }
 }
+
+/* Un tamaño de letra muy grande cambia la composición para que ampliar no oculte contenido. */
+html[data-tamano="muy-grande"] .barra { position: static; }
+html[data-tamano="muy-grande"] .marco { grid-template-columns: minmax(0, 1fr); }
+html[data-tamano="muy-grande"] .lateral {
+  position: static;
+  height: auto;
+  min-height: 0;
+  max-height: none;
+  border-right: none;
+  border-bottom: 1px solid rgba(255,255,255,.16);
+  overflow: visible;
+}
+html[data-tamano="muy-grande"] main { max-width: none; }
+html[data-tamano="muy-grande"] .cabecera-acciones { flex-basis: 100%; margin-left: 0; }
+html[data-tamano="muy-grande"] .grid2,
+html[data-tamano="muy-grande"] .grid3,
+html[data-tamano="muy-grande"] .grid-maestro,
+html[data-tamano="muy-grande"] .tablero-dashboard .indicadores { grid-template-columns: minmax(0, 1fr); }
+html[data-tamano="muy-grande"] .pantalla-acceso-grid { grid-template-columns: minmax(0, 1fr); min-height: auto; }
+html[data-tamano="muy-grande"] .acceso-hero,
+html[data-tamano="muy-grande"] .acceso-panel { min-height: auto; }
+html[data-tamano="muy-grande"] .acceso-hero { padding-block: 2rem; }
+html[data-tamano="muy-grande"] .acceso-form-wrap { margin-block: 2rem; }
