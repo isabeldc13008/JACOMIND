@@ -113,7 +113,7 @@ export async function vistaVentaCruzada() {
   } catch (e) { if (vigente(turno)) $vista.innerHTML = `${encabezado({ titulo: TITULO, estado: enPrueba() })}${errorHtml(e, { reintentar: true })}`; return; }
   if (!vigente(turno)) return;
   if (d.estado === "sin_sombra") {
-    $vista.innerHTML = `${encabezado({ titulo: TITULO, estado: enPrueba() })}${vacio("Sugerencias no disponibles: no hay una publicación en prueba de este modelo.", esc(d.mensaje))}<p class="muted">${esc(d.nota)}</p>`;
+    $vista.innerHTML = `${encabezado({ titulo: TITULO, estado: enPrueba() })}${vacio("Sugerencias no disponibles: no hay una publicación de este modelo.", esc(d.mensaje))}<p class="muted">${esc(d.nota)}</p>`;
     return;
   }
   const s = d.sombra, c = d.conteos || {};
@@ -157,7 +157,7 @@ export async function vistaVentaCruzada() {
   <section class="panel"><h2>Clientes sin sugerencias</h2><p>${plural(c.con_recomendaciones || 0, "cliente tiene", "clientes tienen")} sugerencias; ${num(c.sin_candidatos || 0)} sin candidatos, ${num(c.sin_historial || 0)} sin historial, ${num(c.no_elegible || 0)} no elegibles. No se inventan productos para completar tres.</p>
     ${d.sin_recomendacion.length ? `<ul>${d.sin_recomendacion.map(x => `<li>${esc(x.cliente_id)}: ${esc(COBERTURA[x.estado] || x.estado)}. ${esc(x.motivo || "")}</li>`).join("")}</ul>` : ""}</section>`}
   <details class="panel"><summary>Cómo se obtuvieron las sugerencias</summary><p>${esc(s.estado_experimento)}. ${esc(d.nota)} ${esc(d.separacion)} Seguimientos automáticos: ${d.tareas_automaticas ? "activados" : "desactivados"}.</p>
-    ${detalleTecnico(`<pre>${esc(JSON.stringify(s, null, 2))}</pre>`, "Publicación en prueba (datos originales)")}</details>`;
+    ${detalleTecnico(`<pre>${esc(JSON.stringify(s, null, 2))}</pre>`, "Publicación (datos originales)")}</details>`;
   document.getElementById("f-vc")?.addEventListener("submit", e => {
     e.preventDefault();
     const fd = new FormData(e.target);

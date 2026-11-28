@@ -278,6 +278,18 @@ a.b-fila { border-color: var(--borde); }
 .muestra.est { border-top: 3px dashed var(--serie-est); }
 .muestra.banda { height: .8rem; border: none; background: var(--estimado-suave); }
 .muestra.rango { width: 2rem; height: .9rem; border: 2px solid var(--serie-est); background: var(--estimado-suave); border-radius: 3px; }
+.muestra.ventana { width: 2.2rem; height: .9rem; border: 1.5px solid var(--serie-est); border-radius: 999px; background: linear-gradient(90deg, color-mix(in srgb, var(--serie-est) 20%, transparent), color-mix(in srgb, var(--serie-est) 75%, transparent) 50%, color-mix(in srgb, var(--serie-est) 20%, transparent)); }
+.muestra.punto { width: .7rem; height: .7rem; border-radius: 50%; background: var(--serie-est); box-shadow: 0 0 0 2px var(--superficie), 0 0 0 3.5px var(--serie-est); }
+.grafico-ventanas .eje { font-size: 14px; }
+.grafico-ventanas .eje.fuerte { font-size: 17px; }
+.grafico-ventanas .eje.chico { font-size: 13.5px; }
+.grafico-ventanas .eje.chico.pronto { fill: var(--serie-est); font-weight: 700; }
+.grafico-ventanas .eje.valor { fill: var(--texto); font-weight: 600; }
+.grafico-ventanas .eje-pildora { font-size: 13px; font-weight: 700; fill: var(--superficie); }
+.grafico-ventanas .fila-rango:hover .fondo-fila, .grafico-ventanas .fila-rango:focus-within .fondo-fila { fill: var(--acento-suave); }
+.grafico-ventanas .hit { cursor: pointer; outline: none; }
+.grafico-ventanas .hit:focus-visible { stroke: var(--acento); stroke-width: 2.5; }
+.nota-grafico { margin: .5rem 0 0; font-size: var(--t-sec); }
 .muestra.rombo { width: .8rem; height: .8rem; border: 2.5px solid var(--texto); transform: rotate(45deg); }
 .muestra.corte { width: 0; height: 1.1rem; border: none; border-left: 2px dashed var(--texto-3); }
 

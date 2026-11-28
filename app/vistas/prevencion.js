@@ -2,7 +2,7 @@
 import { $vista, api, errorHtml, esc, estadoHtml, fechaHora, fechaLarga, ir, nuevoTurno, num, pct, plural, puede, ruta, vigente } from "../nucleo.js";
 import { avisoPrueba, barras, ctxDatos, detalleTecnico, encabezado, enPrueba, hallazgo, vacio } from "../ui.js";
 
-const DECISIONES = { favorable: "favorable (solo permite seguir en prueba)", inconcluso: "inconclusa", rechazado: "rechazada" };
+const DECISIONES = { favorable: "favorable", inconcluso: "inconclusa", rechazado: "rechazada" };
 const TITULO = "Clientes que podrían dejar de comprar";
 
 /** Bloque para la ficha del cliente: estimación en prueba, sin alterar la acción de la cartera. */
@@ -41,12 +41,12 @@ export async function vistaPrevencion() {
   const { q } = ruta();
   const k = q.get("k") || "10";
   const turno = nuevoTurno();
-  if (!$vista.querySelector("#f-prev")) $vista.innerHTML = `${encabezado({ titulo: TITULO, estado: enPrueba() })}${estadoHtml("", "Cargando la lista en prueba…")}`;
+  if (!$vista.querySelector("#f-prev")) $vista.innerHTML = `${encabezado({ titulo: TITULO, estado: enPrueba() })}${estadoHtml("", "Cargando la lista…")}`;
   let d;
   try { d = await api("GET", `/api/prevencion?k=${encodeURIComponent(k)}`); } catch (e) { if (vigente(turno)) $vista.innerHTML = `${encabezado({ titulo: TITULO, estado: enPrueba() })}${errorHtml(e, { reintentar: true })}`; return; }
   if (!vigente(turno)) return;
   if (d.estado === "sin_sombra") {
-    $vista.innerHTML = `${encabezado({ titulo: TITULO, estado: enPrueba() })}${vacio("Estimación no disponible: no hay una publicación en prueba de este modelo.", esc(d.mensaje))}<p class="muted">${esc(d.nota)}</p>`;
+    $vista.innerHTML = `${encabezado({ titulo: TITULO, estado: enPrueba() })}${vacio("Estimación no disponible: no hay una publicación de este modelo.", esc(d.mensaje))}<p class="muted">${esc(d.nota)}</p>`;
     return;
   }
   const s = d.sombra, c = d.conteos || {};
@@ -87,6 +87,6 @@ export async function vistaPrevencion() {
   <details class="panel"><summary>Cómo se obtuvo esta estimación</summary>
     <p>Estado: ${esc(s.estado_experimento)}${s.decision ? ` · decisión ${esc(DECISIONES[s.decision.decision] || s.decision.decision)}` : ""}. Modelo ${esc(s.version_modelo)}. ${esc(d.nota)} ${esc(d.precedencia_c1)} Seguimientos automáticos: ${d.tareas_automaticas ? "activados" : "desactivados"}.</p>
     ${comparacionHtml(s.decision?.resumen)}
-    ${detalleTecnico(`<pre>${esc(JSON.stringify(s, null, 2))}</pre>`, "Publicación en prueba (datos originales)")}</details>`;
+    ${detalleTecnico(`<pre>${esc(JSON.stringify(s, null, 2))}</pre>`, "Publicación (datos originales)")}</details>`;
   document.getElementById("f-prev").addEventListener("submit", e => { e.preventDefault(); ir(`#/prevencion?k=${new FormData(e.target).get("k")}`); });
 }

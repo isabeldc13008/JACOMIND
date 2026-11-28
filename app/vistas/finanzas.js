@@ -98,7 +98,7 @@ function panelSerie(pan, serie, q) {
       <form id="fam" class="fila"><label>Familia <select name="familia">${fams.map(f => `<option ${f === famSel ? "selected" : ""}>${esc(f)}</option>`).join("")}</select></label></form>
       ${graficoLinea(g.historico.map(s => ({ periodo: s.periodo, valor: s.valor_cop })), g.pronostico.map(s => ({ periodo: s.periodo, valor: s.valor_cop })),
         { marcas: [ant?.periodo, ult?.periodo].filter(Boolean), titulo: `${PREGUNTA[serie]} · ${famSel === "Total" ? "todas las familias" : famSel}, por mes`, etiquetaEstimado: "Proyección operativa" })}
-      <p class="muted">La proyección operativa del cierre (regla A08: ${esc(g.metodo || "—")}) no es ingreso confirmado. Es distinta del pronóstico en prueba de la pestaña «Pronóstico».</p>
+      <p class="muted">La proyección operativa del cierre (regla A08: ${esc(g.metodo || "—")}) no es ingreso confirmado. Es distinta del pronóstico de la pestaña «Pronóstico».</p>
       ${g.pronostico.length ? `<details class="ver-datos"><summary>Cómo se calcula la proyección operativa</summary><p>Regla ${esc(g.metodo || "—")}, calculada el ${esc(fechaHora(g.calculado_en))}. Error en meses ya conocidos:</p><ul>${mae || "<li>Sin comprobar.</li>"}</ul></details>` : ""}
     </section>
     <section class="panel" id="comparacion-familias" tabindex="-1"><h2>¿Qué familia cambió más?</h2>

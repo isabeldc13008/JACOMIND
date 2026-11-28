@@ -6,7 +6,7 @@ import { avisoPrueba, barras, ctxDatos, detalleTecnico, encabezado, enPrueba, fi
 const UNIVERSO = { venta: "Ventas confirmadas", compra: "Compras a proveedores" };
 const ESTADO = { pendiente: "Pendiente de revisar", error_confirmado: "Error confirmado", cambio_legitimo: "Cambio legítimo",
   informacion_insuficiente: "Información insuficiente", sin_caso: "Sin caso" };
-const DECISION = { favorable_demostracion_sombra: "Favorable solo para demostración en prueba", referencia_conservada: "Se mantiene el método de referencia", inconcluso: "Inconclusa" };
+const DECISION = { favorable_demostracion_sombra: "Favorable solo para demostración", referencia_conservada: "Se mantiene el método de referencia", inconcluso: "Inconclusa" };
 const METODO = { isolation_forest: "Isolation Forest (IA)", mediana_mad: "Mediana y desviación habitual del producto (referencia)" };
 const EVENTO = { apertura: "Se abrió el caso", correccion_datos: "Corrección de datos", revision: "Revisión registrada", evidencia_actualizada: "Nueva publicación" };
 const TITULO = "Operaciones por revisar";
@@ -114,7 +114,7 @@ export async function vistaAnomalias() {
   catch (e) { if (vigente(turno)) $vista.innerHTML = `${encabezado({ titulo: TITULO, estado: enPrueba() })}${errorHtml(e, { reintentar: e.status !== 403 })}`; return; }
   if (!vigente(turno)) return;
   if (d.estado === "sin_sombra") {
-    $vista.innerHTML = `${encabezado({ titulo: TITULO, estado: enPrueba() })}${vacio("No hay una publicación en prueba de operaciones por revisar.", esc(d.mensaje))}<p class="muted">${esc(d.nota)}</p>`;
+    $vista.innerHTML = `${encabezado({ titulo: TITULO, estado: enPrueba() })}${vacio("No hay una publicación de operaciones por revisar.", esc(d.mensaje))}<p class="muted">${esc(d.nota)}</p>`;
     return;
   }
   if (q.get("caso")) {

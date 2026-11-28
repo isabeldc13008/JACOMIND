@@ -1,6 +1,6 @@
 // V08 Cuándo conviene contactar (M3, en prueba): ventanas estimadas de próxima compra. No son fechas de contrato ni de compra.
 import { $vista, api, errorHtml, esc, estadoHtml, fechaLarga, ir, nuevoTurno, num, pct, plural, puede, ruta, vigente } from "../nucleo.js";
-import { avisoPrueba, ctxDatos, detalleTecnico, encabezado, enPrueba, graficoRangos, hallazgo, vacio } from "../ui.js";
+import { activarTooltips, avisoPrueba, ctxDatos, detalleTecnico, encabezado, enPrueba, graficoRangos, hallazgo, vacio } from "../ui.js";
 
 const ORIGEN = { modelo_cox: "modelo con las variables del cliente", poblacional_km: "curva de toda la población (igual para todos)" };
 const REF = { disponible: "disponible", vencida: "vencida", insuficiente: "historia insuficiente" };
@@ -47,12 +47,12 @@ export async function vistaProxima() {
   try { d = await api("GET", `/api/proxima?dias=${encodeURIComponent(dias)}`); } catch (e) { if (vigente(turno)) $vista.innerHTML = `${encabezado({ titulo: TITULO, estado: enPrueba() })}${errorHtml(e, { reintentar: true })}`; return; }
   if (!vigente(turno)) return;
   if (d.estado === "sin_sombra") {
-    $vista.innerHTML = `${encabezado({ titulo: TITULO, estado: enPrueba() })}${vacio("Estimación no disponible: no hay una publicación en prueba de este modelo.", esc(d.mensaje))}<p class="muted">${esc(d.nota)}</p>`;
+    $vista.innerHTML = `${encabezado({ titulo: TITULO, estado: enPrueba() })}${vacio("Estimación no disponible: no hay una publicación de este modelo.", esc(d.mensaje))}<p class="muted">${esc(d.nota)}</p>`;
     return;
   }
   const s = d.sombra, c = d.conteos || {};
   const tipos = new Set(d.items.map(i => i.ventana_tipo));
-  const nivel = tipos.size === 1 && tipos.has("p10_p50") ? "del 10 % al 50 % de posibilidad acumulada; no es una banda del 80 %" : "según cada fila";
+  const nivel = tipos.size !== 1 ? "" : tipos.has("p10_p50") ? "solo del inicio probable (10 % de posibilidad) a la mitad de posibilidad (50 %); no marca un final" : "desde que la compra empieza a ser posible (10 % de posibilidad) hasta que es muy probable (90 %)";
   d.items.sort((a, b) => a.ventana_desde.localeCompare(b.ventana_desde) || a.ventana_hasta.localeCompare(b.ventana_hasta) || a.cliente_id.localeCompare(b.cliente_id));
   const visibles = d.items.slice(0, 15);
   const sinVentana = (c.estimacion_parcial || 0) + (c.estimado || 0);
@@ -67,7 +67,7 @@ export async function vistaProxima() {
   })}
   <section class="panel"><h2>Ventanas de los primeros ${num(visibles.length)} clientes</h2>
     <form class="filtros" id="f-prox"><label>Ventanas que empiezan en los próximos <span class="ayuda">Días contados desde la fecha de los datos (1 a 60).</span><input name="dias" type="number" min="1" max="60" value="${esc(dias)}" inputmode="numeric"></label><button>Actualizar la lista</button></form>
-    ${visibles.length ? graficoRangos(visibles.map(i => ({ etiqueta: i.cliente_id, desde: i.ventana_desde, hasta: i.ventana_hasta, contractual: i.proximo_fin_cobertura })), { corte: s.corte, titulo: `Ventanas estimadas, ordenadas por inicio (${num(visibles.length)} de ${num(d.items.length)})`, nivel, horizonteDias: 60 })
+    ${visibles.length ? graficoRangos(visibles.map(i => ({ etiqueta: i.cliente_id, desde: i.ventana_desde, hasta: i.ventana_hasta, probable: i.ventana_tipo === "p10_p90" ? i.fecha_p50 : null, recencia: i.recencia_dias, contractual: i.proximo_fin_cobertura })), { corte: s.corte, titulo: `Cuándo es probable que cada cliente vuelva a comprar (${num(visibles.length)} de ${num(d.items.length)}, el más próximo arriba)`, nivel, horizonteDias: 60 })
       : vacio("Ningún cliente tiene una ventana utilizable que empiece en este plazo.", "Una ventana utilizable tiene sus dos límites dentro de 60 días y mide 30 días o menos. No se inventan fechas.")}
   </section>
   ${d.items.length ? `<section class="panel"><h2>Lista completa (${num(d.items.length)})</h2>
@@ -82,6 +82,7 @@ export async function vistaProxima() {
   <details class="panel"><summary>Cómo se obtuvo esta estimación</summary>
     <p>${esc(s.estado_experimento)} · ${s.tipo === "cox" ? "modelo con las variables del cliente" : "curva de toda la población"} · modelo ${esc(s.version_modelo)}. ${esc(d.nota)} ${esc(d.precedencia_c1)}</p>
     ${(d.limitaciones || []).length ? `<ul>${d.limitaciones.map(l => `<li>${esc(l)}</li>`).join("")}</ul>` : ""}
-    ${detalleTecnico(`<pre>${esc(JSON.stringify(s, null, 2))}</pre>`, "Publicación en prueba (datos originales)")}</details>`;
+    ${detalleTecnico(`<pre>${esc(JSON.stringify(s, null, 2))}</pre>`, "Publicación (datos originales)")}</details>`;
+  activarTooltips();
   document.getElementById("f-prox").addEventListener("submit", e => { e.preventDefault(); ir(`#/proxima?dias=${new FormData(e.target).get("dias")}`); });
 }

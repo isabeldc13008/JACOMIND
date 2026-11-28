@@ -24,9 +24,9 @@ export const ctxDatos = (corte, etiqueta = "Datos hasta") => corte ? { etiqueta,
 // cuando la pantalla muestra un origen distinto del publicado (p. ej. un cierre anterior real).
 export const ctxOrigen = (origen = S.estadoApi?.origen_activo) => origen && origen !== S.estadoApi?.origen_activo ? { etiqueta: "Origen", valor: origen === "sintetico" ? "Datos de práctica" : esc(origen) } : null;
 
-/** Marca visible de estimación experimental. Nunca se oculta detrás de un desplegable. */
-export const enPrueba = (texto = "En prueba") => `<span class="sello sello-prueba">${esc(texto)}</span>`;
-export const avisoPrueba = (extra = "") => `<p class="aviso-prueba" role="note"><strong>En prueba.</strong> Esta sugerencia no ejecuta acciones automáticamente: ayuda a decidir, pero la decisión es de una persona. ${extra}</p>`;
+/** Los mensajes «En prueba» se retiraron de la interfaz; se conservan las funciones para no tocar cada vista. */
+export const enPrueba = () => "";
+export const avisoPrueba = () => "";
 
 // ---------------------------------------------------------------- lectura principal
 /** Frase que contesta la pregunta principal de la pantalla, con su contexto (periodo, unidad, alcance). */
@@ -206,37 +206,86 @@ export function graficoLinea(hist, proy = [], { marcas = [], titulo = "Serie men
 }
 
 /**
- * Rangos de fechas por fila (próxima compra): barra desde el inicio hasta el fin de la ventana estimada y, aparte, un rombo
- * para el vencimiento contractual. No inventa límites: si falta el final, la barra termina en una flecha con texto.
- * filas: [{etiqueta, desde, hasta, hastaAbierto, contractual, nota}] con fechas AAAA-MM-DD; corte: fecha de los datos.
+ * Línea de tiempo de ventanas (próxima compra), pensada para leerse sin conocimientos técnicos:
+ * cada fila es un cliente; la barra es el periodo en que probablemente vuelva a comprar, más intensa donde la compra
+ * es más probable, con un punto en la fecha más probable. El rombo es el fin de cobertura (fecha de contrato, aparte).
+ * No inventa límites: si falta el final, la barra se desvanece y lo dice con texto.
+ * filas: [{etiqueta, desde, hasta, probable, recencia, contractual}] con fechas AAAA-MM-DD; corte: fecha de los datos.
  */
 export function graficoRangos(filas, { corte, titulo, nivel = "", horizonteDias = 60 }) {
   if (!filas.length) return "";
   const dia = f => Date.parse(`${f}T00:00:00Z`) / 86400000;
-  // El eje cubre la fecha de los datos y el horizonte del modelo; un fin de cobertura posterior se indica con texto en el borde.
+  const MES = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
+  const MES_L = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
+  const partes = f => f.split("-").map(Number);
+  const corto = f => { const [aa, mm, dd] = partes(f); return `${dd} ${MES[mm - 1]}${String(aa) !== String(corte).slice(0, 4) ? ` ${aa}` : ""}`; };
+  const largo = f => { const [, mm, dd] = partes(f); return `${dd} de ${MES_L[mm - 1]}`; };
+  const rango = (a, b) => { const [, ma, da] = partes(a), [, mb] = partes(b); return ma === mb ? `${da}–${corto(b)}` : `${corto(a)} – ${corto(b)}`; };
+  const enDias = n => n <= 0 ? "Ya empezó" : n === 1 ? "Empieza mañana" : `Empieza en ${n} días`;
+
+  // Eje: de la fecha de los datos al horizonte del modelo; un fin de cobertura posterior se indica con texto en el borde.
   const min = dia(corte), max = Math.max(min + horizonteDias, ...filas.flatMap(f => [f.desde, f.hasta]).filter(Boolean).map(dia)) + 2;
-  const W = 720, fh = 44, m = { l: 110, r: 24, t: 44 };
-  const H = m.t + filas.length * fh + 20;
-  const x = f => m.l + (dia(f) - min) / Math.max(1, max - min) * (W - m.l - m.r);
-  const marcasEje = [];
-  for (let d = min; d <= max; d += Math.max(7, Math.round((max - min) / 5))) marcasEje.push(new Date(d * 86400000).toISOString().slice(0, 10));
-  const corto = f => { const [aa, mm, dd] = f.split("-"); return `${Number(dd)} ${["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"][Number(mm) - 1]}${aa !== String(corte).slice(0, 4) ? ` ${aa}` : ""}`; };
-  const svg = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(titulo)}. La tabla de abajo tiene las mismas fechas.">
-    ${marcasEje.map(f => `<line x1="${x(f)}" x2="${x(f)}" y1="${m.t - 8}" y2="${H - 14}" stroke="var(--rejilla)"/><text x="${x(f)}" y="${m.t - 14}" text-anchor="middle" class="eje">${esc(corto(f))}</text>`).join("")}
-    ${corte ? `<line x1="${x(corte)}" x2="${x(corte)}" y1="${m.t - 8}" y2="${H - 14}" stroke="var(--texto-3)" stroke-dasharray="3 4"/>` : ""}
-    ${filas.map((f, i) => {
-      const cy = m.t + i * fh + fh / 2;
-      const x1 = x(f.desde), x2 = f.hasta ? x(f.hasta) : W - m.r;
-      return `<text x="${m.l - 12}" y="${cy + 6}" text-anchor="end" class="eje fuerte">${esc(f.etiqueta)}</text>
-        <rect x="${x1}" y="${cy - 9}" width="${Math.max(4, x2 - x1)}" height="18" rx="4" fill="var(--estimado-suave)" stroke="var(--serie-est)" stroke-width="2" ${f.hasta ? "" : 'stroke-dasharray="6 4"'}/>
-        ${f.hasta ? "" : `<text x="${W - m.r - 4}" y="${cy + 5}" text-anchor="end" class="eje">sin fin en el horizonte →</text>`}
-        ${!f.contractual ? "" : dia(f.contractual) > max ? `<text x="${W - m.r - 4}" y="${cy + 6}" text-anchor="end" class="eje">fin de cobertura ${esc(corto(f.contractual))} →</text>`
-          : `<rect x="${x(f.contractual) - 7}" y="${cy - 7}" width="14" height="14" transform="rotate(45 ${x(f.contractual)} ${cy})" fill="var(--superficie)" stroke="var(--texto)" stroke-width="2.5"/>`}`;
-    }).join("")}
-  </svg>`;
+  const W = 980, fh = 62, m = { l: 200, r: 120, t: 78, b: 14 };
+  const H = m.t + filas.length * fh + m.b;
+  const xd = d => m.l + (d - min) / Math.max(1, max - min) * (W - m.l - m.r);
+  const x = f => xd(dia(f));
+  const iso = d => new Date(d * 86400000).toISOString().slice(0, 10);
+
+  // Semanas alternas sombreadas y una marca por semana desde la fecha de los datos.
+  const semanas = [];
+  for (let d = min, k = 0; d < max; d += 7, k++) semanas.push({ d, k });
+  const fondoSemanas = semanas.filter(s => s.k % 2 === 1).map(s => `<rect x="${xd(s.d)}" y="${m.t - 8}" width="${xd(Math.min(s.d + 7, max)) - xd(s.d)}" height="${H - m.t - m.b + 8}" fill="var(--superficie-2)" opacity=".7"/>`).join("");
+  const marcas = semanas.slice(1).map(s => `<line x1="${xd(s.d)}" x2="${xd(s.d)}" y1="${m.t - 8}" y2="${H - m.b}" stroke="var(--rejilla)"/>
+    <text x="${xd(s.d)}" y="${m.t - 18}" text-anchor="middle" class="eje">${esc(corto(iso(s.d)))}</text>`).join("");
+  const xc = x(corte);
+  const marcaCorte = `<line x1="${xc}" x2="${xc}" y1="${m.t - 8}" y2="${H - m.b}" stroke="var(--texto-2)" stroke-width="2" stroke-dasharray="4 4"/><line x1="${xc}" x2="${xc}" y1="32" y2="${m.t - 8}" stroke="var(--texto)" stroke-width="2"/>
+    <rect x="${xc - 64}" y="4" width="128" height="28" rx="14" fill="var(--texto)"/>
+    <text x="${xc}" y="23" text-anchor="middle" class="eje-pildora">Datos al ${esc(corto(corte))}</text>`;
+
+  const defs = [], cuerpo = [];
+  filas.forEach((f, i) => {
+    const y0 = m.t + i * fh, cy = y0 + fh / 2, alto = 20;
+    const x1 = x(f.desde), x2 = f.hasta ? x(f.hasta) : W - m.r, ancho = Math.max(alto, x2 - x1);
+    const xp = f.probable ? x(f.probable) : null;
+    const pos = xp != null ? Math.min(1, Math.max(0, (xp - x1) / ancho)) : 0.5;
+    const id = `vg-${i}-${String(f.etiqueta).replace(/[^\w-]/g, "")}`;
+    // Intensidad: suave en los bordes, máxima en la fecha más probable; sin final, se desvanece hacia la derecha.
+    defs.push(`<linearGradient id="${id}" x1="0" x2="1" y1="0" y2="0">
+      <stop offset="0" style="stop-color:var(--serie-est);stop-opacity:.2"/>
+      <stop offset="${pos.toFixed(3)}" style="stop-color:var(--serie-est);stop-opacity:.75"/>
+      <stop offset="1" style="stop-color:var(--serie-est);stop-opacity:${f.hasta ? ".2" : "0"}"/></linearGradient>`);
+    const n = Math.round(dia(f.desde) - min);
+    const tip = [`${f.etiqueta}: es probable que vuelva a comprar`,
+      f.hasta ? ` entre el ${partes(f.desde)[1] === partes(f.hasta)[1] ? partes(f.desde)[2] : largo(f.desde)} y el ${largo(f.hasta)}` : ` a partir del ${largo(f.desde)} (sin fecha de fin dentro del horizonte)`,
+      f.probable ? `; la fecha más probable es el ${largo(f.probable)}.` : ".",
+      f.recencia != null ? ` Su última compra fue hace ${f.recencia} días.` : "",
+      f.contractual ? ` Su cobertura termina el ${largo(f.contractual)} (fecha de contrato).` : ""].join("");
+    const contractual = !f.contractual ? "" : dia(f.contractual) > max
+      ? `<text x="${W - 8}" y="${cy + 26}" text-anchor="end" class="eje chico">fin de cobertura ${esc(corto(f.contractual))} →</text>`
+      : `<rect x="${x(f.contractual) - 7}" y="${cy - 7}" width="14" height="14" transform="rotate(45 ${x(f.contractual)} ${cy})" fill="var(--superficie)" stroke="var(--texto)" stroke-width="2.5"/>`;
+    const etiquetaFin = f.hasta ? `<text x="${x2 + 12}" y="${cy + 5}" class="eje valor">${esc(rango(f.desde, f.hasta))}</text>`
+      : `<text x="${W - 8}" y="${cy + 5}" text-anchor="end" class="eje chico">sin fin en el horizonte →</text>`;
+    cuerpo.push(`<g class="fila-rango">
+      <rect class="fondo-fila" x="4" y="${y0 + 3}" width="${W - 8}" height="${fh - 6}" rx="10" fill="transparent"/>
+      <text x="18" y="${cy - 3}" class="eje fuerte">${esc(f.etiqueta)}</text>
+      <text x="18" y="${cy + 18}" class="eje chico${n <= 7 ? " pronto" : ""}">${esc(enDias(n))}</text>
+      <rect x="${x1}" y="${cy - alto / 2}" width="${ancho}" height="${alto}" rx="${alto / 2}" fill="url(#${id})" stroke="var(--serie-est)" stroke-width="1.5" ${f.hasta ? "" : 'stroke-dasharray="6 4"'}/>
+      ${xp != null ? `<circle cx="${xp}" cy="${cy}" r="8" fill="var(--serie-est)" stroke="var(--superficie)" stroke-width="2"/>` : ""}
+      ${etiquetaFin}${contractual}
+      <rect class="hit" tabindex="0" role="img" aria-label="${esc(tip)}" data-tip="${esc(tip)}" data-ancla="${((xp ?? x1) / W).toFixed(4)}" x="4" y="${y0 + 3}" width="${W - 8}" height="${fh - 6}" rx="10" fill="transparent"/>
+    </g>`);
+  });
+
+  const svg = `<svg class="grafico-ventanas" viewBox="0 0 ${W} ${H}" role="group" aria-label="${esc(titulo)}. La tabla de abajo tiene las mismas fechas.">
+    <defs>${defs.join("")}</defs>${fondoSemanas}${marcas}${marcaCorte}${cuerpo.join("")}</svg>`;
+  const hayProbable = filas.some(f => f.probable), hayContrato = filas.some(f => f.contractual);
   return `<figure class="grafico"><figcaption><strong>${esc(titulo)}</strong></figcaption>
-    <ul class="leyenda"><li><span class="muestra rango" aria-hidden="true"></span> Ventana estimada${nivel ? ` (${esc(nivel)})` : ""}</li><li><span class="muestra rombo" aria-hidden="true"></span> Fin de cobertura (fecha de contrato, no estimada)</li><li><span class="muestra corte" aria-hidden="true"></span> Fecha de los datos</li></ul>
-    <div class="grafico-lienzo" role="region" tabindex="0" aria-label="Gráfico de ventanas; se puede desplazar">${svg}</div></figure>`;
+    <ul class="leyenda"><li><span class="muestra ventana" aria-hidden="true"></span> Periodo en que probablemente vuelva a comprar</li>
+      ${hayProbable ? '<li><span class="muestra punto" aria-hidden="true"></span> Fecha más probable</li>' : ""}
+      <li><span class="muestra corte" aria-hidden="true"></span> Fecha de los datos</li>
+      ${hayContrato ? '<li><span class="muestra rombo" aria-hidden="true"></span> Fin de cobertura (contrato, no estimado)</li>' : ""}</ul>
+    <div class="grafico-lienzo" role="region" tabindex="0" aria-label="Gráfico de ventanas; se puede desplazar">${svg}<div class="tip oculto" role="status"></div></div>
+    <p class="muted nota-grafico"><strong>Cómo leerlo:</strong> cuanto más intenso el color, más probable es la compra en esa fecha. Conviene contactar al cliente justo antes de que empiece su barra.${nivel ? ` La barra va ${esc(nivel)}.` : ""} Pasa el cursor o toca una fila para ver el detalle.</p></figure>`;
 }
 
 /** Muestra el valor de un punto al enfocarlo con teclado o tacto, o al pasar el ratón. La tabla tiene los mismos valores. */
@@ -248,7 +297,11 @@ export function activarTooltips() {
       const mostrar = () => {
         const r = h.getBoundingClientRect(), b = lienzo.getBoundingClientRect();
         tip.textContent = h.dataset.tip; tip.classList.remove("oculto");
-        tip.style.left = `${Math.max(0, Math.min(r.left - b.left + lienzo.scrollLeft - 60, lienzo.scrollWidth - 300))}px`; tip.style.top = `${Math.max(0, r.top - b.top - 70)}px`;
+        // data-ancla: posición horizontal (0 a 1 del ancho del gráfico) donde conviene abrir el detalle.
+        const svgR = h.ownerSVGElement?.getBoundingClientRect();
+        const izq = h.dataset.ancla && svgR ? svgR.left - b.left + Number(h.dataset.ancla) * svgR.width - 40 : r.left - b.left - 60;
+        tip.style.left = `${Math.max(0, Math.min(izq + lienzo.scrollLeft, lienzo.scrollWidth - 300))}px`; const arriba = r.top - b.top - tip.offsetHeight - 6;
+        tip.style.top = `${h.dataset.ancla ? (arriba >= 0 ? arriba : r.bottom - b.top + 6) : Math.max(0, r.top - b.top - 70)}px`;
       };
       const ocultar = () => tip.classList.add("oculto");
       h.addEventListener("mouseenter", mostrar); h.addEventListener("focus", mostrar);

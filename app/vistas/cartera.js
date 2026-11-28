@@ -282,7 +282,7 @@ function pestanaResumen(f, c, corte, local) {
     ...f.historial.slice(0, 6).map(v => ({ fecha: v.fecha, etiquetaFecha: fechaLarga(v.fecha), tipo: "compra", titulo: `Compra registrada · ${v.producto || v.producto_id}`, chip: "Hecho", detalle: esc(millones(v.importe_cop)) })),
     ...f.coberturas.map(x => ({ fecha: x.fecha_fin, etiquetaFecha: fechaLarga(x.fecha_fin), tipo: "vencimiento", titulo: `Fin de cobertura · ${x.producto || x.producto_id}`, chip: "Fecha de contrato", detalle: esc(`${relativoVencimiento(x.dias_para_fin).replace("del cierre", "de los datos")}`) })),
     ...f.oportunidades.filter(o => o.fecha_sugerida).map(o => ({ fecha: o.fecha_sugerida, etiquetaFecha: fechaLarga(o.fecha_sugerida), tipo: "sugerida", titulo: `Revisión sugerida · ${o.accion || o.tipo}`, chip: "Sugerencia", detalle: esc(o.motivos.join(" · ")) })),
-    ...(vp && vp.fecha_p10 ? [{ fecha: vp.fecha_p10, etiquetaFecha: `${fechaLarga(vp.fecha_p10)}${vp.fecha_p50 ? ` a ${fechaLarga(vp.fecha_p50)}` : ""}`, tipo: "sugerida", titulo: "Ventana estimada de próxima compra", chip: "Estimación en prueba", detalle: esc(vp.fecha_p50 ? "Entre el 10 % y el 50 % de posibilidad estimada; no es una fecha de compra." : "La mitad de posibilidad no se alcanza dentro del horizonte; no hay fecha de fin.") }] : []),
+    ...(vp && vp.fecha_p10 ? [{ fecha: vp.fecha_p10, etiquetaFecha: `${fechaLarga(vp.fecha_p10)}${vp.fecha_p50 ? ` a ${fechaLarga(vp.fecha_p50)}` : ""}`, tipo: "sugerida", titulo: "Ventana estimada de próxima compra", chip: "Estimación", detalle: esc(vp.fecha_p50 ? "Entre el 10 % y el 50 % de posibilidad estimada; no es una fecha de compra." : "La mitad de posibilidad no se alcanza dentro del horizonte; no hay fecha de fin.") }] : []),
   ].sort((a, b) => a.fecha.localeCompare(b.fecha));
   const ia = !local && enServidor() ? `<section class="panel ia-panel" id="ia-ficha" aria-live="polite"><h2>Para preparar la conversación</h2><div class="ia-cuerpo"></div></section>` : "";
   return `${ia}<section class="panel"><h2>Compras, vencimientos y estimaciones en el tiempo</h2>
@@ -314,7 +314,7 @@ function pestanaSenales(f, c, modelo) {
   <section class="panel"><h2>¿Es probable que compre en 30 días?</h2><p>${estimacion}</p>${senalesHtml(c.prediccion)}
     ${modelo ? `<p class="muted">Modelo ${esc(modelo.version || "")} · publicado con el cierre.</p>` : ""}
     ${enServidor() && puede("cartera.ver") ? '<p><a href="#/ia">Cómo se mide este modelo</a></p>' : ""}</section>
-  ${inactividadFichaHtml(f.inactividad_sombra) || (enServidor() && puede("prevencion.ver") ? `<section class="panel"><h2>¿Podría dejar de comprar?</h2>${vacio("Sin estimación de riesgo para este cliente.", "No hay una publicación en prueba que lo incluya.")}</section>` : "")}
+  ${inactividadFichaHtml(f.inactividad_sombra) || (enServidor() && puede("prevencion.ver") ? `<section class="panel"><h2>¿Podría dejar de comprar?</h2>${vacio("Sin estimación de riesgo para este cliente.", "No hay una publicación que lo incluya.")}</section>` : "")}
   ${proximaFichaHtml(f.proxima_sombra) || (enServidor() && puede("proxima.ver") ? `<section class="panel"><h2>¿Cuándo conviene contactar?</h2>${vacio("Sin ventana estimada para este cliente.")}</section>` : "")}
   ${ventaCruzadaFichaHtml(f.venta_cruzada_sombra) || (enServidor() && puede("venta_cruzada.ver") ? `<section class="panel"><h2>Productos que podrías ofrecer</h2>${vacio("Sin sugerencias para este cliente.")}</section>` : "")}`;
 }
@@ -323,6 +323,6 @@ function pestanaSeguimientos(f) {
   return `<section class="panel"><h2>Seguimiento del cliente</h2>
     ${f.tarea ? `<dl class="cifras"><div><dt>Estado actual</dt><dd>${esc(f.tarea.estado)}</dd></div><div><dt>Responsable</dt><dd>${esc(f.tarea.responsable_id || "Sin responsable")}</dd></div><div><dt>Motivo</dt><dd>${esc((f.tarea.motivos || []).join(" · ") || "—")}</dd></div></dl>
       <a class="boton" href="#/tareas/${f.tarea.id}">Abrir el seguimiento</a>`
-      : enServidor() ? vacio("No hay un seguimiento abierto para este cliente.", "Los seguimientos los crea el cierre mensual a partir de las alertas. Las sugerencias de los modelos en prueba no crean seguimientos.", puede("tareas.ver") ? '<a class="boton-sec" href="#/tareas">Ver todos los seguimientos</a>' : "") : vacio("Los seguimientos requieren entrar con tu perfil.")}</section>
+      : enServidor() ? vacio("No hay un seguimiento abierto para este cliente.", "Los seguimientos los crea el cierre mensual a partir de las alertas. Las sugerencias de los modelos no crean seguimientos.", puede("tareas.ver") ? '<a class="boton-sec" href="#/tareas">Ver todos los seguimientos</a>' : "") : vacio("Los seguimientos requieren entrar con tu perfil.")}</section>
   <section class="panel"><h2>Oportunidades del cierre</h2>${f.oportunidades.length ? `<ul>${f.oportunidades.map(o => `<li><strong>${esc(o.accion || o.tipo)}</strong>${o.fecha_sugerida ? ` · revisar desde el ${esc(fechaLarga(o.fecha_sugerida))}` : ""}${o.motivos?.length ? `<span class="muted">${esc(o.motivos.join(" · "))}</span>` : ""}</li>`).join("")}</ul>` : '<p class="muted">Sin oportunidades publicadas para este cliente.</p>'}</section>`;
 }
