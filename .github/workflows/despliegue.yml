@@ -1,7 +1,9 @@
 # Despliegue continuo en Azure App Service.
 # La autenticación de Azure y la contraseña inicial del administrador se guardan
 # como secretos del entorno «produccion»; no se versionan en el repositorio.
-# Variables: AZURE_RESOURCE_GROUP, AZURE_WEBAPP_NAME, URL_PUBLICA.
+# Variables opcionales: AZURE_RESOURCE_GROUP, AZURE_WEBAPP_NAME, URL_PUBLICA.
+# Si no existen en el entorno «produccion», se usan los valores del App Service
+# de staging documentado para que el flujo no quede omitido silenciosamente.
 # Secretos: AZURE_CREDENTIALS, JACOMIND_ADMIN_PASSWORD.
 name: Despliegue
 
@@ -23,18 +25,18 @@ jobs:
   azure:
     name: Azure App Service
     if: >-
-      vars.AZURE_WEBAPP_NAME != '' && (github.event_name == 'workflow_dispatch' ||
-      (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push'))
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
     runs-on: ubuntu-latest
     timeout-minutes: 20
     environment:
       name: produccion
-      url: ${{ vars.URL_PUBLICA }}/app/
+      url: ${{ vars.URL_PUBLICA || 'https://jacomind-stg-211126.azurewebsites.net' }}/app/
     env:
       COMMIT: ${{ github.event.workflow_run.head_sha || github.sha }}
-      RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
-      WEBAPP_NAME: ${{ vars.AZURE_WEBAPP_NAME }}
-      PUBLIC_URL: ${{ vars.URL_PUBLICA }}
+      RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP || 'rg-jacomind-staging' }}
+      WEBAPP_NAME: ${{ vars.AZURE_WEBAPP_NAME || 'jacomind-stg-211126' }}
+      PUBLIC_URL: ${{ vars.URL_PUBLICA || 'https://jacomind-stg-211126.azurewebsites.net' }}
       ADMIN_PASSWORD: ${{ secrets.JACOMIND_ADMIN_PASSWORD }}
     steps:
       - name: Descargar el commit aprobado
